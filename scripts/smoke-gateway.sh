@@ -72,6 +72,14 @@ else
   check "Socket.io: conexion registrada en logs de orders" 1
 fi
 
+# 7b. Upgrade real a WebSocket (101 Switching Protocols)
+ws=$(curl -s -o /dev/null -m 3 -w '%{http_code}' \
+  -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+  -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+  "$BASE/socket.io/?EIO=4&transport=websocket")
+[ "$ws" = "101" ]
+check "WebSocket: upgrade en /socket.io/ -> 101 Switching Protocols" $?
+
 # 8. Cabeceras de seguridad en /
 hdr=$(curl -sI "$BASE/")
 echo "$hdr" | head -1 | grep -q " 200" \
