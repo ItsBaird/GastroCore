@@ -1,0 +1,75 @@
+name: app
+
+x-node-service: &node-service
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/$${SERVICE_NAME}/health"]
+    interval: 10s
+    timeout: 3s
+    retries: 5
+    start_period: 10s
+
+services:
+  gateway:
+    image: nginx:stable-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./gateway/public:/usr/share/nginx/html:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/index.html"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  auth:
+    <<: *node-service
+    build: ./backend/auth
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      SERVICE_NAME: auth
+
+  staff:
+    <<: *node-service
+    build: ./backend/staff
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      SERVICE_NAME: staff
+
+  orders:
+    <<: *node-service
+    build: ./backend/orders
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      SERVICE_NAME: orders
+
+  catalog:
+    <<: *node-service
+    build: ./backend/catalog
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      SERVICE_NAME: catalog
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
