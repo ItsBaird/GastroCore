@@ -37,9 +37,17 @@ bash scripts/smoke-gateway.sh
 ```
 Imprime OK/FAIL por verificación (gateway, errores, CORS, base de datos y Prisma). Detiene y reinicia `catalog` durante la prueba y el límite de login es por minuto: espera ~60 s entre ejecuciones. Más detalle en [docs/gateway.md](docs/gateway.md).
 
+## Frontend
+SPA en React + Vite dentro de `frontend/`. Para verla en local, con el stack levantado y el admin creado:
+```bash
+cd frontend && npm install && npm run dev    # http://localhost:5173
+```
+Detalle de la estructura, la sesión y las rutas en [frontend/README.md](frontend/README.md).
+
 ## Estructura
 
 ```
+frontend/           SPA React (login y gestion de usuarios)
 backend/_template   plantilla de microservicio (helmet, cors, rate-limit, zod, errores comunes)
 backend/<servicio>  auth (3001), staff (3002), catalog (3003), orders (3004)
 db/init             creación de roles, bases y esquema (SQL = fuente de verdad)
