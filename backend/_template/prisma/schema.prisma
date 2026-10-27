@@ -1,0 +1,10 @@
+// GastroCore - modelo Prisma de __SERVICE__.
+// La fuente de verdad del DDL es db/init/schema/__SERVICE__.sql (CHECK, triggers e indices parciales viven alli).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

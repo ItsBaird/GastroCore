@@ -1,3 +1,4 @@
+import { ZodError } from 'zod';
 import { env } from '../config/env.js';
 import { AppError } from '../errors/AppError.js';
 
@@ -11,6 +12,11 @@ export function errorHandler(err, req, res, next) {
 
   if (err instanceof AppError) {
     ({ status, code, message, details } = err);
+  } else if (err instanceof ZodError) {
+    status = 400;
+    code = 'VALIDATION_ERROR';
+    message = 'Datos de entrada invalidos';
+    details = { fields: err.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) };
   } else if (err?.type === 'entity.parse.failed') {
     status = 400;
     code = 'VALIDATION_ERROR';
