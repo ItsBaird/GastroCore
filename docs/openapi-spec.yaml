@@ -195,31 +195,48 @@ paths:
   /api/auth/refresh:
     post:
       tags: [Auth]
-      summary: Renovar el access token
-      description: Usa la cookie del refresh token y lo rota (el anterior queda invalidado).
+      summary: Renovar el access token (rota el refresh token)
+      description: |
+        Se identifica por la cookie `refreshToken` (httpOnly), no por el access token, que puede estar
+        vencido. Emite un access token nuevo y rota el refresh token: el anterior queda invalidado y
+        encadenado al nuevo (`replaced_by`). Si se presenta un token que ya fue rotado, se asume
+        reutilizacion y se cierran todas las sesiones del usuario. Un usuario desactivado tampoco puede renovar.
       security: []
+      parameters:
+        - name: refreshToken
+          in: cookie
+          required: true
+          schema: { type: string }
       responses:
         '200':
-          description: Nuevo access token
+          description: Sesion renovada
           headers:
             Set-Cookie:
-              description: Nuevo refresh token rotado
+              description: Nuevo refresh token (httpOnly; Secure; SameSite=Strict; Path=/api/auth; 7 dias)
               schema: { type: string }
           content:
             application/json:
-              schema:
-                type: object
-                required: [accessToken]
-                properties:
-                  accessToken: { type: string }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401':
+          description: Sin cookie, token desconocido, vencido, revocado o ya rotado (`UNAUTHENTICATED`). La cookie se limpia.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /api/auth/logout:
     post:
       tags: [Auth]
       summary: Cerrar sesion (revoca el refresh token)
+      description: |
+        Revoca el refresh token de la cookie y la limpia. No exige access token (puede estar vencido) y es
+        idempotente: responde 204 aunque no haya sesion. Solo cierra esa sesion, no las demas del usuario.
+      security: []
+      parameters:
+        - name: refreshToken
+          in: cookie
+          required: false
+          schema: { type: string }
       responses:
         '204': { description: Sesion cerrada }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
   /api/auth/me:
     get:
       tags: [Auth]
