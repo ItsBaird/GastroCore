@@ -10,12 +10,20 @@
 ### Pasos
 ```bash
 cp .env.example .env      # ajusta los valores si hace falta
+bash scripts/generate-keys.sh   # par RSA para los JWT, queda en ./keys (fuera de git)
 docker compose up -d --build
 docker compose ps         # todos deben quedar "healthy"
 ```
 La aplicación queda en `http://localhost` (solo el gateway publica puerto). Contenedores: `gateway` (nginx), `auth`, `staff`, `catalog`, `orders`, `postgres` y `pgadmin`.
 
 La primera vez, Postgres crea las 4 bases y las 22 tablas desde `db/init`. Para recrearlas desde cero en local: `docker compose down -v` (borra los datos) y vuelve a levantar. Detalle en [docs/database.md](docs/database.md).
+
+### Primer administrador
+Nadie puede crear usuarios sin un ADMIN, asi que el primero se crea con un script que lee `ADMIN_EMAIL` y `ADMIN_PASSWORD` del `.env` (la contrasena debe tener al menos 10 caracteres). Es idempotente:
+```bash
+docker compose exec auth npm run seed:admin
+```
+Despues, el ADMIN crea al resto con `POST /api/auth/register`. Hasta que exista el login (GC-AUTH-0002) se puede probar firmando un token de prueba con la clave privada de `./keys`.
 
 ### pgAdmin (solo desarrollo)
 pgAdmin corre en la red interna y no publica puerto. Para abrirlo en `http://127.0.0.1:5050`:

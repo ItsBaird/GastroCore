@@ -96,9 +96,15 @@ code=$(status -X POST -H 'Content-Type: application/json' -d '{bad' "$BASE/api/a
 [ "$code" = "400" ] && is_error_json "$body" VALIDATION_ERROR
 check "JSON mal formado -> 400 VALIDATION_ERROR" $?
 
+# 8b2. Solo un ADMIN autenticado puede crear usuarios
+body=$(curl -s -X POST -H 'Content-Type: application/json' -d '{}' "$BASE/api/auth/register")
+code=$(status -X POST -H 'Content-Type: application/json' -d '{}' "$BASE/api/auth/register")
+[ "$code" = "401" ] && is_error_json "$body" UNAUTHENTICATED
+check "POST /api/auth/register sin token -> 401 UNAUTHENTICATED" $?
+
 # 8c. CORS restringido: el origen permitido es siempre el del sistema (el navegador bloquea los demas)
-acao_ok=$(curl -si -H 'Origin: http://localhost' "$BASE/api/auth/health" | tr -d '' | sed -n 's/^[Aa]ccess-[Cc]ontrol-[Aa]llow-[Oo]rigin: //p')
-acao_evil=$(curl -si -H 'Origin: http://evil.example' "$BASE/api/auth/health" | tr -d '' | sed -n 's/^[Aa]ccess-[Cc]ontrol-[Aa]llow-[Oo]rigin: //p')
+acao_ok=$(curl -si -H 'Origin: http://localhost' "$BASE/api/auth/health" | tr -d '\r' | sed -n 's/^[Aa]ccess-[Cc]ontrol-[Aa]llow-[Oo]rigin: //p')
+acao_evil=$(curl -si -H 'Origin: http://evil.example' "$BASE/api/auth/health" | tr -d '\r' | sed -n 's/^[Aa]ccess-[Cc]ontrol-[Aa]llow-[Oo]rigin: //p')
 [ "$acao_ok" = "${CORS_ORIGIN:-http://localhost}" ] && [ "$acao_evil" != "http://evil.example" ]
 check "CORS: Access-Control-Allow-Origin solo permite el origen del sistema" $?
 
