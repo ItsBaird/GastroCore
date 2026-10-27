@@ -128,7 +128,10 @@ paths:
     put:
       tags: [Auth]
       summary: Cambiar rol o bloquear/desbloquear un usuario (ADMIN)
-      description: REQ-F01-07.
+      description: |
+        REQ-F01-07. Solo cambia `role` e `isActive`; email y contrasena no se editan aqui. Con
+        `isActive=false` se revocan los refresh tokens del usuario; con `isActive=true` se limpia el
+        bloqueo por intentos fallidos. Un ADMIN no puede quitarse el rol ni desactivarse a si mismo (403).
       x-roles: [ADMIN]
       requestBody:
         required: true
@@ -148,7 +151,9 @@ paths:
     delete:
       tags: [Auth]
       summary: Desactivar un usuario (ADMIN)
-      description: Desactivacion logica (is_active = false); no borra el registro.
+      description: |
+        Desactivacion logica (`isActive=false`); no borra el registro y revoca los refresh tokens.
+        Es idempotente. Un ADMIN no puede desactivarse a si mismo (403).
       x-roles: [ADMIN]
       responses:
         '204': { description: Usuario desactivado }

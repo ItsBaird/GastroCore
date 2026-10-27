@@ -39,3 +39,54 @@ export async function createUser({ email, password, role }) {
     throw err;
   }
 }
+
+export async function listUsers() {
+  const users = await userRepository.findAll();
+  return users.map(toPublicUser);
+}
+
+async function findExistingUser(userId) {
+  const user = await userRepository.findById(userId);
+  if (!user) {
+    throw new AppError({ status: 404, code: 'NOT_FOUND', message: 'Usuario no encontrado' });
+  }
+  return user;
+}
+
+export async function getUser(userId) {
+  return toPublicUser(await findExistingUser(userId));
+}
+
+// Evita que el sistema se quede sin administradores
+function assertNotSelfDemotion(actorId, targetId, { role, isActive }) {
+  const demotes = role !== undefined && role !== 'ADMIN';
+  const deactivates = isActive === false;
+  if (actorId === targetId && (demotes || deactivates)) {
+    throw new AppError({
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'No puedes desactivarte ni quitarte el rol de administrador a ti mismo',
+    });
+  }
+}
+
+export async function updateUser(actorId, userId, { role, isActive }) {
+  assertNotSelfDemotion(actorId, userId, { role, isActive });
+  await findExistingUser(userId);
+
+  const data = {};
+  if (role !== undefined) data.role = role;
+  if (isActive !== undefined) {
+    data.isActive = isActive;
+    // Reactivar tambien levanta el bloqueo por intentos fallidos
+    if (isActive) Object.assign(data, { failedLoginAttempts: 0, lockedUntil: null });
+  }
+
+  // Desactivar cierra las sesiones: se revocan sus refresh tokens
+  const user = await userRepository.update(userId, data, { revokeSessions: isActive === false });
+  return toPublicUser(user);
+}
+
+export async function deactivateUser(actorId, userId) {
+  await updateUser(actorId, userId, { isActive: false });
+}
