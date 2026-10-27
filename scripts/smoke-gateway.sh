@@ -58,6 +58,23 @@ body=$(curl -s -X POST "$BASE/api/auth/login" -H 'Content-Type: application/json
 echo "$body" | grep -q '"code":"UNAUTHENTICATED"'
 check "login con email inexistente -> 401 UNAUTHENTICATED" $?
 
+# 4c. Refresh con rotacion y logout (se envia la cookie a mano: es Secure y el gateway va por http)
+cookie_of() { sed -n 's/^[Ss]et-[Cc]ookie: refreshToken=//p' | cut -d';' -f1; }
+cookie_a=$(echo "$cookie_line" | cookie_of)
+refresh_resp=$(curl -si -X POST "$BASE/api/auth/refresh" -H "Cookie: refreshToken=$cookie_a" | tr -d '\r')
+cookie_b=$(echo "$refresh_resp" | grep -i '^set-cookie: refreshToken=' | cookie_of)
+echo "$refresh_resp" | head -1 | grep -q " 200" && [ -n "$cookie_b" ] && [ "$cookie_b" != "$cookie_a" ] \
+  && echo "$refresh_resp" | grep -q '"accessToken"'
+check "POST /api/auth/refresh -> 200, access token nuevo y refresh token rotado" $?
+[ "$(status -X POST "$BASE/api/auth/refresh")" = "401" ]
+check "refresh sin cookie -> 401" $?
+[ "$(status -X POST "$BASE/api/auth/logout" -H "Cookie: refreshToken=$cookie_b")" = "204" ]
+check "POST /api/auth/logout -> 204" $?
+[ "$(status -X POST "$BASE/api/auth/refresh" -H "Cookie: refreshToken=$cookie_b")" = "401" ]
+check "refresh con el token ya cerrado -> 401" $?
+[ "$(status -X POST "$BASE/api/auth/refresh" -H "Cookie: refreshToken=$cookie_a")" = "401" ]
+check "refresh con el token ya rotado (reutilizado) -> 401" $?
+
 # 5. Rate limit login: 5 pasan, el sexto 429
 last=""
 for _ in 1 2 3 4 5 6; do last=$(status -X POST "$BASE/api/auth/login"); done

@@ -13,6 +13,13 @@ export const userRepository = {
     });
   },
 
+  findByIdWithPermissions(userId) {
+    return prisma.user.findUnique({
+      where: { userId },
+      include: { permissions: { include: { permission: { select: { code: true } } } } },
+    });
+  },
+
   // Incremento atomico: dos intentos simultaneos no se pisan el contador
   incrementFailedAttempts(userId) {
     return prisma.user.update({
