@@ -4,7 +4,7 @@ import { env } from '../config/env.js';
 import { AppError } from '../errors/AppError.js';
 import { refreshTokenRepository } from '../repositories/refreshToken.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
-import { generateRefreshToken, signAccessToken } from './token.service.js';
+import { generateRefreshToken, hashToken, signAccessToken } from './token.service.js';
 
 // Hash de relleno: si el email no existe se verifica igual, para que la respuesta
 // tarde lo mismo y no revele si la cuenta existe
@@ -17,6 +17,11 @@ function invalidCredentials() {
     code: 'UNAUTHENTICATED',
     message: 'Credenciales invalidas',
   });
+}
+
+// Sesion invalida: sin refresh token, desconocido, vencido, revocado o ya rotado
+function invalidSession() {
+  return new AppError({ status: 401, code: 'UNAUTHENTICATED', message: 'Sesion no valida' });
 }
 
 function accountLocked(lockedUntil) {
@@ -64,7 +69,14 @@ export async function login({ email, password }) {
     await userRepository.resetLoginState(user.userId);
   }
 
-  const permissions = user.permissions.map((up) => up.permission.code);
+  return issueSession(user);
+}
+
+const permissionCodes = (user) => user.permissions.map((up) => up.permission.code);
+
+// Emite access token + refresh token nuevo para el usuario (login)
+async function issueSession(user) {
+  const permissions = permissionCodes(user);
   const accessToken = signAccessToken({ userId: user.userId, role: user.role, permissions });
 
   const refresh = generateRefreshToken();
@@ -80,4 +92,52 @@ export async function login({ email, password }) {
     refreshExpiresAt: refresh.expiresAt,
     user: { userId: user.userId, email: user.email, role: user.role, permissions },
   };
+}
+
+// Renovacion con rotacion (REQ-F01-04): el refresh token usado queda invalidado y se emite uno nuevo.
+// Si llega un token que ya fue rotado, alguien lo esta reutilizando (posible robo): se cierran
+// todas las sesiones del usuario.
+export async function refresh(plainToken) {
+  if (!plainToken) throw invalidSession();
+
+  const stored = await refreshTokenRepository.findByHash(hashToken(plainToken));
+  if (!stored) throw invalidSession();
+
+  if (stored.revokedAt) {
+    if (stored.replacedBy) await refreshTokenRepository.revokeAllForUser(stored.userId);
+    throw invalidSession();
+  }
+  if (stored.expiresAt <= new Date()) throw invalidSession();
+
+  const user = await userRepository.findByIdWithPermissions(stored.userId);
+  if (!user || !user.isActive) {
+    await refreshTokenRepository.revokeAllForUser(stored.userId);
+    throw invalidSession();
+  }
+
+  const next = generateRefreshToken();
+  const rotated = await refreshTokenRepository.rotate(stored.refreshTokenId, {
+    userId: user.userId,
+    tokenHash: next.tokenHash,
+    expiresAt: next.expiresAt,
+  });
+  if (!rotated) {
+    // Otra peticion uso el mismo token un instante antes
+    await refreshTokenRepository.revokeAllForUser(stored.userId);
+    throw invalidSession();
+  }
+
+  const permissions = permissionCodes(user);
+  return {
+    accessToken: signAccessToken({ userId: user.userId, role: user.role, permissions }),
+    refreshToken: next.token,
+    refreshExpiresAt: next.expiresAt,
+    user: { userId: user.userId, email: user.email, role: user.role, permissions },
+  };
+}
+
+// Cierra la sesion: revoca ese refresh token. Es idempotente y no falla si no hay sesion.
+export async function logout(plainToken) {
+  if (!plainToken) return;
+  await refreshTokenRepository.revokeByHash(hashToken(plainToken));
 }
