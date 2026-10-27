@@ -2,6 +2,7 @@ import http from 'node:http';
 import { Server } from 'socket.io';
 import app from './app.js';
 import { env } from './config/env.js';
+import { prisma } from './config/prisma.js';
 
 const server = http.createServer(app);
 const io = new Server(server);
@@ -19,8 +20,11 @@ server.listen(env.port, () => {
 
 function shutdown(signal) {
   console.log(`${signal} recibido, cerrando...`);
-  io.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 10000).unref();
+  io.close(async () => {
+    await prisma.$disconnect();
+    process.exit(0);
+  });
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));

@@ -3,10 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24" },
-  "scripts": { "start": "node src/server.js" },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "prisma:generate": "prisma generate"
+  },
   "dependencies": {
-    "express": "^5.1.0",
-    "helmet": "^8.1.0"
+    "@prisma/client": "^6.19.3",
+    "cors": "^2.8.6",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
+    "prisma": "^6.19.3",
+    "zod": "^4.6.7"
   }
 }
