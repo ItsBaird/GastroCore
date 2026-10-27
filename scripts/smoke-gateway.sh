@@ -102,6 +102,11 @@ code=$(status -X POST -H 'Content-Type: application/json' -d '{}' "$BASE/api/aut
 [ "$code" = "401" ] && is_error_json "$body" UNAUTHENTICATED
 check "POST /api/auth/register sin token -> 401 UNAUTHENTICATED" $?
 
+# 8b3. Listar y administrar usuarios tambien exige ADMIN
+code=$(status "$BASE/api/auth/users")
+[ "$code" = "401" ]
+check "GET /api/auth/users sin token -> 401" $?
+
 # 8c. CORS restringido: el origen permitido es siempre el del sistema (el navegador bloquea los demas)
 acao_ok=$(curl -si -H 'Origin: http://localhost' "$BASE/api/auth/health" | tr -d '\r' | sed -n 's/^[Aa]ccess-[Cc]ontrol-[Aa]llow-[Oo]rigin: //p')
 acao_evil=$(curl -si -H 'Origin: http://evil.example' "$BASE/api/auth/health" | tr -d '\r' | sed -n 's/^[Aa]ccess-[Cc]ontrol-[Aa]llow-[Oo]rigin: //p')
