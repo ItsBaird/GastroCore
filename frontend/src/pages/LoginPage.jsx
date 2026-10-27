@@ -17,6 +17,16 @@ export default function LoginPage() {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
 
+  // Mientras se intenta recuperar la sesion con la cookie no se muestra el formulario
+  // (evita un parpadeo y que se escriba algo que se perderia al redirigir)
+  if (status === 'checking') {
+    return (
+      <div className="boot" role="status" aria-label="Cargando">
+        <LoaderCircle className="spin" size={28} />
+      </div>
+    )
+  }
+
   // Con sesion iniciada se va a la ruta que se intentaba abrir (o al inicio del rol);
   // RequireAuth la reenvia al inicio si el rol no tiene acceso
   if (status === 'authenticated') {

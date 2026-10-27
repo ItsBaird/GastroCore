@@ -134,13 +134,6 @@
   font-size: 14px;
 }
 
-.boot {
-  display: grid;
-  place-items: center;
-  min-height: 100dvh;
-  color: var(--n-500);
-}
-
 /* ---------- Tablet: la barra lateral pasa a riel de iconos ---------- */
 @media (width <= 1100px) {
   .shell {
