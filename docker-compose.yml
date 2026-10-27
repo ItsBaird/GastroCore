@@ -2,8 +2,11 @@ name: app
 
 x-node-service: &node-service
   restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
   healthcheck:
-    test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/$${SERVICE_NAME}/health"]
+    test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:$${PORT}/api/$${SERVICE_NAME}/health']
     interval: 10s
     timeout: 3s
     retries: 5
@@ -13,13 +16,13 @@ services:
   gateway:
     image: nginx:stable-alpine
     ports:
-      - "80:80"
+      - '80:80'
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./gateway/public:/usr/share/nginx/html:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/index.html"]
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1/index.html']
       interval: 10s
       timeout: 3s
       retries: 5
@@ -29,47 +32,83 @@ services:
     build: ./backend/auth
     environment:
       NODE_ENV: ${NODE_ENV:-development}
-      PORT: 3000
+      PORT: 3001
       SERVICE_NAME: auth
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      DATABASE_URL: postgresql://auth_user:${AUTH_DB_PASSWORD}@postgres:5432/auth_db
 
   staff:
     <<: *node-service
     build: ./backend/staff
     environment:
       NODE_ENV: ${NODE_ENV:-development}
-      PORT: 3000
+      PORT: 3002
       SERVICE_NAME: staff
-
-  orders:
-    <<: *node-service
-    build: ./backend/orders
-    environment:
-      NODE_ENV: ${NODE_ENV:-development}
-      PORT: 3000
-      SERVICE_NAME: orders
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      DATABASE_URL: postgresql://staff_user:${STAFF_DB_PASSWORD}@postgres:5432/staff_db
 
   catalog:
     <<: *node-service
     build: ./backend/catalog
     environment:
       NODE_ENV: ${NODE_ENV:-development}
-      PORT: 3000
+      PORT: 3003
       SERVICE_NAME: catalog
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      DATABASE_URL: postgresql://catalog_user:${CATALOG_DB_PASSWORD}@postgres:5432/catalog_db
+
+  orders:
+    <<: *node-service
+    build: ./backend/orders
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3004
+      SERVICE_NAME: orders
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      DATABASE_URL: postgresql://orders_user:${ORDERS_DB_PASSWORD}@postgres:5432/orders_db
 
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      STAFF_DB_PASSWORD: ${STAFF_DB_PASSWORD}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD}
+      ORDERS_DB_PASSWORD: ${ORDERS_DB_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      # -h 127.0.0.1 fuerza TCP: durante la inicializacion el servidor temporal solo escucha por socket unix
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d postgres']
       interval: 10s
       timeout: 5s
       retries: 5
 
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_LISTEN_PORT: 5050
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    volumes:
+      - ./db/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:5050/misc/ping']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
 volumes:
-  postgres_data:
+  pgdata:
+  pgadmin_data:
