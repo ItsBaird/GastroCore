@@ -71,6 +71,9 @@ services:
       SERVICE_NAME: orders
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       DATABASE_URL: postgresql://orders_user:${ORDERS_DB_PASSWORD}@postgres:5432/orders_db
+      JWT_PUBLIC_KEY_PATH: /run/keys/jwt_public.pem
+    volumes:
+      - ./keys:/run/keys:ro
 
   postgres:
     image: postgres:16-alpine
