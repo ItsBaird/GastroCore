@@ -36,6 +36,11 @@ services:
       SERVICE_NAME: auth
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       DATABASE_URL: postgresql://auth_user:${AUTH_DB_PASSWORD}@postgres:5432/auth_db
+      JWT_PUBLIC_KEY_PATH: /run/keys/jwt_public.pem
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - ./keys:/run/keys:ro
 
   staff:
     <<: *node-service

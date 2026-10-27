@@ -9,3 +9,4 @@ coverage/
 .DS_Store
 *.log
 npm-debug.log*
+keys/
