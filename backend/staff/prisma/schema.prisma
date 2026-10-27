@@ -1,0 +1,43 @@
+// GastroCore - modelo Prisma. La fuente de verdad del DDL es db/init/schema/staff.sql:
+// los CHECK, los triggers set_updated_at y los indices parciales unicos viven alli (Prisma no los modela).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// user_id es una FK logica a auth_db.users.user_id (R2: sin llaves foraneas entre bases)
+model Employee {
+  userId         String   @id @map("user_id") @db.Uuid
+  fullName       String   @map("full_name") @db.VarChar(150)
+  phone          String?  @db.VarChar(30)
+  documentNumber String   @unique(map: "uq_employees_document") @map("document_number") @db.VarChar(30)
+  position       String   @db.VarChar(50)
+  hireDate       DateTime @map("hire_date") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  shifts Shift[]
+
+  @@map("employees")
+}
+
+// status (CHECK): programado | activo | finalizado
+model Shift {
+  shiftId        String    @id @default(dbgenerated("gen_random_uuid()")) @map("shift_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  scheduledStart DateTime  @map("scheduled_start") @db.Timestamptz(6)
+  scheduledEnd   DateTime  @map("scheduled_end") @db.Timestamptz(6)
+  actualStart    DateTime? @map("actual_start") @db.Timestamptz(6)
+  actualEnd      DateTime? @map("actual_end") @db.Timestamptz(6)
+  status         String    @default("programado") @db.VarChar(12)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  employee Employee @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@map("shifts")
+}
