@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
+import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from './AuthProvider.jsx'
 import { resetSessionForTests } from './session.js'
@@ -9,9 +10,13 @@ const json = (status, body) =>
 
 const SESSION = { accessToken: 't1', user: { userId: 'u1', email: 'a@b.co', role: 'ADMIN', permissions: [] } }
 
-let auth
+// El contexto mas reciente queda en ref.current para llamar login y logout desde las pruebas
+const ref = { current: null }
 function Probe() {
-  auth = useAuth()
+  const auth = useAuth()
+  useEffect(() => {
+    ref.current = auth
+  })
   return (
     <p>
       {auth.status}:{auth.user?.role ?? '-'}:{auth.expired ? 'expired' : 'ok'}
@@ -70,7 +75,7 @@ describe('AuthProvider', () => {
     mount()
     await screen.findByText('anonymous:-:ok')
 
-    await act(() => auth.login('a@b.co', 'clave'))
+    await act(() => ref.current.login('a@b.co', 'clave'))
 
     expect(await screen.findByText('authenticated:ADMIN:ok')).toBeInTheDocument()
     const [url, init] = fetchMock.mock.calls[1]
@@ -86,7 +91,7 @@ describe('AuthProvider', () => {
     mount()
     await screen.findByText('anonymous:-:ok')
 
-    await expect(auth.login('a@b.co', 'mala')).rejects.toMatchObject({ status: 401, code: 'UNAUTHENTICATED' })
+    await expect(ref.current.login('a@b.co', 'mala')).rejects.toMatchObject({ status: 401, code: 'UNAUTHENTICATED' })
     expect(screen.getByText('anonymous:-:ok')).toBeInTheDocument()
   })
 
@@ -95,7 +100,7 @@ describe('AuthProvider', () => {
     mount()
     await screen.findByText('authenticated:ADMIN:ok')
 
-    await act(() => auth.logout())
+    await act(() => ref.current.logout())
 
     expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/auth/logout' && init.method === 'POST')).toBe(true)
     expect(await screen.findByText('anonymous:-:ok')).toBeInTheDocument()
@@ -106,7 +111,7 @@ describe('AuthProvider', () => {
     mount()
     await screen.findByText('authenticated:ADMIN:ok')
 
-    await act(() => auth.logout())
+    await act(() => ref.current.logout())
 
     await waitFor(() => expect(screen.getByText('anonymous:-:ok')).toBeInTheDocument())
   })
