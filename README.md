@@ -23,7 +23,7 @@ Nadie puede crear usuarios sin un ADMIN, asi que el primero se crea con un scrip
 ```bash
 docker compose exec auth npm run seed:admin
 ```
-Despues, el ADMIN crea al resto con `POST /api/auth/register`. Hasta que exista el login (GC-AUTH-0002) se puede probar firmando un token de prueba con la clave privada de `./keys`.
+Despues, el ADMIN crea al resto con `POST /api/auth/register`. Para iniciar sesion: `POST /api/auth/login` con `{ "email", "password" }`. Devuelve el access token (15 min) en el cuerpo y el refresh token (7 dias) en la cookie `refreshToken` (`HttpOnly; Secure; SameSite=Strict`). Tras 5 intentos fallidos la cuenta se bloquea 15 minutos (`423 ACCOUNT_LOCKED`).
 
 ### pgAdmin (solo desarrollo)
 pgAdmin corre en la red interna y no publica puerto. Para abrirlo en `http://127.0.0.1:5050`:
