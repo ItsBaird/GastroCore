@@ -1,28 +1,7 @@
-import fs from 'node:fs';
-import jwt from 'jsonwebtoken';
-import { env } from '../config/env.js';
-import { AppError } from '../errors/AppError.js';
-
 // Payload del access token RS256: sub = userId, role y permissions
-let publicKey;
-
-function getPublicKey() {
-  if (!publicKey) {
-    try {
-      publicKey = fs.readFileSync(env.jwtPublicKeyPath, 'utf8');
-    } catch {
-      console.error(
-        `No se pudo leer la clave publica JWT en ${env.jwtPublicKeyPath}. Ejecuta scripts/generate-keys.sh`,
-      );
-      throw new AppError({
-        status: 500,
-        code: 'INTERNAL_ERROR',
-        message: 'Error interno del servidor',
-      });
-    }
-  }
-  return publicKey;
-}
+import jwt from 'jsonwebtoken';
+import { getPublicKey } from '../config/keys.js';
+import { AppError } from '../errors/AppError.js';
 
 function unauthenticated() {
   return new AppError({ status: 401, code: 'UNAUTHENTICATED', message: 'Sesion no valida' });
