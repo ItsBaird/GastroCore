@@ -1,15 +1,8 @@
 import argon2 from 'argon2';
 import { Prisma } from '@prisma/client';
+import { ARGON2_OPTIONS } from '../config/argon2.js';
 import { AppError } from '../errors/AppError.js';
 import { userRepository } from '../repositories/user.repository.js';
-
-// Parametros minimos recomendados por OWASP para argon2id
-const ARGON2_OPTIONS = {
-  type: argon2.argon2id,
-  memoryCost: 19456,
-  timeCost: 2,
-  parallelism: 1,
-};
 
 // Nunca se expone passwordHash ni los contadores internos de bloqueo
 export function toPublicUser(user) {

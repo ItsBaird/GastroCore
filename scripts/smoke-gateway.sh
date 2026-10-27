@@ -41,6 +41,23 @@ echo "$hdr" | head -1 | grep -q " 404" && echo "$hdr" | grep -qi 'content-type: 
   && echo "$hdr" | grep -q '"code":"NOT_FOUND"'
 check "GET /api/auth/noexiste -> 404 JSON del servicio auth" $?
 
+# 4b. Login: primero se asegura el admin (idempotente), luego login real por el gateway
+docker compose exec -T auth npm run seed:admin >/dev/null 2>&1
+login_resp=$(curl -si -X POST "$BASE/api/auth/login" -H 'Content-Type: application/json' \
+  -d "{\"email\":\"${ADMIN_EMAIL:-admin@lapizzeta.com}\",\"password\":\"${ADMIN_PASSWORD}\"}" | tr -d '\r')
+cookie_line=$(echo "$login_resp" | grep -i '^set-cookie: refreshToken=')
+echo "$login_resp" | head -1 | grep -q " 200" \
+  && echo "$cookie_line" | grep -qi 'HttpOnly' \
+  && echo "$cookie_line" | grep -qi 'Secure' \
+  && echo "$cookie_line" | grep -qi 'SameSite=Strict'
+check "POST /api/auth/login -> 200 con cookie refreshToken (HttpOnly, Secure, SameSite=Strict)" $?
+access=$(echo "$login_resp" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+[ -n "$access" ] && [ "$(status "$BASE/api/auth/users" -H "Authorization: Bearer $access")" = "200" ]
+check "el access token del login abre GET /api/auth/users (200)" $?
+body=$(curl -s -X POST "$BASE/api/auth/login" -H 'Content-Type: application/json' -d '{"email":"nadie@lapizzeta.com","password":"incorrecta-123"}')
+echo "$body" | grep -q '"code":"UNAUTHENTICATED"'
+check "login con email inexistente -> 401 UNAUTHENTICATED" $?
+
 # 5. Rate limit login: 5 pasan, el sexto 429
 last=""
 for _ in 1 2 3 4 5 6; do last=$(status -X POST "$BASE/api/auth/login"); done
