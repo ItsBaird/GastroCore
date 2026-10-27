@@ -1,0 +1,17 @@
+node_modules
+dist
+dist-ssr
+coverage
+*.local
+*.log
+
+# Variables de entorno locales
+.env
+.env.*
+!.env.example
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store

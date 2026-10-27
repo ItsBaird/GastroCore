@@ -1,0 +1,68 @@
+/* Tokens del Design System de GastroCore (colores muestreados de los mockups) */
+:root {
+  /* Marca */
+  --red-50: #fef2f2;
+  --red-100: #fee2e2;
+  --red-200: #fecaca;
+  --red-600: #dc2626;
+  --red-700: #b91c1c;
+  --red-800: #991b1b;
+  --orange-50: #fff7ed;
+  --orange-500: #f97316;
+  --orange-600: #ea580c;
+  --yellow-400: #facc15;
+
+  /* Roles y estados */
+  --purple-50: #faf5ff;
+  --purple-600: #9333ea;
+  --blue-50: #eff6ff;
+  --blue-600: #2563eb;
+  --green-50: #f0fdf4;
+  --green-600: #16a34a;
+
+  /* Neutros */
+  --n-950: #0a0a0a;
+  --n-850: #222222;
+  --n-700: #404040;
+  --n-500: #737373;
+  --n-400: #a3a3a3;
+  --n-300: #d4d4d4;
+  --n-200: #e5e5e5;
+  --n-100: #f5f5f5;
+  --n-50: #fafafa;
+  --white: #ffffff;
+
+  /* Semanticos */
+  --page: var(--n-100);
+  --surface: var(--white);
+  --border: var(--n-200);
+  --text: var(--n-950);
+  --text-muted: var(--n-500);
+  --accent: var(--red-600);
+  --primary: var(--n-950);
+  --on-primary: var(--white);
+
+  /* Espaciado (base 8px) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* Radios */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Tipografia */
+  --font: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Layout */
+  --sidebar-width: 230px;
+  --sidebar-rail: 72px;
+  --topbar-height: 64px;
+}
