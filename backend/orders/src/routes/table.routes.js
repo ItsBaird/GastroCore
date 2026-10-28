@@ -10,8 +10,21 @@ import {
 
 export const tableRouter = Router();
 
-tableRouter.use(authenticate, requireRole('ADMIN'));
-
-tableRouter.get('/', list);
-tableRouter.post('/', validate({ body: createTableSchema }), create);
-tableRouter.put('/:id', validate({ params: tableIdParamsSchema, body: updateTableSchema }), update);
+// Por ruta (no tableRouter.use global): el contrato solo exige sesion para listar
+// (GET /tables, cualquier rol autenticado), mientras que crear y editar son solo ADMIN.
+// Futuras rutas de GC-ORD-0001/0002 (/tables/status, /tables/:id/open) seran de WAITER.
+tableRouter.get('/', authenticate, list);
+tableRouter.post(
+  '/',
+  authenticate,
+  requireRole('ADMIN'),
+  validate({ body: createTableSchema }),
+  create,
+);
+tableRouter.put(
+  '/:id',
+  authenticate,
+  requireRole('ADMIN'),
+  validate({ params: tableIdParamsSchema, body: updateTableSchema }),
+  update,
+);
