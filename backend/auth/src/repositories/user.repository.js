@@ -5,6 +5,41 @@ export const userRepository = {
     return prisma.user.create({ data });
   },
 
+  // Con los codigos de permiso para armar el access token
+  findByEmailWithPermissions(email) {
+    return prisma.user.findUnique({
+      where: { email },
+      include: { permissions: { include: { permission: { select: { code: true } } } } },
+    });
+  },
+
+  findByIdWithPermissions(userId) {
+    return prisma.user.findUnique({
+      where: { userId },
+      include: { permissions: { include: { permission: { select: { code: true } } } } },
+    });
+  },
+
+  // Incremento atomico: dos intentos simultaneos no se pisan el contador
+  incrementFailedAttempts(userId) {
+    return prisma.user.update({
+      where: { userId },
+      data: { failedLoginAttempts: { increment: 1 } },
+      select: { failedLoginAttempts: true },
+    });
+  },
+
+  lockUntil(userId, lockedUntil) {
+    return prisma.user.update({ where: { userId }, data: { lockedUntil } });
+  },
+
+  resetLoginState(userId) {
+    return prisma.user.update({
+      where: { userId },
+      data: { failedLoginAttempts: 0, lockedUntil: null },
+    });
+  },
+
   findAll() {
     return prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
   },

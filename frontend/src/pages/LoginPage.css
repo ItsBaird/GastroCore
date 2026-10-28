@@ -1,91 +1,171 @@
-.login-page {
-  min-height: 100vh;
+.login {
+  display: grid;
+  min-height: 100dvh;
+  background: var(--surface);
+}
+
+/* ---------- Franja roja con la marca ---------- */
+.login__hero {
+  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--color-bg);
-  padding: 16px;
-}
-
-.login-form {
-  background: var(--color-surface);
-  padding: 40px 32px;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
-  width: 100%;
-  max-width: 400px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.login-logo {
+  gap: var(--sp-2);
+  padding: var(--sp-8) var(--sp-6);
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--red-600) 0%, var(--red-700) 55%, var(--red-800) 100%);
+  color: var(--white);
   text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
 }
 
-.login-logo h1 {
-  font-size: 24px;
-  margin: 0;
-  color: var(--color-text);
+.login__hero::after {
+  content: '';
+  position: absolute;
+  top: -90px;
+  right: -90px;
+  width: 280px;
+  height: 280px;
+  background: rgb(255 255 255 / 10%);
+  border-radius: var(--radius-full);
 }
 
-.login-form h2 {
-  font-size: 16px;
-  color: var(--color-text-secondary);
-  text-align: center;
-  margin: 0;
+.login__hero svg {
+  margin-bottom: var(--sp-2);
 }
 
-.login-error {
-  background: #fef2f2;
-  color: var(--color-error);
-  padding: 8px 12px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  margin: 0;
+.login__brand {
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
-.login-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
+.login__place {
+  font-size: 18px;
   font-weight: 500;
-  color: var(--color-text-secondary);
 }
 
-.login-form input {
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+.login__tagline {
+  font-size: 15px;
+  color: rgb(255 255 255 / 70%);
+}
+
+/* ---------- Panel del formulario ---------- */
+.login__panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 0;
+}
+
+.login__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: var(--sp-8) var(--sp-6);
+}
+
+.login__form h1 {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.login__subtitle {
+  margin-top: calc(-1 * var(--sp-3));
+  color: var(--text-muted);
+}
+
+.login__input {
+  height: 56px;
+  border-radius: var(--radius-lg);
+}
+
+.login__form .field__label {
+  font-size: 15px;
+}
+
+.login__submit {
+  height: 56px;
+  border-radius: var(--radius-lg);
+  font-size: 17px;
+}
+
+.login__note {
+  color: var(--n-400);
   font-size: 14px;
-  outline: none;
-  transition: border-color 0.15s;
+  text-align: center;
 }
 
-.login-form input:focus {
-  border-color: var(--color-brand);
-}
-
-.login-form button[type='submit'] {
-  padding: 10px;
-  border: none;
-  border-radius: var(--radius);
-  background: var(--color-brand);
-  color: #fff;
+/* ---------- Leyenda de roles ---------- */
+.login__legend {
+  display: flex;
+  justify-content: space-around;
+  gap: var(--sp-4);
+  margin: 0;
+  padding: var(--sp-4);
+  background: var(--n-50);
+  border-top: 1px solid var(--border);
+  color: var(--n-500);
   font-size: 14px;
-  font-weight: 600;
-  transition: background 0.15s;
+  list-style: none;
 }
 
-.login-form button[type='submit']:hover:not(:disabled) {
-  background: var(--color-brand-dark);
+.login__legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
 }
 
-.login-form button[type='submit']:disabled {
-  opacity: 0.6;
+.login__legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+}
+
+/* ---------- Escritorio: marca a la izquierda, formulario a la derecha ---------- */
+@media (width >= 1024px) {
+  .login {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .login__hero {
+    padding: var(--sp-8);
+  }
+
+  .login__brand {
+    font-size: 56px;
+  }
+
+  .login__panel {
+    justify-content: center;
+  }
+
+  .login__panel .login__form {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* ---------- Mobile ---------- */
+@media (width <= 640px) {
+  .login__hero {
+    padding: var(--sp-8) var(--sp-4);
+  }
+
+  .login__brand {
+    font-size: 36px;
+  }
+
+  .login__form {
+    padding: var(--sp-6) var(--sp-5);
+  }
+
+  .login__form h1 {
+    font-size: 28px;
+  }
 }

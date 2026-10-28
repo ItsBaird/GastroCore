@@ -36,11 +36,11 @@ services:
       SERVICE_NAME: auth
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       DATABASE_URL: postgresql://auth_user:${AUTH_DB_PASSWORD}@postgres:5432/auth_db
-      JWT_PUBLIC_KEY_PATH: /run/keys/jwt_public.pem
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     volumes:
-      - ./keys:/run/keys:ro
+      - ./keys/private:/run/keys/private:ro
+      - ./keys/public:/run/keys/public:ro
 
   staff:
     <<: *node-service
@@ -51,6 +51,8 @@ services:
       SERVICE_NAME: staff
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       DATABASE_URL: postgresql://staff_user:${STAFF_DB_PASSWORD}@postgres:5432/staff_db
+    volumes:
+      - ./keys/public:/run/keys/public:ro
 
   catalog:
     <<: *node-service
@@ -61,6 +63,8 @@ services:
       SERVICE_NAME: catalog
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       DATABASE_URL: postgresql://catalog_user:${CATALOG_DB_PASSWORD}@postgres:5432/catalog_db
+    volumes:
+      - ./keys/public:/run/keys/public:ro
 
   orders:
     <<: *node-service
@@ -71,9 +75,8 @@ services:
       SERVICE_NAME: orders
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       DATABASE_URL: postgresql://orders_user:${ORDERS_DB_PASSWORD}@postgres:5432/orders_db
-      JWT_PUBLIC_KEY_PATH: /run/keys/jwt_public.pem
     volumes:
-      - ./keys:/run/keys:ro
+      - ./keys/public:/run/keys/public:ro
 
   postgres:
     image: postgres:16-alpine

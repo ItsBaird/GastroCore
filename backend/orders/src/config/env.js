@@ -6,7 +6,7 @@ const schema = z.object({
   SERVICE_NAME: z.string().min(1),
   CORS_ORIGIN: z.string().min(1).default('http://localhost'),
   DATABASE_URL: z.string().min(1),
-  JWT_PUBLIC_KEY_PATH: z.string().min(1).default('/run/keys/jwt_public.pem'),
+  JWT_PUBLIC_KEY_PATH: z.string().min(1).default('/run/keys/public/jwt_public.pem'),
 });
 
 const parsed = schema.safeParse(process.env);

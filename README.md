@@ -23,7 +23,7 @@ Nadie puede crear usuarios sin un ADMIN, asi que el primero se crea con un scrip
 ```bash
 docker compose exec auth npm run seed:admin
 ```
-Despues, el ADMIN crea al resto con `POST /api/auth/register`. Hasta que exista el login (GC-AUTH-0002) se puede probar firmando un token de prueba con la clave privada de `./keys`.
+Despues, el ADMIN crea al resto con `POST /api/auth/register`. Para iniciar sesion: `POST /api/auth/login` con `{ "email", "password" }`. Devuelve el access token (15 min) en el cuerpo y el refresh token (7 dias) en la cookie `refreshToken` (`HttpOnly; Secure; SameSite=Strict`). Tras 5 intentos fallidos la cuenta se bloquea 15 minutos (`423 ACCOUNT_LOCKED`). El flujo de sesion (refresh con rotacion, logout) y como proteger rutas en cada servicio estan en [docs/auth.md](docs/auth.md).
 
 ### pgAdmin (solo desarrollo)
 pgAdmin corre en la red interna y no publica puerto. Para abrirlo en `http://127.0.0.1:5050`:
@@ -37,9 +37,17 @@ bash scripts/smoke-gateway.sh
 ```
 Imprime OK/FAIL por verificación (gateway, errores, CORS, base de datos y Prisma). Detiene y reinicia `catalog` durante la prueba y el límite de login es por minuto: espera ~60 s entre ejecuciones. Más detalle en [docs/gateway.md](docs/gateway.md).
 
+## Frontend
+SPA en React + Vite dentro de `frontend/`. Para verla en local, con el stack levantado y el admin creado:
+```bash
+cd frontend && npm install && npm run dev    # http://localhost:5173
+```
+Detalle de la estructura, la sesión y las rutas en [frontend/README.md](frontend/README.md).
+
 ## Estructura
 
 ```
+frontend/           SPA React (login y gestion de usuarios)
 backend/_template   plantilla de microservicio (helmet, cors, rate-limit, zod, errores comunes)
 backend/<servicio>  auth (3001), staff (3002), catalog (3003), orders (3004)
 db/init             creación de roles, bases y esquema (SQL = fuente de verdad)

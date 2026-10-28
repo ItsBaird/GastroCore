@@ -166,8 +166,8 @@ paths:
       summary: Iniciar sesion
       description: |
         GC-AUTH-0002. Emite un access token JWT RS256 (15 min) en el cuerpo y un refresh token
-        (7 dias) en cookie `httpOnly; Secure; SameSite=Strict`. Bloqueo temporal tras 5 intentos
-        fallidos. Limite del gateway: 5 por minuto por IP. El 401 no revela cual dato es incorrecto.
+        (7 dias) en cookie `refreshToken` con `httpOnly; Secure; SameSite=Strict; Path=/api/auth`. Bloqueo de 15 minutos tras 5 intentos
+        fallidos (configurable). Cuenta desactivada: mismo 401. Limite del gateway: 5 por minuto por IP. El 401 no revela cual dato es incorrecto.
       security: []
       requestBody:
         required: true
@@ -187,7 +187,7 @@ paths:
         '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '423':
-          description: Cuenta bloqueada temporalmente (codigo propuesto `ACCOUNT_LOCKED`)
+          description: Cuenta bloqueada temporalmente (`ACCOUNT_LOCKED`); `details.lockedUntil` indica cuando termina
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -195,31 +195,48 @@ paths:
   /api/auth/refresh:
     post:
       tags: [Auth]
-      summary: Renovar el access token
-      description: Usa la cookie del refresh token y lo rota (el anterior queda invalidado).
+      summary: Renovar el access token (rota el refresh token)
+      description: |
+        Se identifica por la cookie `refreshToken` (httpOnly), no por el access token, que puede estar
+        vencido. Emite un access token nuevo y rota el refresh token: el anterior queda invalidado y
+        encadenado al nuevo (`replaced_by`). Si se presenta un token que ya fue rotado, se asume
+        reutilizacion y se cierran todas las sesiones del usuario. Un usuario desactivado tampoco puede renovar.
       security: []
+      parameters:
+        - name: refreshToken
+          in: cookie
+          required: true
+          schema: { type: string }
       responses:
         '200':
-          description: Nuevo access token
+          description: Sesion renovada
           headers:
             Set-Cookie:
-              description: Nuevo refresh token rotado
+              description: Nuevo refresh token (httpOnly; Secure; SameSite=Strict; Path=/api/auth; 7 dias)
               schema: { type: string }
           content:
             application/json:
-              schema:
-                type: object
-                required: [accessToken]
-                properties:
-                  accessToken: { type: string }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401':
+          description: Sin cookie, token desconocido, vencido, revocado o ya rotado (`UNAUTHENTICATED`). La cookie se limpia.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /api/auth/logout:
     post:
       tags: [Auth]
       summary: Cerrar sesion (revoca el refresh token)
+      description: |
+        Revoca el refresh token de la cookie y la limpia. No exige access token (puede estar vencido) y es
+        idempotente: responde 204 aunque no haya sesion. Solo cierra esa sesion, no las demas del usuario.
+      security: []
+      parameters:
+        - name: refreshToken
+          in: cookie
+          required: false
+          schema: { type: string }
       responses:
         '204': { description: Sesion cerrada }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
   /api/auth/me:
     get:
       tags: [Auth]
@@ -1357,7 +1374,7 @@ components:
               type: string
               example: NOT_FOUND
               description: |
-                NOT_FOUND, VALIDATION_ERROR, UNAUTHENTICATED, FORBIDDEN, CONFLICT, EMAIL_ALREADY_EXISTS, INVALID_TRANSITION,
+                NOT_FOUND, VALIDATION_ERROR, UNAUTHENTICATED, FORBIDDEN, CONFLICT, EMAIL_ALREADY_EXISTS, ACCOUNT_LOCKED, INVALID_TRANSITION,
                 NO_ACTIVE_SHIFT, TABLE_ALREADY_OPEN, TABLE_NOT_OPEN, HAS_OPEN_TABLES, DAY_CLOSED,
                 RATE_LIMITED, DEPENDENCY_UNAVAILABLE, INTERNAL_ERROR
             message: { type: string, example: Recurso no encontrado }

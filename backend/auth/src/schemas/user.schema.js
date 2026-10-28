@@ -20,6 +20,15 @@ export const createUserSchema = z.object({
   role,
 });
 
+// En el login no se exige el minimo de 10: no se revela la politica de contrasenas
+export const loginSchema = z.object({
+  email,
+  password: z
+    .string({ error: 'La contrasena es obligatoria' })
+    .min(1, 'La contrasena es obligatoria')
+    .max(128, 'La contrasena admite hasta 128 caracteres'),
+});
+
 export const userIdParamsSchema = z.object({
   id: z.uuid('El id debe ser un UUID valido'),
 });

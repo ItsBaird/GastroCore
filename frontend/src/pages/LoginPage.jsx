@@ -1,76 +1,161 @@
+import { CircleAlert, Eye, EyeOff, LoaderCircle, Lock, Mail, Pizza } from 'lucide-react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext.jsx'
+import { Navigate, useLocation } from 'react-router-dom'
+import { homePathFor } from '../auth/paths.js'
+import { useAuth } from '../auth/useAuth.js'
+import { Field } from '../components/Field.jsx'
+import { loginErrorMessage } from '../utils/user.js'
 import './LoginPage.css'
 
 export default function LoginPage() {
-  const { login } = useAuth()
-  const navigate = useNavigate()
+  const { status, user, expired, login } = useAuth()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [errors, setErrors] = useState({})
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+  // Mientras se intenta recuperar la sesion con la cookie no se muestra el formulario
+  // (evita un parpadeo y que se escriba algo que se perderia al redirigir)
+  if (status === 'checking') {
+    return (
+      <div className="boot" role="status" aria-label="Cargando">
+        <LoaderCircle className="spin" size={28} />
+      </div>
+    )
+  }
+
+  // Con sesion iniciada se va a la ruta que se intentaba abrir (o al inicio del rol);
+  // RequireAuth la reenvia al inicio si el rol no tiene acceso
+  if (status === 'authenticated') {
+    return <Navigate to={location.state?.from ?? homePathFor(user.role)} replace />
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setMessage('')
+
+    const found = {}
+    if (!email.trim()) found.email = 'Ingresa tu correo electrónico'
+    if (!password) found.password = 'Ingresa tu contraseña'
+    setErrors(found)
+    if (Object.keys(found).length) return
+
+    setBusy(true)
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, password }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data?.error?.message || 'Error al iniciar sesion')
-        return
-      }
-      login(data.accessToken, data.user)
-      navigate('/admin/tables')
-    } catch {
-      setError('Error de conexion')
-    } finally {
-      setLoading(false)
+      await login(email.trim(), password)
+    } catch (err) {
+      setMessage(loginErrorMessage(err))
+      setBusy(false)
     }
   }
 
   return (
-    <div className="login-page">
-      <form className="login-form" onSubmit={handleSubmit}>
-        <div className="login-logo">
-          <svg viewBox="0 0 24 24" width="40" height="40" fill="var(--color-brand)">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.22.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
-          </svg>
-          <h1>GastroCore</h1>
-        </div>
-        <h2>Iniciar Sesion</h2>
-        {error && <p className="login-error">{error}</p>}
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="email"
-          />
-        </label>
-        <label>
-          Contrasena
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-          />
-        </label>
-        <button type="submit" disabled={loading}>
-          {loading ? 'Ingresando...' : 'Ingresar'}
-        </button>
-      </form>
+    <div className="login">
+      <section className="login__hero" aria-hidden="true">
+        <Pizza size={72} strokeWidth={1.6} />
+        <p className="login__brand">GastroCore</p>
+        <p className="login__place">La Pizzeta · Neiva</p>
+        <p className="login__tagline">
+          <span className="hide-sm">Sistema integral de gestión para tu restaurante</span>
+          <span className="show-sm">Gestión integral para tu restaurante</span>
+        </p>
+      </section>
+
+      <section className="login__panel">
+        <form className="login__form" onSubmit={handleSubmit} noValidate>
+          <h1>Iniciar Sesión</h1>
+          <p className="login__subtitle">
+            <span className="hide-sm">Ingresa tus credenciales para acceder al sistema</span>
+            <span className="show-sm">Ingresa tus credenciales para acceder</span>
+          </p>
+
+          {expired && !message && (
+            <div className="alert" role="alert">
+              <CircleAlert size={18} />
+              Tu sesión expiró. Inicia sesión de nuevo.
+            </div>
+          )}
+          {message && (
+            <div className="alert" role="alert">
+              <CircleAlert size={18} />
+              {message}
+            </div>
+          )}
+
+          <Field label="Correo electrónico" error={errors.email}>
+            {(props) => (
+              <div className="field__control">
+                <Mail className="field__icon" size={20} aria-hidden="true" />
+                <input
+                  {...props}
+                  className="field__input field__input--icon login__input"
+                  type="email"
+                  autoComplete="username"
+                  placeholder="correo@ejemplo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={busy}
+                />
+              </div>
+            )}
+          </Field>
+
+          <Field label="Contraseña" error={errors.password}>
+            {(props) => (
+              <div className="field__control">
+                <Lock className="field__icon" size={20} aria-hidden="true" />
+                <input
+                  {...props}
+                  className="field__input field__input--icon login__input"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={busy}
+                />
+                <button
+                  type="button"
+                  className="field__toggle"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            )}
+          </Field>
+
+          <button type="submit" className="btn btn--primary login__submit" disabled={busy}>
+            {busy && <LoaderCircle className="spin" size={18} />}
+            Iniciar Sesión
+          </button>
+          <p className="login__note">
+            <span className="hide-sm">Solo personal autorizado del restaurante</span>
+            <span className="show-sm">Solo personal autorizado</span>
+          </p>
+        </form>
+
+        <ul className="login__legend" aria-label="Roles del sistema">
+          <li>
+            <i style={{ background: 'var(--red-600)' }} />
+            <span className="hide-sm">Administrador</span>
+            <span className="show-sm">Admin</span>
+          </li>
+          <li>
+            <i style={{ background: 'var(--orange-500)' }} />
+            Mesero
+          </li>
+          <li>
+            <i style={{ background: 'var(--yellow-400)' }} />
+            <span className="hide-sm">Cocinero</span>
+            <span className="show-sm">Cocina</span>
+          </li>
+        </ul>
+      </section>
     </div>
   )
 }
