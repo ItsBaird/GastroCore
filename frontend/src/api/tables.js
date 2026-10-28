@@ -1,19 +1,10 @@
-import { apiFetch } from './client.js'
+import { api } from './client.js'
 
-export function listTables() {
-  return apiFetch('/api/orders/tables')
-}
+export const listTables = () => api('/api/orders/tables')
 
-export function createTable(data) {
-  return apiFetch('/api/orders/tables', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  })
-}
+export const createTable = ({ tableNumber }) =>
+  api('/api/orders/tables', { method: 'POST', body: { tableNumber } })
 
-export function updateTable(id, data) {
-  return apiFetch(`/api/orders/tables/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  })
-}
+// Solo cambia el numero de mesa; el qrToken es inmutable (GC-ADM-0002)
+export const updateTable = (tableId, { tableNumber }) =>
+  api(`/api/orders/tables/${tableId}`, { method: 'PUT', body: { tableNumber } })

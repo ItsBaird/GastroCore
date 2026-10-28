@@ -1,130 +1,144 @@
+import { Check, Copy, Plus, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { createTable, listTables, updateTable } from '../api/tables.js'
-import TableModal from '../components/TableModal.jsx'
+import { useToast } from '../components/Toast.jsx'
+import { AdminPage } from '../layouts/AdminLayout.jsx'
+import { TableFormModal } from './TableFormModal.jsx'
 import './TablesPage.css'
 
+function SkeletonCards() {
+  return Array.from({ length: 6 }, (_, i) => (
+    <div key={i} className="table-card table-card--skeleton" aria-hidden="true" />
+  ))
+}
+
 export default function TablesPage() {
-  const [tables, setTables] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [modal, setModal] = useState(null)
-  const [copied, setCopied] = useState(null)
+  const toast = useToast()
+  const [{ status, tables, error }, setData] = useState({ status: 'loading', tables: [], error: '' })
+  const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [copiedId, setCopiedId] = useState(null)
 
   const fetchTables = useCallback(async () => {
     try {
-      setError('')
-      const data = await listTables()
-      setTables(data)
-    } catch (err) {
-      setError(err.message || 'Error al cargar las mesas')
-    } finally {
-      setLoading(false)
+      return { status: 'ready', tables: await listTables(), error: '' }
+    } catch {
+      return { status: 'error', tables: [], error: 'No se pudo cargar la lista de mesas.' }
     }
   }, [])
 
+  // Carga inicial (el estado ya arranca en "loading")
   useEffect(() => {
-    fetchTables()
+    let active = true
+    fetchTables().then((result) => active && setData(result))
+    return () => {
+      active = false
+    }
   }, [fetchTables])
 
-  function openCreate() {
-    setModal({ mode: 'create' })
+  const retry = () => {
+    setData((d) => ({ ...d, status: 'loading', error: '' }))
+    fetchTables().then(setData)
   }
 
-  function openEdit(table) {
-    setModal({ mode: 'edit', table })
+  const replaceTable = (updated) =>
+    setData((d) => ({ ...d, tables: d.tables.map((t) => (t.tableId === updated.tableId ? updated : t)) }))
+
+  const handleCreate = async (values) => {
+    const created = await createTable(values)
+    setData((d) => ({
+      ...d,
+      tables: [...d.tables, created].sort((a, b) => a.tableNumber - b.tableNumber),
+    }))
+    setCreating(false)
+    toast.success('Mesa creada')
   }
 
-  async function handleSave(data) {
-    if (modal.mode === 'create') {
-      await createTable(data)
-    } else {
-      await updateTable(modal.table.tableId, data)
-    }
-    setModal(null)
-    await fetchTables()
+  const handleEdit = async (changes) => {
+    const updated = await updateTable(editing.tableId, changes)
+    replaceTable(updated)
+    setEditing(null)
+    toast.success('Cambios guardados')
   }
 
-  async function copyToken(token) {
+  const copyQrPath = async (table) => {
     try {
-      await navigator.clipboard.writeText(`/m/${token}`)
-      setCopied(token)
-      setTimeout(() => setCopied(null), 2000)
+      await navigator.clipboard.writeText(`/m/${table.qrToken}`)
+      setCopiedId(table.tableId)
+      setTimeout(() => setCopiedId((id) => (id === table.tableId ? null : id)), 2000)
     } catch {
-      /* clipboard not available */
+      toast.error('No se pudo copiar la ruta del QR')
     }
-  }
-
-  if (loading) {
-    return <div className="tables-loading">Cargando mesas...</div>
   }
 
   return (
-    <div className="tables-page">
-      <div className="tables-header">
-        <div>
-          <h2>Mesas del restaurante</h2>
-          <p className="tables-subtitle">{tables.length} mesas registradas</p>
-        </div>
-        <button className="btn-primary" onClick={openCreate}>
-          + Nueva Mesa
+    <AdminPage
+      title="Gestión de Mesas"
+      actions={
+        <button
+          type="button"
+          className="btn btn--primary"
+          onClick={() => setCreating(true)}
+          aria-label="Agregar mesa"
+        >
+          <Plus size={18} aria-hidden="true" />
+          <span className="btn__text">Nueva Mesa</span>
         </button>
-      </div>
-
-      {error && <p className="tables-error">{error}</p>}
-
-      {tables.length === 0 && !error ? (
-        <div className="tables-empty">
-          <p>No hay mesas registradas</p>
-          <p>Crea la primera mesa para comenzar.</p>
-        </div>
-      ) : (
-        <div className="tables-card">
-          <table className="tables-table">
-            <thead>
-              <tr>
-                <th>Numero</th>
-                <th>Ruta QR</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tables.map((t) => (
-                <tr key={t.tableId}>
-                  <td>
-                    <span className="table-number">Mesa {t.tableNumber}</span>
-                  </td>
-                  <td>
-                    <div className="qr-cell">
-                      <code className="qr-path">/m/{t.qrToken}</code>
-                      <button
-                        className="btn-copy"
-                        onClick={() => copyToken(t.qrToken)}
-                        title="Copiar ruta QR"
-                      >
-                        {copied === t.qrToken ? 'Copiado' : 'Copiar'}
-                      </button>
-                    </div>
-                  </td>
-                  <td>
-                    <button className="btn-edit" onClick={() => openEdit(t)}>
-                      Editar
+      }
+    >
+      <section className="tables-card" aria-label="Lista de mesas">
+        {status === 'error' ? (
+          <div className="tables-state" role="alert">
+            <TriangleAlert size={28} />
+            <p>{error}</p>
+            <button type="button" className="btn btn--ghost" onClick={retry}>
+              <RefreshCw size={16} /> Reintentar
+            </button>
+          </div>
+        ) : status === 'ready' && tables.length === 0 ? (
+          <div className="tables-state">
+            <p>Todavía no hay mesas.</p>
+          </div>
+        ) : (
+          <div className="tables-grid">
+            {status === 'loading' ? (
+              <SkeletonCards />
+            ) : (
+              tables.map((t) => (
+                <div key={t.tableId} className="table-card">
+                  <h3 className="table-card__number">Mesa {t.tableNumber}</h3>
+                  <div className="table-card__qr">
+                    <code className="table-card__qr-path">/m/{t.qrToken}</code>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={() => copyQrPath(t)}
+                      aria-label={`Copiar ruta QR de la mesa ${t.tableNumber}`}
+                    >
+                      {copiedId === t.tableId ? <Check size={16} /> : <Copy size={16} />}
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  </div>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => setEditing(t)}
+                    aria-label={`Editar mesa ${t.tableNumber}`}
+                  >
+                    Editar
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </section>
 
-      {modal && (
-        <TableModal
-          mode={modal.mode}
-          table={modal.table}
-          onSave={handleSave}
-          onClose={() => setModal(null)}
-        />
+      {creating && (
+        <TableFormModal mode="create" onSubmit={handleCreate} onClose={() => setCreating(false)} />
       )}
-    </div>
+      {editing && (
+        <TableFormModal mode="edit" table={editing} onSubmit={handleEdit} onClose={() => setEditing(null)} />
+      )}
+    </AdminPage>
   )
 }
