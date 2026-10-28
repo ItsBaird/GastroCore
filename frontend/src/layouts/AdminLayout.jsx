@@ -16,11 +16,11 @@ import { useAuth } from '../auth/useAuth.js'
 import { initial } from '../utils/user.js'
 import './AdminLayout.css'
 
-// Solo "Usuarios" existe por ahora; el resto se activa cuando se construya cada modulo.
+// Solo "Usuarios" y "Mesas" existen por ahora; el resto se activa cuando se construya cada modulo.
 // "mobile" marca los 4 destinos de la barra inferior (el diseno permite 4-5).
 const NAV = [
   { label: 'Dashboard', icon: LayoutDashboard, mobile: true },
-  { label: 'Mesas', icon: Table, mobile: true },
+  { label: 'Mesas', icon: Table, to: '/admin/mesas', mobile: true },
   { label: 'Productos', icon: UtensilsCrossed },
   { label: 'Categorías', icon: Tag },
   { label: 'Usuarios', icon: Users, to: '/admin/usuarios', mobile: true },
