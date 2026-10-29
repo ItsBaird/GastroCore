@@ -4,3 +4,6 @@ npm-debug.log
 .env.*
 Dockerfile
 .dockerignore
+vitest.config.js
+src/test
+src/**/*.test.js
