@@ -41,6 +41,8 @@ services:
     volumes:
       - ./keys/private:/run/keys/private:ro
       - ./keys/public:/run/keys/public:ro
+    env_file:
+      - .env 
 
   staff:
     <<: *node-service
