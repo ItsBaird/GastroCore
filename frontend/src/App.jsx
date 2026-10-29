@@ -5,6 +5,7 @@ import { useAuth } from './auth/useAuth.js'
 import { AdminLayout } from './layouts/AdminLayout.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import { NotFoundPage, UnderConstructionPage } from './pages/StatusPages.jsx'
+import TablesPage from './pages/TablesPage.jsx'
 import UsersPage from './pages/UsersPage.jsx'
 
 function Home() {
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="usuarios" replace />} />
           <Route path="usuarios" element={<UsersPage />} />
+          <Route path="mesas" element={<TablesPage />} />
         </Route>
       </Route>
 

@@ -5,6 +5,7 @@ import { env } from './config/env.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { notFound } from './middlewares/notFound.js';
 import { createRateLimiter } from './middlewares/rateLimiter.js';
+import { tableRouter } from './routes/table.routes.js';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -17,6 +18,7 @@ const router = express.Router();
 router.get('/health', (req, res) => {
   res.json({ service: env.serviceName, status: 'ok' });
 });
+router.use('/tables', tableRouter);
 app.use('/api/orders', router);
 
 // Solo sirve para comprobar que el gateway bloquea /internal
