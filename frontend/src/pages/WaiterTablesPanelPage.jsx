@@ -1,6 +1,6 @@
 import { RefreshCw, TriangleAlert } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { listTableStatuses } from '../api/tablesStatus.js'
+import { listTableStatuses, openTable as openTableApi } from '../api/tablesStatus.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useTableStatusSocket } from '../hooks/useTableStatusSocket.js'
 import { WaiterPage } from '../layouts/WaiterLayout.jsx'
@@ -45,7 +45,7 @@ function StatCards({ tables }) {
   )
 }
 
-function TableCard({ table, isMe }) {
+function TableCard({ table, isMe, onOpen, opening }) {
   const config = STATUS_CONFIG[table.status] ?? STATUS_CONFIG.libre
 
   return (
@@ -64,8 +64,13 @@ function TableCard({ table, isMe }) {
       </div>
       <div className="ts-card__actions">
         {table.status === 'libre' && (
-          <button type="button" className="btn ts-btn--libre" disabled title="Próximamente">
-            Abrir Mesa
+          <button
+            type="button"
+            className="btn ts-btn--libre"
+            disabled={opening}
+            onClick={() => onOpen(table.tableId)}
+          >
+            {opening ? 'Abriendo…' : 'Abrir Mesa'}
           </button>
         )}
         {table.status === 'ocupada' && (
@@ -86,6 +91,8 @@ function TableCard({ table, isMe }) {
 export default function WaiterTablesPanelPage() {
   const { user } = useAuth()
   const [{ status, tables, error }, setData] = useState({ status: 'loading', tables: [], error: '' })
+  const [openingId, setOpeningId] = useState(null)
+  const [openError, setOpenError] = useState('')
 
   const fetchStatuses = useCallback(async () => {
     try {
@@ -108,6 +115,26 @@ export default function WaiterTablesPanelPage() {
     fetchStatuses().then(setData)
   }
 
+  const handleOpen = async (tableId) => {
+    setOpeningId(tableId)
+    setOpenError('')
+    try {
+      const order = await openTableApi(tableId)
+      setData((prev) => {
+        const next = prev.tables.map((t) =>
+          t.tableId === tableId
+            ? { ...t, status: 'ocupada', orderId: order.orderId, waiterId: order.waiterId }
+            : t,
+        )
+        return { ...prev, tables: next }
+      })
+    } catch (err) {
+      setOpenError(err?.message || 'No se pudo abrir la mesa.')
+    } finally {
+      setOpeningId(null)
+    }
+  }
+
   useTableStatusSocket((updated) => {
     setData((prev) => {
       if (prev.status !== 'ready') return prev
@@ -122,6 +149,14 @@ export default function WaiterTablesPanelPage() {
   return (
     <WaiterPage title="Mis Mesas">
       {status === 'ready' && <StatCards tables={tables} />}
+
+      {openError && (
+        <div className="ts-open-error" role="alert">
+          <TriangleAlert size={16} />
+          <span>{openError}</span>
+          <button type="button" className="btn btn--ghost" onClick={() => setOpenError('')}>Cerrar</button>
+        </div>
+      )}
 
       <section className="ts-panel" aria-label="Estado de mesas">
         {status === 'error' ? (
@@ -142,7 +177,13 @@ export default function WaiterTablesPanelPage() {
               <SkeletonCards />
             ) : (
               tables.map((t) => (
-                <TableCard key={t.tableId} table={t} isMe={t.waiterId === user?.userId} />
+                <TableCard
+                  key={t.tableId}
+                  table={t}
+                  isMe={t.waiterId === user?.userId}
+                  onOpen={handleOpen}
+                  opening={openingId === t.tableId}
+                />
               ))
             )}
           </div>

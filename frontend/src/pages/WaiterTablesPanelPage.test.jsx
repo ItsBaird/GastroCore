@@ -106,12 +106,56 @@ describe('WaiterTablesPanelPage', () => {
     expect(await screen.findByText('No hay mesas registradas.')).toBeInTheDocument()
   })
 
-  it('renders disabled action buttons per status', async () => {
+  it('renders action buttons: Abrir Mesa enabled, Ver Detalle and Cobrar disabled', async () => {
     renderPage()
 
     await screen.findByText('Mesa 1')
-    expect(screen.getByRole('button', { name: 'Abrir Mesa' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Abrir Mesa' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Ver Detalle' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Cobrar' })).toBeDisabled()
+  })
+
+  it('opens a table and updates its status to ocupada', async () => {
+    const user = userEvent.setup()
+    tablesStatusApi.openTable.mockResolvedValue({
+      orderId: 'new-order',
+      tableId: 't1',
+      waiterId: 'user-1',
+      status: 'ABIERTA',
+      openedAt: '2026-10-30T00:00:00Z',
+    })
+    renderPage()
+
+    await screen.findByText('Mesa 1')
+    await user.click(screen.getByRole('button', { name: 'Abrir Mesa' }))
+
+    expect(tablesStatusApi.openTable).toHaveBeenCalledWith('t1')
+    const tuElements = await screen.findAllByText('Tú')
+    expect(tuElements).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: 'Abrir Mesa' })).not.toBeInTheDocument()
+  })
+
+  it('shows error when opening table fails', async () => {
+    const user = userEvent.setup()
+    tablesStatusApi.openTable.mockRejectedValue(new ApiError(409, 'TABLE_ALREADY_OPEN', 'La mesa ya tiene una orden abierta'))
+    renderPage()
+
+    await screen.findByText('Mesa 1')
+    await user.click(screen.getByRole('button', { name: 'Abrir Mesa' }))
+
+    expect(await screen.findByText('La mesa ya tiene una orden abierta')).toBeInTheDocument()
+  })
+
+  it('shows "Abriendo…" while the open request is in flight', async () => {
+    let resolve
+    tablesStatusApi.openTable.mockImplementation(() => new Promise((r) => { resolve = r }))
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Mesa 1')
+    await user.click(screen.getByRole('button', { name: 'Abrir Mesa' }))
+
+    expect(screen.getByRole('button', { name: 'Abriendo…' })).toBeDisabled()
+    resolve({ orderId: 'x', tableId: 't1', waiterId: 'user-1', status: 'ABIERTA', openedAt: new Date().toISOString() })
   })
 })
