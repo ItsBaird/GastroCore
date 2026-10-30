@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { openTableController } from '../controllers/openTable.controller.js';
 import { create, list, update } from '../controllers/table.controller.js';
 import { getTableStatuses } from '../controllers/tableStatus.controller.js';
 import { authenticate, requireRole } from '../middlewares/authenticate.js';
@@ -21,6 +22,13 @@ tableRouter.post(
   requireRole('ADMIN'),
   validate({ body: createTableSchema }),
   create,
+);
+tableRouter.post(
+  '/:id/open',
+  authenticate,
+  requireRole('WAITER', 'ADMIN'),
+  validate({ params: tableIdParamsSchema }),
+  openTableController,
 );
 tableRouter.put(
   '/:id',
