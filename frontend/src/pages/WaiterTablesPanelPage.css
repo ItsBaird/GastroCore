@@ -1,0 +1,266 @@
+/* ---------- Stat cards ---------- */
+.ts-stats {
+  display: flex;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+}
+
+.ts-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  border-top: 3px solid var(--n-300);
+}
+
+.ts-stat--libre {
+  border-top-color: var(--green-600);
+}
+
+.ts-stat--ocupada {
+  border-top-color: var(--orange-500);
+}
+
+.ts-stat--en-cobro {
+  border-top-color: var(--blue-600);
+}
+
+.ts-stat__value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.ts-stat__label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ---------- Grid ---------- */
+.ts-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-4);
+}
+
+/* ---------- Table card ---------- */
+.ts-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  border-top: 4px solid var(--n-300);
+  overflow: hidden;
+}
+
+.ts-card--libre {
+  border-top-color: var(--green-600);
+}
+
+.ts-card--ocupada {
+  border-top-color: var(--orange-500);
+}
+
+.ts-card--en-cobro {
+  border-top-color: var(--blue-600);
+}
+
+.ts-card--skeleton {
+  height: 160px;
+  background: var(--n-100);
+  animation: ts-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes ts-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.ts-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-4) var(--sp-4) var(--sp-2);
+}
+
+.ts-card__number {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ts-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-4);
+  min-height: 32px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.ts-card__waiter {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.ts-card__calls {
+  color: var(--orange-500);
+  font-weight: 500;
+}
+
+.ts-card__actions {
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  margin-top: auto;
+}
+
+/* ---------- Action buttons per state ---------- */
+.ts-btn--libre {
+  width: 100%;
+  height: 38px;
+  background: var(--green-600);
+  color: var(--white);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ts-btn--libre:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.ts-btn--libre:disabled {
+  opacity: 0.55;
+}
+
+.ts-btn--ocupada {
+  width: 100%;
+  height: 38px;
+  background: var(--blue-600);
+  color: var(--white);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ts-btn--ocupada:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.ts-btn--ocupada:disabled {
+  opacity: 0.55;
+}
+
+.ts-btn--en-cobro {
+  width: 100%;
+  height: 38px;
+  background: var(--red-600);
+  color: var(--white);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ts-btn--en-cobro:hover:not(:disabled) {
+  background: var(--red-700);
+}
+
+.ts-btn--en-cobro:disabled {
+  opacity: 0.55;
+}
+
+/* ---------- Status pills ---------- */
+.pill--table-libre {
+  background: var(--green-50);
+  color: var(--green-600);
+}
+
+.pill--table-ocupada {
+  background: var(--orange-50);
+  color: var(--orange-500);
+}
+
+.pill--table-en_cobro {
+  background: var(--blue-50);
+  color: var(--blue-600);
+}
+
+/* ---------- Empty / Error state ---------- */
+.ts-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.ts-panel {
+  min-height: 200px;
+}
+
+/* ---------- Tablet: 3 columns ---------- */
+@media (width <= 1100px) {
+  .ts-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ---------- Mobile: list rows ---------- */
+@media (width <= 640px) {
+  .ts-stats {
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+  }
+
+  .ts-stat {
+    flex: 1 1 calc(50% - var(--sp-2));
+    min-width: 0;
+    padding: var(--sp-3) var(--sp-4);
+  }
+
+  .ts-stat__value {
+    font-size: 22px;
+  }
+
+  .ts-grid {
+    grid-template-columns: 1fr;
+    gap: var(--sp-3);
+  }
+
+  .ts-card {
+    border-top: 0;
+    border-left: 4px solid var(--n-300);
+    border-radius: var(--radius-sm);
+  }
+
+  .ts-card--libre {
+    border-left-color: var(--green-600);
+  }
+
+  .ts-card--ocupada {
+    border-left-color: var(--orange-500);
+  }
+
+  .ts-card--en-cobro {
+    border-left-color: var(--blue-600);
+  }
+
+  .ts-card__header {
+    padding: var(--sp-3) var(--sp-4) var(--sp-1);
+  }
+
+  .ts-card__body {
+    flex-direction: row;
+    gap: var(--sp-3);
+    padding-bottom: var(--sp-1);
+  }
+
+  .ts-card__actions {
+    padding: var(--sp-2) var(--sp-4) var(--sp-3);
+  }
+}
