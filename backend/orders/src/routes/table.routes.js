@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { create, list, update } from '../controllers/table.controller.js';
+import { getTableStatuses } from '../controllers/tableStatus.controller.js';
 import { authenticate, requireRole } from '../middlewares/authenticate.js';
 import { validate } from '../middlewares/validate.js';
 import {
@@ -10,10 +11,10 @@ import {
 
 export const tableRouter = Router();
 
-// Por ruta (no tableRouter.use global): el contrato solo exige sesion para listar
-// (GET /tables, cualquier rol autenticado), mientras que crear y editar son solo ADMIN.
-// Futuras rutas de GC-ORD-0001/0002 (/tables/status, /tables/:id/open) seran de WAITER.
 tableRouter.get('/', authenticate, list);
+
+tableRouter.get('/status', authenticate, requireRole('WAITER', 'ADMIN'), getTableStatuses);
+
 tableRouter.post(
   '/',
   authenticate,
