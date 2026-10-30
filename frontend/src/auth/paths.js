@@ -1,2 +1,5 @@
-// A donde va cada rol al entrar. Solo ADMIN tiene pantallas por ahora (GC-ADM / GC-ORD).
-export const homePathFor = (role) => (role === 'ADMIN' ? '/admin/usuarios' : '/en-construccion')
+export const homePathFor = (role) => {
+  if (role === 'ADMIN') return '/admin/usuarios'
+  if (role === 'WAITER') return '/mesero/mesas'
+  return '/en-construccion'
+}

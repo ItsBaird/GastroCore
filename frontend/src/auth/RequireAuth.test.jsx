@@ -18,6 +18,7 @@ function renderGuard({ auth, path = '/privada', roles }) {
           <Route path="/login" element={<LoginProbe />} />
           <Route path="/en-construccion" element={<p>EN CONSTRUCCION</p>} />
           <Route path="/admin/usuarios" element={<p>PANTALLA ADMIN</p>} />
+          <Route path="/mesero/mesas" element={<p>PANEL MESERO</p>} />
           <Route element={<RequireAuth roles={roles} />}>
             <Route path="/privada" element={<p>CONTENIDO PRIVADO</p>} />
           </Route>
@@ -58,8 +59,14 @@ describe('RequireAuth', () => {
     expect(screen.getByText('CONTENIDO PRIVADO')).toBeInTheDocument()
   })
 
-  it.each(['WAITER', 'COOK'])('%s en una ruta de ADMIN va a su pantalla de inicio', (role) => {
-    renderGuard({ auth: as(role), roles: ['ADMIN'] })
+  it('WAITER en una ruta de ADMIN va al panel de mesero', () => {
+    renderGuard({ auth: as('WAITER'), roles: ['ADMIN'] })
+    expect(screen.getByText('PANEL MESERO')).toBeInTheDocument()
+    expect(screen.queryByText('CONTENIDO PRIVADO')).not.toBeInTheDocument()
+  })
+
+  it('COOK en una ruta de ADMIN va a la pantalla en construccion', () => {
+    renderGuard({ auth: as('COOK'), roles: ['ADMIN'] })
     expect(screen.getByText('EN CONSTRUCCION')).toBeInTheDocument()
     expect(screen.queryByText('CONTENIDO PRIVADO')).not.toBeInTheDocument()
   })

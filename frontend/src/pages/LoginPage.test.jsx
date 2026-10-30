@@ -22,6 +22,7 @@ function renderLogin({ auth = {}, state } = {}) {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/admin/usuarios" element={<p>PANTALLA ADMIN</p>} />
           <Route path="/en-construccion" element={<p>EN CONSTRUCCION</p>} />
+          <Route path="/mesero/mesas" element={<p>PANEL MESERO</p>} />
           <Route path="/otra-ruta" element={<p>OTRA RUTA</p>} />
         </Routes>
       </AuthContext.Provider>
@@ -131,8 +132,13 @@ describe('LoginPage', () => {
       expect(screen.getByText('PANTALLA ADMIN')).toBeInTheDocument()
     })
 
-    it.each(['WAITER', 'COOK'])('%s va a la pantalla en construccion', (role) => {
-      renderLogin({ auth: session(role) })
+    it('WAITER va al panel de mesero', () => {
+      renderLogin({ auth: session('WAITER') })
+      expect(screen.getByText('PANEL MESERO')).toBeInTheDocument()
+    })
+
+    it('COOK va a la pantalla en construccion', () => {
+      renderLogin({ auth: session('COOK') })
       expect(screen.getByText('EN CONSTRUCCION')).toBeInTheDocument()
     })
 

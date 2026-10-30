@@ -3,10 +3,12 @@ import { RequireAuth } from './auth/RequireAuth.jsx'
 import { homePathFor } from './auth/paths.js'
 import { useAuth } from './auth/useAuth.js'
 import { AdminLayout } from './layouts/AdminLayout.jsx'
+import { WaiterLayout } from './layouts/WaiterLayout.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import { NotFoundPage, UnderConstructionPage } from './pages/StatusPages.jsx'
 import TablesPage from './pages/TablesPage.jsx'
 import UsersPage from './pages/UsersPage.jsx'
+import WaiterTablesPanelPage from './pages/WaiterTablesPanelPage.jsx'
 
 function Home() {
   const { status, user } = useAuth()
@@ -26,6 +28,13 @@ export default function App() {
           <Route index element={<Navigate to="usuarios" replace />} />
           <Route path="usuarios" element={<UsersPage />} />
           <Route path="mesas" element={<TablesPage />} />
+        </Route>
+      </Route>
+
+      <Route element={<RequireAuth roles={['WAITER', 'ADMIN']} />}>
+        <Route path="/mesero" element={<WaiterLayout />}>
+          <Route index element={<Navigate to="mesas" replace />} />
+          <Route path="mesas" element={<WaiterTablesPanelPage />} />
         </Route>
       </Route>
 
