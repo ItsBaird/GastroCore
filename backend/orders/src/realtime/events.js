@@ -13,3 +13,8 @@ export function emitTableStatusChanged(tableStatus) {
   const io = getIo();
   io.to('waiters').emit('table:status_changed', tableStatus);
 }
+
+export function emitRoundCreated(kitchenRound) {
+  const io = getIo();
+  io.to('kitchen').emit('round:created', kitchenRound);
+}
