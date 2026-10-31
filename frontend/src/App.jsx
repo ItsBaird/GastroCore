@@ -8,6 +8,8 @@ import LoginPage from './pages/LoginPage.jsx'
 import { NotFoundPage, UnderConstructionPage } from './pages/StatusPages.jsx'
 import TablesPage from './pages/TablesPage.jsx'
 import UsersPage from './pages/UsersPage.jsx'
+import OrderDetailPage from './pages/OrderDetailPage.jsx'
+import OrderTakingPage from './pages/OrderTakingPage.jsx'
 import WaiterTablesPanelPage from './pages/WaiterTablesPanelPage.jsx'
 
 function Home() {
@@ -35,6 +37,8 @@ export default function App() {
         <Route path="/mesero" element={<WaiterLayout />}>
           <Route index element={<Navigate to="mesas" replace />} />
           <Route path="mesas" element={<WaiterTablesPanelPage />} />
+          <Route path="mesas/:orderId" element={<OrderDetailPage />} />
+          <Route path="mesas/:orderId/nueva-ronda" element={<OrderTakingPage />} />
         </Route>
       </Route>
 
