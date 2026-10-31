@@ -28,3 +28,7 @@ npm-debug.log*
 # Archivos del sistema
 .DS_Store
 Thumbs.db
+
+# Claude Code (local, no se sube al repo)
+.claude/
+CLAUDE.md

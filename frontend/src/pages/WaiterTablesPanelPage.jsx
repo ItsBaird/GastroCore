@@ -1,9 +1,11 @@
-import { RefreshCw, TriangleAlert } from 'lucide-react'
+import { CircleDollarSign, RefreshCw, Table, TriangleAlert, UtensilsCrossed } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { listTableStatuses, openTable as openTableApi } from '../api/tablesStatus.js'
 import { useAuth } from '../auth/useAuth.js'
+import { useToast } from '../components/Toast.jsx'
 import { useTableStatusSocket } from '../hooks/useTableStatusSocket.js'
 import { WaiterPage } from '../layouts/WaiterLayout.jsx'
+import '../styles/waiter.tokens.css'
 import './WaiterTablesPanelPage.css'
 
 const STATUS_CONFIG = {
@@ -25,35 +27,66 @@ function StatCards({ tables }) {
 
   return (
     <div className="ts-stats" role="group" aria-label="Resumen de mesas">
-      <div className="ts-stat">
-        <span className="ts-stat__value">{tables.length}</span>
-        <span className="ts-stat__label">Total</span>
+      <div className="ts-stat ts-stat--asignadas">
+        <div className="ts-stat__bar" />
+        <div className="ts-stat__info">
+          <span className="ts-stat__value">{tables.length}</span>
+          <span className="ts-stat__label">Asignadas</span>
+        </div>
+        <div className="ts-stat__circle" aria-hidden="true">
+          <Table size={18} />
+        </div>
       </div>
       <div className="ts-stat ts-stat--libre">
-        <span className="ts-stat__value">{libre}</span>
-        <span className="ts-stat__label">Libres</span>
+        <div className="ts-stat__bar" />
+        <div className="ts-stat__info">
+          <span className="ts-stat__value">{libre}</span>
+          <span className="ts-stat__label">Libres</span>
+        </div>
+        <div className="ts-stat__circle" aria-hidden="true">
+          <Table size={18} />
+        </div>
       </div>
       <div className="ts-stat ts-stat--ocupada">
-        <span className="ts-stat__value">{ocupada}</span>
-        <span className="ts-stat__label">Ocupadas</span>
+        <div className="ts-stat__bar" />
+        <div className="ts-stat__info">
+          <span className="ts-stat__value">{ocupada}</span>
+          <span className="ts-stat__label">Ocupadas</span>
+        </div>
+        <div className="ts-stat__circle" aria-hidden="true">
+          <UtensilsCrossed size={18} />
+        </div>
       </div>
       <div className="ts-stat ts-stat--en-cobro">
-        <span className="ts-stat__value">{enCobro}</span>
-        <span className="ts-stat__label">En Cobro</span>
+        <div className="ts-stat__bar" />
+        <div className="ts-stat__info">
+          <span className="ts-stat__value">{enCobro}</span>
+          <span className="ts-stat__label">En Cobro</span>
+        </div>
+        <div className="ts-stat__circle" aria-hidden="true">
+          <CircleDollarSign size={18} />
+        </div>
       </div>
     </div>
   )
 }
 
-function TableCard({ table, isMe, onOpen, opening }) {
+function TableCard({ table, isMe, onOpen, opening, onComingSoon }) {
   const config = STATUS_CONFIG[table.status] ?? STATUS_CONFIG.libre
 
   return (
     <article className={`ts-card ${config.className}`}>
+      <div className="ts-card__top-bar" />
       <div className="ts-card__header">
-        <span className="ts-card__number">Mesa {table.tableNumber}</span>
-        <span className={`pill pill--table-${table.status}`}>{config.label}</span>
+        <div className="ts-card__circle">{table.tableNumber}</div>
+        <div className="ts-card__title-group">
+          <span className="ts-card__number">Mesa {table.tableNumber}</span>
+        </div>
+        <div className="ts-card__pill-wrap">
+          <span className={`pill pill--table-${table.status}`}>{config.label}</span>
+        </div>
       </div>
+      <div className="ts-card__divider" />
       <div className="ts-card__body">
         {isMe && <span className="ts-card__waiter">Tú</span>}
         {table.pendingCalls.length > 0 && (
@@ -74,12 +107,20 @@ function TableCard({ table, isMe, onOpen, opening }) {
           </button>
         )}
         {table.status === 'ocupada' && (
-          <button type="button" className="btn ts-btn--ocupada" disabled title="Próximamente">
+          <button
+            type="button"
+            className="btn ts-btn--ocupada"
+            onClick={() => onComingSoon('Ver Detalle disponible próximamente')}
+          >
             Ver Detalle
           </button>
         )}
         {table.status === 'en_cobro' && (
-          <button type="button" className="btn ts-btn--en-cobro" disabled title="Próximamente">
+          <button
+            type="button"
+            className="btn ts-btn--en-cobro"
+            onClick={() => onComingSoon('Cobrar disponible próximamente')}
+          >
             Cobrar
           </button>
         )}
@@ -90,6 +131,7 @@ function TableCard({ table, isMe, onOpen, opening }) {
 
 export default function WaiterTablesPanelPage() {
   const { user } = useAuth()
+  const toast = useToast()
   const [{ status, tables, error }, setData] = useState({ status: 'loading', tables: [], error: '' })
   const [openingId, setOpeningId] = useState(null)
   const [openError, setOpenError] = useState('')
@@ -135,6 +177,10 @@ export default function WaiterTablesPanelPage() {
     }
   }
 
+  const handleComingSoon = (msg) => {
+    toast.success(msg)
+  }
+
   useTableStatusSocket((updated) => {
     setData((prev) => {
       if (prev.status !== 'ready') return prev
@@ -157,6 +203,8 @@ export default function WaiterTablesPanelPage() {
           <button type="button" className="btn btn--ghost" onClick={() => setOpenError('')}>Cerrar</button>
         </div>
       )}
+
+      <h2 className="ts-section-title">Mis Mesas Asignadas</h2>
 
       <section className="ts-panel" aria-label="Estado de mesas">
         {status === 'error' ? (
@@ -183,6 +231,7 @@ export default function WaiterTablesPanelPage() {
                   isMe={t.waiterId === user?.userId}
                   onOpen={handleOpen}
                   opening={openingId === t.tableId}
+                  onComingSoon={handleComingSoon}
                 />
               ))
             )}

@@ -59,7 +59,7 @@ describe('WaiterTablesPanelPage', () => {
     await screen.findByText('Mesa 1')
     const statGroup = screen.getByRole('group', { name: 'Resumen de mesas' })
     expect(statGroup).toBeInTheDocument()
-    expect(screen.getByText('Total')).toBeInTheDocument()
+    expect(screen.getByText('Asignadas')).toBeInTheDocument()
     expect(screen.getByText('Libres')).toBeInTheDocument()
     expect(screen.getByText('Ocupadas')).toBeInTheDocument()
     expect(screen.getByText('En Cobro', { selector: '.ts-stat__label' })).toBeInTheDocument()
@@ -106,13 +106,13 @@ describe('WaiterTablesPanelPage', () => {
     expect(await screen.findByText('No hay mesas registradas.')).toBeInTheDocument()
   })
 
-  it('renders action buttons: Abrir Mesa enabled, Ver Detalle and Cobrar disabled', async () => {
+  it('renders action buttons: Abrir Mesa, Ver Detalle and Cobrar all enabled', async () => {
     renderPage()
 
     await screen.findByText('Mesa 1')
     expect(screen.getByRole('button', { name: 'Abrir Mesa' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Ver Detalle' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Cobrar' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Ver Detalle' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Cobrar' })).toBeEnabled()
   })
 
   it('opens a table and updates its status to ocupada', async () => {
