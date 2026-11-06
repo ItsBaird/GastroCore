@@ -72,11 +72,66 @@ function StatCards({ tables }) {
   )
 }
 
+// Una sola fuente para "que accion toca segun el estado": la usan el boton de escritorio y
+// la fila completa en movil, donde el Figma (40:2) no dibuja boton y la fila es el objetivo.
+function tableAction(table, { onOpen, opening, onComingSoon, onViewDetail, onTakeOrder }) {
+  const mesa = `Mesa ${table.tableNumber}`
+
+  if (table.status === 'libre') {
+    return {
+      label: opening ? 'Abriendo…' : 'Abrir Mesa',
+      className: 'ts-btn--libre',
+      ariaLabel: `${mesa}, abrir mesa`,
+      disabled: opening,
+      run: () => onOpen(table.tableId),
+    }
+  }
+  if (table.status === 'ocupada') {
+    return table.itemsCount > 0
+      ? {
+          label: 'Ver Detalle',
+          className: 'ts-btn--ocupada',
+          ariaLabel: `${mesa}, ver detalle`,
+          disabled: false,
+          run: () => onViewDetail(table),
+        }
+      : {
+          label: 'Tomar Pedido',
+          className: 'ts-btn--ocupada',
+          ariaLabel: `${mesa}, tomar pedido`,
+          disabled: false,
+          run: () => onTakeOrder(table),
+        }
+  }
+  if (table.status === 'en_cobro') {
+    return {
+      label: 'Cobrar',
+      className: 'ts-btn--en-cobro',
+      ariaLabel: `${mesa}, cobrar`,
+      disabled: false,
+      run: () => onComingSoon('Cobrar disponible próximamente'),
+    }
+  }
+  return null
+}
+
 function TableCard({ table, isMe, onOpen, opening, onComingSoon, onViewDetail, onTakeOrder }) {
   const config = STATUS_CONFIG[table.status] ?? STATUS_CONFIG.libre
+  const action = tableAction(table, { onOpen, opening, onComingSoon, onViewDetail, onTakeOrder })
 
   return (
     <article className={`ts-card ${config.className}`}>
+      {/* Objetivo tactil de la fila en movil: ahi el boton de acciones se oculta. Es un
+          <button> real, asi que trae teclado y foco sin reimplementarlos. */}
+      {action && (
+        <button
+          type="button"
+          className="ts-card__tap"
+          aria-label={action.ariaLabel}
+          disabled={action.disabled}
+          onClick={action.run}
+        />
+      )}
       <div className="ts-card__top-bar" />
       <div className="ts-card__header">
         <div className="ts-card__circle">{table.tableNumber}</div>
@@ -97,41 +152,14 @@ function TableCard({ table, isMe, onOpen, opening, onComingSoon, onViewDetail, o
         )}
       </div>
       <div className="ts-card__actions">
-        {table.status === 'libre' && (
+        {action && (
           <button
             type="button"
-            className="btn ts-btn--libre"
-            disabled={opening}
-            onClick={() => onOpen(table.tableId)}
+            className={`btn ${action.className}`}
+            disabled={action.disabled}
+            onClick={action.run}
           >
-            {opening ? 'Abriendo…' : 'Abrir Mesa'}
-          </button>
-        )}
-        {table.status === 'ocupada' && table.itemsCount > 0 && (
-          <button
-            type="button"
-            className="btn ts-btn--ocupada"
-            onClick={() => onViewDetail(table)}
-          >
-            Ver Detalle
-          </button>
-        )}
-        {table.status === 'ocupada' && !(table.itemsCount > 0) && (
-          <button
-            type="button"
-            className="btn ts-btn--ocupada"
-            onClick={() => onTakeOrder(table)}
-          >
-            Tomar Pedido
-          </button>
-        )}
-        {table.status === 'en_cobro' && (
-          <button
-            type="button"
-            className="btn ts-btn--en-cobro"
-            onClick={() => onComingSoon('Cobrar disponible próximamente')}
-          >
-            Cobrar
+            {action.label}
           </button>
         )}
       </div>
