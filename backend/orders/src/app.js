@@ -5,6 +5,7 @@ import { env } from './config/env.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { notFound } from './middlewares/notFound.js';
 import { createRateLimiter } from './middlewares/rateLimiter.js';
+import { itemRouter } from './routes/item.routes.js';
 import { orderRouter } from './routes/order.routes.js';
 import { roundRouter } from './routes/round.routes.js';
 import { tableRouter } from './routes/table.routes.js';
@@ -20,7 +21,9 @@ const router = express.Router();
 router.get('/health', (req, res) => {
   res.json({ service: env.serviceName, status: 'ok' });
 });
+// Las rutas estaticas van antes de las parametricas: orderRouter responde a GET /:orderId.
 router.use('/tables', tableRouter);
+router.use('/items', itemRouter);
 router.use('/', orderRouter);
 router.use('/:orderId/rounds', roundRouter);
 app.use('/api/orders', router);
