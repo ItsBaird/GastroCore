@@ -17,7 +17,7 @@ const ME = { userId: 'user-1', email: 'mesero@lapizzeta.com', role: 'WAITER', is
 
 const TABLES = [
   { tableId: 't1', tableNumber: 1, status: 'libre', pendingCalls: [] },
-  { tableId: 't2', tableNumber: 2, status: 'ocupada', orderId: 'o1', waiterId: 'user-1', pendingCalls: [] },
+  { tableId: 't2', tableNumber: 2, status: 'ocupada', orderId: 'o1', waiterId: 'user-1', pendingCalls: [], itemsCount: 3 },
   { tableId: 't3', tableNumber: 3, status: 'en_cobro', orderId: 'o2', waiterId: 'user-2', pendingCalls: [
     { serviceCallId: 'sc1', tableId: 't3', type: 'request_bill', status: 'pendiente', createdAt: '2026-01-01T00:00:00Z' },
   ] },
@@ -144,6 +144,17 @@ describe('WaiterTablesPanelPage', () => {
     await user.click(screen.getByRole('button', { name: 'Abrir Mesa' }))
 
     expect(await screen.findByText('La mesa ya tiene una orden abierta')).toBeInTheDocument()
+  })
+
+  it('shows "Tomar Pedido" for occupied tables with no items', async () => {
+    const tablesNoItems = [
+      { tableId: 't2', tableNumber: 2, status: 'ocupada', orderId: 'o1', waiterId: 'user-1', pendingCalls: [], itemsCount: 0 },
+    ]
+    renderPage(tablesNoItems)
+
+    await screen.findByText('Mesa 2')
+    expect(screen.getByRole('button', { name: 'Tomar Pedido' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Ver Detalle' })).not.toBeInTheDocument()
   })
 
   it('shows "Abriendo…" while the open request is in flight', async () => {
