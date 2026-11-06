@@ -8,6 +8,7 @@ import CategoriesPage from './pages/CategoriesPage.jsx'
 import EmployeesPage from './pages/EmployeesPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import ProductsPage from './pages/ProductsPage.jsx'
+import ShiftsPage from './pages/ShiftsPage.jsx'
 import { NotFoundPage, UnderConstructionPage } from './pages/StatusPages.jsx'
 import TablesPage from './pages/TablesPage.jsx'
 import UsersPage from './pages/UsersPage.jsx'
@@ -33,6 +34,7 @@ export default function App() {
           <Route index element={<Navigate to="usuarios" replace />} />
           <Route path="usuarios" element={<UsersPage />} />
           <Route path="empleados" element={<EmployeesPage />} />
+          <Route path="turnos" element={<ShiftsPage />} />
           <Route path="mesas" element={<TablesPage />} />
           <Route path="productos" element={<ProductsPage />} />
           <Route path="categorias" element={<CategoriesPage />} />
