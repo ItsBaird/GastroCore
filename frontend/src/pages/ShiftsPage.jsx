@@ -1,7 +1,9 @@
 import { ChevronLeft, ChevronRight, Plus, RefreshCw, TriangleAlert } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { createShift, listEmployees, listShifts } from '../api/staff.js'
+import { createShift, endShift, listEmployees, listShifts } from '../api/staff.js'
+import { ConfirmDialog } from '../components/ConfirmDialog.jsx'
+import { MyShiftPanel } from '../components/MyShiftPanel.jsx'
 import { useToast } from '../components/Toast.jsx'
 import { AdminPage } from '../layouts/AdminLayout.jsx'
 import {
@@ -14,6 +16,7 @@ import {
   formatTime,
   formatWeekRange,
   mondayOf,
+  shiftActionMessage,
   todayKey,
   weekDays,
 } from '../utils/shift.js'
@@ -27,7 +30,7 @@ const byStart = (a, b) => new Date(a.scheduledStart) - new Date(b.scheduledStart
 function SkeletonRows() {
   return Array.from({ length: 4 }, (_, i) => (
     <tr key={i} className="users-table__skeleton" aria-hidden="true">
-      <td colSpan={5}>
+      <td colSpan={6}>
         <span />
       </td>
     </tr>
@@ -65,6 +68,9 @@ export default function ShiftsPage() {
   // creating: false | { date? } (puede abrirse ya con el dia elegido)
   const [creating, setCreating] = useState(false)
   const [reload, setReload] = useState(0)
+  // finishing: turno activo que el admin esta por finalizar (el del empleado, con confirmacion)
+  const [finishing, setFinishing] = useState(null)
+  const [finishBusy, setFinishBusy] = useState(false)
 
   // Carga al abrir y cada vez que cambia la semana, el filtro o se pide reintentar
   useEffect(() => {
@@ -108,6 +114,21 @@ export default function ShiftsPage() {
     )
   }
 
+  const handleFinish = async () => {
+    const target = finishing
+    setFinishBusy(true)
+    try {
+      const updated = await endShift(target.shiftId)
+      setData((d) => ({ ...d, shifts: d.shifts.map((s) => (s.shiftId === updated.shiftId ? updated : s)) }))
+      toast.success('Turno finalizado')
+    } catch (err) {
+      toast.error(shiftActionMessage(err, { own: false }).message)
+    } finally {
+      setFinishBusy(false)
+      setFinishing(null)
+    }
+  }
+
   const noEmployees = status === 'ready' && employees.length === 0
   const isCurrentWeek = week === mondayOf(today)
 
@@ -127,6 +148,8 @@ export default function ShiftsPage() {
         </button>
       }
     >
+      <MyShiftPanel hideWhenEmpty />
+
       <section className="shift-toolbar" aria-label="Semana y filtros">
         <div className="week-nav">
           <button
@@ -200,6 +223,7 @@ export default function ShiftsPage() {
                     Duración
                   </th>
                   <th scope="col">Estado</th>
+                  <th scope="col">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -211,7 +235,7 @@ export default function ShiftsPage() {
                     return (
                       <Fragment key={day}>
                         <tr className="day-row">
-                          <th colSpan={5} scope="colgroup">
+                          <th colSpan={6} scope="colgroup">
                             <div className="day-row__inner">
                               <span className="day-row__title">
                                 {formatDayHeading(day)}
@@ -230,7 +254,7 @@ export default function ShiftsPage() {
                         </tr>
                         {dayShifts.length === 0 ? (
                           <tr className="day-empty">
-                            <td colSpan={5}>Sin turnos</td>
+                            <td colSpan={6}>Sin turnos</td>
                           </tr>
                         ) : (
                           dayShifts.map((s) => {
@@ -255,6 +279,18 @@ export default function ShiftsPage() {
                                     {STATUS_LABEL[s.status] ?? s.status}
                                   </span>
                                 </td>
+                                <td>
+                                  {s.status === 'activo' && (
+                                    <button
+                                      type="button"
+                                      className="link-btn link-btn--danger"
+                                      onClick={() => setFinishing({ ...s, name: employee?.fullName })}
+                                      aria-label={`Finalizar turno de ${employee?.fullName ?? 'empleado'}`}
+                                    >
+                                      Finalizar
+                                    </button>
+                                  )}
+                                </td>
                               </tr>
                             )
                           })
@@ -268,6 +304,17 @@ export default function ShiftsPage() {
           </div>
         )}
       </section>
+
+      {finishing && (
+        <ConfirmDialog
+          title="Finalizar turno"
+          message={`¿Finalizar el turno de ${finishing.name ?? 'este empleado'}? Si tiene mesas abiertas, primero hay que reasignarlas.`}
+          confirmLabel="Finalizar turno"
+          busy={finishBusy}
+          onConfirm={handleFinish}
+          onCancel={() => setFinishing(null)}
+        />
+      )}
 
       {creating && (
         <ShiftFormModal

@@ -7,6 +7,7 @@ import { WaiterLayout } from './layouts/WaiterLayout.jsx'
 import CategoriesPage from './pages/CategoriesPage.jsx'
 import EmployeesPage from './pages/EmployeesPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
+import MyShiftPage from './pages/MyShiftPage.jsx'
 import ProductsPage from './pages/ProductsPage.jsx'
 import ShiftsPage from './pages/ShiftsPage.jsx'
 import { NotFoundPage, UnderConstructionPage } from './pages/StatusPages.jsx'
@@ -14,6 +15,7 @@ import TablesPage from './pages/TablesPage.jsx'
 import UsersPage from './pages/UsersPage.jsx'
 import OrderDetailPage from './pages/OrderDetailPage.jsx'
 import OrderTakingPage from './pages/OrderTakingPage.jsx'
+import WaiterShiftPage from './pages/WaiterShiftPage.jsx'
 import WaiterTablesPanelPage from './pages/WaiterTablesPanelPage.jsx'
 
 function Home() {
@@ -47,11 +49,13 @@ export default function App() {
           <Route path="mesas" element={<WaiterTablesPanelPage />} />
           <Route path="mesas/:orderId" element={<OrderDetailPage />} />
           <Route path="mesas/:orderId/nueva-ronda" element={<OrderTakingPage />} />
+          <Route path="turno" element={<WaiterShiftPage />} />
         </Route>
       </Route>
 
       <Route element={<RequireAuth />}>
         <Route path="/en-construccion" element={<UnderConstructionPage />} />
+        <Route path="/mi-turno" element={<MyShiftPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

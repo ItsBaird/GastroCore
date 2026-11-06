@@ -58,10 +58,25 @@ async function fillForm(dialog, user, { employee, date, start, end }) {
   if (end) await user.type(within(dialog).getByLabelText('Hora de fin'), end)
 }
 
+// El panel "Mi turno" de arriba tambien pide turnos (con el userId del admin): se le devuelve vacio para
+// que estas pruebas solo hablen del horario. `fail` hace que el PRIMER pedido del horario falle.
+function mockSchedule(list, fail) {
+  let pending = fail
+  staffApi.listShifts.mockImplementation(async ({ userId } = {}) => {
+    if (userId === ME.userId) return []
+    if (pending) {
+      const err = pending
+      pending = null
+      throw err
+    }
+    return list
+  })
+}
+
 beforeEach(() => {
   vi.resetAllMocks()
   staffApi.listEmployees.mockResolvedValue(EMPLOYEES)
-  staffApi.listShifts.mockResolvedValue(SHIFTS)
+  mockSchedule(SHIFTS)
 })
 
 describe('ShiftsPage', () => {
@@ -116,7 +131,7 @@ describe('ShiftsPage', () => {
   })
 
   it('error al cargar -> alerta con reintento', async () => {
-    staffApi.listShifts.mockRejectedValueOnce(new Error('x'))
+    mockSchedule(SHIFTS, new Error('x'))
     const user = userEvent.setup()
     renderPage()
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cargar la programación de turnos')
@@ -125,14 +140,14 @@ describe('ShiftsPage', () => {
   })
 
   it('403 -> mensaje de permiso', async () => {
-    staffApi.listShifts.mockRejectedValueOnce(new ApiError(403, 'FORBIDDEN', 'x'))
+    mockSchedule(SHIFTS, new ApiError(403, 'FORBIDDEN', 'x'))
     renderPage()
     expect(await screen.findByRole('alert')).toHaveTextContent('No tienes permiso')
   })
 
   it('sin empleados explica que hay que registrarlos primero y no deja programar', async () => {
     staffApi.listEmployees.mockResolvedValue([])
-    staffApi.listShifts.mockResolvedValue([])
+    mockSchedule([])
     renderPage()
     expect(await screen.findByText(/Todavía no hay empleados/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Empleados' })).toHaveAttribute('href', '/admin/empleados')
@@ -235,5 +250,68 @@ describe('ShiftsPage', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Programar turno' }))
     expect(await screen.findByText(/Turno programado \(/)).toBeInTheDocument()
     expect(screen.queryByText('12:00 p. m.')).not.toBeInTheDocument()
+  })
+})
+
+describe('ShiftsPage · iniciar/finalizar turnos', () => {
+  // Esta tanda arranca con el admin con un turno activo propio y la agenda semanal de siempre
+  const ADMIN_ACTIVE = {
+    ...shift('mine', ME.userId, MONDAY, '08:00', '23:00', 'activo'),
+    actualStart: new Date(Date.now() - 60 * 60_000).toISOString(),
+  }
+  beforeEach(() => {
+    staffApi.listShifts.mockImplementation(async ({ userId } = {}) =>
+      userId === ME.userId ? [ADMIN_ACTIVE] : SHIFTS,
+    )
+  })
+
+  it('el admin ve arriba su propio turno si tiene uno activo hoy (como en el mockup)', async () => {
+    renderPage()
+    // El turno es de MONDAY: solo cuenta como "hoy" si hoy es lunes; un turno activo se muestra siempre
+    expect(await screen.findByText('Turno activo')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Finalizar turno' })).toBeInTheDocument()
+  })
+
+  it('cada turno activo de la agenda tiene su boton Finalizar; los demas no', async () => {
+    renderPage()
+    await screen.findAllByText('Carlos Rodríguez')
+    expect(screen.getAllByRole('button', { name: /^Finalizar turno de / })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Finalizar turno de Ana Martínez' })).toBeInTheDocument()
+  })
+
+  it('el admin finaliza el turno de un empleado tras confirmar y se actualiza el estado', async () => {
+    const user = userEvent.setup()
+    staffApi.endShift.mockResolvedValue({ ...SHIFTS[1], status: 'finalizado' })
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Finalizar turno de Ana Martínez' }))
+    const dialog = screen.getByRole('dialog', { name: 'Finalizar turno' })
+    expect(within(dialog).getByText(/Ana Martínez/)).toBeInTheDocument()
+    expect(staffApi.endShift).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: 'Finalizar turno' }))
+    expect(staffApi.endShift).toHaveBeenCalledWith('s2')
+    expect(await screen.findByText('Turno finalizado')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Finalizar turno de Ana Martínez' })).not.toBeInTheDocument()
+    expect(screen.getAllByText('Finalizado')).toHaveLength(2)
+  })
+
+  it('si el empleado tiene mesas abiertas (HAS_OPEN_TABLES) avisa que hay que reasignarlas y no cambia nada', async () => {
+    const user = userEvent.setup()
+    staffApi.endShift.mockRejectedValue(new ApiError(409, 'HAS_OPEN_TABLES', 'x', { count: 2 }))
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Finalizar turno de Ana Martínez' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Finalizar turno' }))
+    expect(
+      await screen.findByText('El empleado tiene 2 mesas abiertas. Reasígnalas antes de finalizar su turno.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Finalizar turno de Ana Martínez' })).toBeInTheDocument()
+  })
+
+  it('cancelar la confirmacion no finaliza nada', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Finalizar turno de Ana Martínez' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }))
+    expect(staffApi.endShift).not.toHaveBeenCalled()
   })
 })

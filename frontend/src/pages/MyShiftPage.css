@@ -1,0 +1,36 @@
+.my-shift-page {
+  max-width: 640px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-4);
+}
+
+.my-shift-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-8);
+}
+
+.my-shift-page__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.my-shift-page__brand svg {
+  color: var(--red-600);
+}
+
+.my-shift-page__title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.my-shift-page__user {
+  margin-bottom: var(--sp-5);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
