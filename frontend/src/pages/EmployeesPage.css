@@ -1,0 +1,81 @@
+/* Empleados (GC-STAFF-0001). Reutiliza la tabla y las pastillas de Usuarios y el formulario de Catalogo. */
+.employee-sub {
+  color: var(--text-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.employee-owner {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.employee-owner strong {
+  color: var(--text);
+}
+
+.alert--info {
+  background: var(--n-100);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+/* Usuarios que aun no tienen perfil laboral (R1: la cuenta puede existir sin perfil) */
+.pending {
+  margin-bottom: var(--sp-5);
+  padding: var(--sp-4) var(--sp-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+.pending__title {
+  font-weight: 600;
+}
+
+.pending__list {
+  display: flex;
+  flex-direction: column;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pending__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--n-100);
+}
+
+.pending__email {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Tablet ---------- */
+@media (width <= 900px) {
+  .col-doc,
+  .col-phone {
+    display: none;
+  }
+
+  .employees-table {
+    min-width: 520px;
+  }
+}
+
+/* ---------- Mobile ---------- */
+@media (width <= 640px) {
+  .employees-table {
+    min-width: 440px;
+  }
+
+  .pending {
+    padding: var(--sp-4);
+  }
+}

@@ -3,14 +3,16 @@ import { ApiError, readBody, toApiError } from './errors.js'
 
 function send(path, { method, body, auth }) {
   const token = auth ? getAccessToken() : null
+  // FormData (fotos de productos): el navegador pone el Content-Type multipart con su boundary
+  const isForm = body instanceof FormData
   return fetch(path, {
     method,
     credentials: 'same-origin',
     headers: {
-      ...(body !== undefined && { 'Content-Type': 'application/json' }),
+      ...(body !== undefined && !isForm && { 'Content-Type': 'application/json' }),
       ...(token && { Authorization: `Bearer ${token}` }),
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   })
 }
 

@@ -7,6 +7,8 @@ const schema = z.object({
   CORS_ORIGIN: z.string().min(1).default('http://localhost'),
   DATABASE_URL: z.string().min(1),
   JWT_PUBLIC_KEY_PATH: z.string().min(1).default('/run/keys/public/jwt_public.pem'),
+  // Volumen donde se guardan las fotos de productos (SAD: volumen uploads)
+  UPLOADS_DIR: z.string().min(1).default('/app/uploads'),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -22,4 +24,5 @@ export const env = {
   corsOrigin: parsed.data.CORS_ORIGIN,
   databaseUrl: parsed.data.DATABASE_URL,
   jwtPublicKeyPath: parsed.data.JWT_PUBLIC_KEY_PATH,
+  uploadsDir: parsed.data.UPLOADS_DIR,
 };

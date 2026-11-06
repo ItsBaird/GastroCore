@@ -35,6 +35,17 @@ describe('api()', () => {
     expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer token-viejo')
   })
 
+  it('con FormData no fuerza Content-Type (el navegador agrega el boundary) y no lo serializa a JSON', async () => {
+    fetchMock.mockImplementation(() => json(201, { ok: true }))
+    const form = new FormData()
+    form.append('name', 'x')
+    await api('/api/catalog/products', { method: 'POST', body: form })
+    const init = fetchMock.mock.calls[0][1]
+    expect(init.body).toBe(form)
+    expect(init.headers['Content-Type']).toBeUndefined()
+    expect(init.headers.Authorization).toBe('Bearer token-viejo')
+  })
+
   it('no envia Authorization cuando auth=false', async () => {
     fetchMock.mockImplementation(() => json(200, {}))
     await api('/api/auth/login', { method: 'POST', body: { a: 1 }, auth: false })
