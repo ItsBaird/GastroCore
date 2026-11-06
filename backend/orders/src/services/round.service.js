@@ -1,42 +1,11 @@
 import { catalogClient } from '../clients/catalogClient.js';
 import { AppError } from '../errors/AppError.js';
+import { mapRound } from '../mappers/item.mapper.js';
 import { emitRoundCreated } from '../realtime/events.js';
 import {
   createRoundWithItems,
   findOrderById,
 } from '../repositories/round.repository.js';
-
-function mapItem(item) {
-  return {
-    itemId: item.itemId,
-    roundId: item.roundId,
-    productId: item.productId,
-    productName: item.productNameSnapshot,
-    unitPrice: item.unitPriceSnapshot,
-    quantity: item.quantity,
-    note: item.note,
-    status: item.status,
-    preparationStartedAt: item.preparationStartedAt,
-    readyAt: item.readyAt,
-    deliveredAt: item.deliveredAt,
-    cancelledAt: item.cancelledAt,
-    cancelledReason: item.cancelledReason,
-    cancelledBy: item.cancelledBy,
-    createdAt: item.createdAt,
-    updatedAt: item.updatedAt,
-  };
-}
-
-function mapRound(round) {
-  return {
-    roundId: round.roundId,
-    orderId: round.orderId,
-    source: round.source,
-    createdBy: round.createdBy,
-    createdAt: round.createdAt,
-    items: round.items.map(mapItem),
-  };
-}
 
 export async function createRound(orderId, items, user) {
   const order = await findOrderById(orderId);
