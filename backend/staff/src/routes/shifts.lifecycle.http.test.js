@@ -274,6 +274,16 @@ describe('POST /api/staff/shifts/:id/end', () => {
     expect(res.body.actualEnd).toBe('2026-11-09T22:30:00.000Z');
   });
 
+  it('si el reloj no avanzo desde el inicio, el fin se registra 1 ms despues (CHECK actual_end > actual_start)', async () => {
+    at(START); // el turno activo tiene actualStart = START
+    const res = await post('end', token());
+    expect(res.status).toBe(200);
+    expect(shiftRepository.transition).toHaveBeenCalledWith(SHIFT_ID, 'activo', {
+      status: 'finalizado',
+      actualEnd: new Date(START.getTime() + 1),
+    });
+  });
+
   it.each(['programado', 'finalizado'])(
     'un turno %s no se puede finalizar -> 409 sin consultar a Orders',
     async (status) => {

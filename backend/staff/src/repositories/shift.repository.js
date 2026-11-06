@@ -11,6 +11,12 @@ export const shiftRepository = {
       orderBy: [{ scheduledStart: 'asc' }, { userId: 'asc' }],
     }),
   findById: (shiftId) => prisma.shift.findUnique({ where: { shiftId } }),
+  // Turno activo de un empleado (deberia ser uno solo; si hubiera mas, el de inicio programado mas reciente)
+  findActiveByUserId: (userId) =>
+    prisma.shift.findFirst({
+      where: { userId, status: 'activo' },
+      orderBy: { scheduledStart: 'desc' },
+    }),
   create: (data) => prisma.shift.create({ data }),
   // Cambio de estado atomico: solo se aplica si el turno sigue en `from` (evita que dos peticiones
   // simultaneas lo inicien o finalicen dos veces). Devuelve el turno actualizado, o null si no cambio.
