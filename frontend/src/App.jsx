@@ -4,7 +4,9 @@ import { homePathFor } from './auth/paths.js'
 import { useAuth } from './auth/useAuth.js'
 import { AdminLayout } from './layouts/AdminLayout.jsx'
 import { WaiterLayout } from './layouts/WaiterLayout.jsx'
+import CategoriesPage from './pages/CategoriesPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
+import ProductsPage from './pages/ProductsPage.jsx'
 import { NotFoundPage, UnderConstructionPage } from './pages/StatusPages.jsx'
 import TablesPage from './pages/TablesPage.jsx'
 import UsersPage from './pages/UsersPage.jsx'
@@ -28,6 +30,8 @@ export default function App() {
           <Route index element={<Navigate to="usuarios" replace />} />
           <Route path="usuarios" element={<UsersPage />} />
           <Route path="mesas" element={<TablesPage />} />
+          <Route path="productos" element={<ProductsPage />} />
+          <Route path="categorias" element={<CategoriesPage />} />
         </Route>
       </Route>
 

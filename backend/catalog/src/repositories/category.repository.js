@@ -8,4 +8,11 @@ export const categoryRepository = {
   findById: (categoryId) => prisma.category.findUnique({ where: { categoryId } }),
   create: (data) => prisma.category.create({ data }),
   update: (categoryId, data) => prisma.category.update({ where: { categoryId }, data }),
+  // Menu publico: solo categorias con al menos un producto disponible, y solo esos productos
+  findMenu: () =>
+    prisma.category.findMany({
+      where: { products: { some: { isAvailable: true } } },
+      include: { products: { where: { isAvailable: true }, orderBy: { name: 'asc' } } },
+      orderBy: ORDER,
+    }),
 };
