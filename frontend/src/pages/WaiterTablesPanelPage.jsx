@@ -1,5 +1,6 @@
 import { CircleDollarSign, RefreshCw, Table, TriangleAlert, UtensilsCrossed } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { listTableStatuses, openTable as openTableApi } from '../api/tablesStatus.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useToast } from '../components/Toast.jsx'
@@ -71,7 +72,7 @@ function StatCards({ tables }) {
   )
 }
 
-function TableCard({ table, isMe, onOpen, opening, onComingSoon }) {
+function TableCard({ table, isMe, onOpen, opening, onComingSoon, onViewDetail, onTakeOrder }) {
   const config = STATUS_CONFIG[table.status] ?? STATUS_CONFIG.libre
 
   return (
@@ -106,13 +107,22 @@ function TableCard({ table, isMe, onOpen, opening, onComingSoon }) {
             {opening ? 'Abriendo…' : 'Abrir Mesa'}
           </button>
         )}
-        {table.status === 'ocupada' && (
+        {table.status === 'ocupada' && table.itemsCount > 0 && (
           <button
             type="button"
             className="btn ts-btn--ocupada"
-            onClick={() => onComingSoon('Ver Detalle disponible próximamente')}
+            onClick={() => onViewDetail(table)}
           >
             Ver Detalle
+          </button>
+        )}
+        {table.status === 'ocupada' && !(table.itemsCount > 0) && (
+          <button
+            type="button"
+            className="btn ts-btn--ocupada"
+            onClick={() => onTakeOrder(table)}
+          >
+            Tomar Pedido
           </button>
         )}
         {table.status === 'en_cobro' && (
@@ -132,6 +142,7 @@ function TableCard({ table, isMe, onOpen, opening, onComingSoon }) {
 export default function WaiterTablesPanelPage() {
   const { user } = useAuth()
   const toast = useToast()
+  const navigate = useNavigate()
   const [{ status, tables, error }, setData] = useState({ status: 'loading', tables: [], error: '' })
   const [openingId, setOpeningId] = useState(null)
   const [openError, setOpenError] = useState('')
@@ -179,6 +190,16 @@ export default function WaiterTablesPanelPage() {
 
   const handleComingSoon = (msg) => {
     toast.success(msg)
+  }
+
+  const handleViewDetail = (table) => {
+    navigate(`/mesero/mesas/${table.orderId}`)
+  }
+
+  const handleTakeOrder = (table) => {
+    navigate(`/mesero/mesas/${table.orderId}/nueva-ronda`, {
+      state: { tableNumber: table.tableNumber },
+    })
   }
 
   useTableStatusSocket((updated) => {
@@ -232,6 +253,8 @@ export default function WaiterTablesPanelPage() {
                   onOpen={handleOpen}
                   opening={openingId === t.tableId}
                   onComingSoon={handleComingSoon}
+                  onViewDetail={handleViewDetail}
+                  onTakeOrder={handleTakeOrder}
                 />
               ))
             )}
