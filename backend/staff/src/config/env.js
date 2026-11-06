@@ -9,6 +9,9 @@ const schema = z.object({
   JWT_PUBLIC_KEY_PATH: z.string().min(1).default('/run/keys/public/jwt_public.pem'),
   // Red interna de Docker: Staff consulta a Auth directamente, sin pasar por el gateway
   AUTH_URL: z.string().url().default('http://auth:3001'),
+  ORDERS_URL: z.string().url().default('http://orders:3004'),
+  // Autenticacion entre servicios en /internal/* (cabecera X-Service-Token)
+  SERVICE_TOKEN: z.string().default(''),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -25,4 +28,6 @@ export const env = {
   databaseUrl: parsed.data.DATABASE_URL,
   jwtPublicKeyPath: parsed.data.JWT_PUBLIC_KEY_PATH,
   authUrl: parsed.data.AUTH_URL,
+  ordersUrl: parsed.data.ORDERS_URL,
+  serviceToken: parsed.data.SERVICE_TOKEN,
 };

@@ -15,7 +15,7 @@ const NAV = [
   { label: 'Mis Mesas', icon: Table, to: '/mesero/mesas', mobile: true },
   { label: 'Pedidos Activos', icon: ClipboardList, mobile: true },
   { label: 'Llamados', icon: Bell, mobile: true, badge: true },
-  { label: 'Mi Turno', icon: User, mobile: true },
+  { label: 'Mi Turno', icon: User, to: '/mesero/turno', mobile: true },
 ]
 
 function NavItem({ item }) {
@@ -92,7 +92,7 @@ export function WaiterLayout() {
   )
 }
 
-export function WaiterPage({ title, actions, children }) {
+export function WaiterPage({ title, actions, children, showShiftBadge = true }) {
   const { user } = useAuth()
 
   return (
@@ -100,10 +100,12 @@ export function WaiterPage({ title, actions, children }) {
       <header className="topbar">
         <div className="topbar__left">
           <h1 className="topbar__title">{title}</h1>
-          <span className="turno-badge">
-            <span className="turno-badge__dot" />
-            Turno Activo
-          </span>
+          {showShiftBadge && (
+            <span className="turno-badge">
+              <span className="turno-badge__dot" />
+              Turno Activo
+            </span>
+          )}
         </div>
         <div className="topbar__actions">
           {actions}

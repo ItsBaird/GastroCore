@@ -35,6 +35,9 @@ export function UnderConstructionPage() {
       <Construction size={40} />
       <h1>Pantalla en construcción</h1>
       <p>Hola, {user.email}. Las pantallas de tu rol estarán disponibles pronto.</p>
+      <Link className="btn btn--primary" to="/mi-turno">
+        Ir a mi turno
+      </Link>
       <button type="button" className="btn btn--ghost" onClick={handleLogout}>
         Cerrar sesión
       </button>

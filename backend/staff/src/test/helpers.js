@@ -27,6 +27,24 @@ export function makeEmployee(overrides = {}) {
   };
 }
 
+export const SHIFT_ID = '66666666-6666-4666-8666-666666666666';
+
+// Fila de shifts tal como la devuelve Prisma (nace 'programado', sin horas reales)
+export function makeShift(overrides = {}) {
+  return {
+    shiftId: SHIFT_ID,
+    userId: USER_ID,
+    scheduledStart: new Date('2026-11-09T13:00:00Z'),
+    scheduledEnd: new Date('2026-11-09T21:00:00Z'),
+    actualStart: null,
+    actualEnd: null,
+    status: 'programado',
+    createdAt: new Date('2026-11-01T10:00:00Z'),
+    updatedAt: new Date('2026-11-01T10:00:00Z'),
+    ...overrides,
+  };
+}
+
 // Usuario tal como lo devuelve Auth (GET /api/auth/users/:id)
 export function makeAuthUser(overrides = {}) {
   return {

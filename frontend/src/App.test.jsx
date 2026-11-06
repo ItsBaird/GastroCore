@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as staffApi from './api/staff.js'
 import * as tablesStatusApi from './api/tablesStatus.js'
 import * as usersApi from './api/users.js'
 import App from './App.jsx'
@@ -9,13 +10,21 @@ import { AuthContext } from './auth/authContext.js'
 import { ToastProvider } from './components/Toast.jsx'
 
 vi.mock('./api/users.js')
+vi.mock('./api/staff.js')
 vi.mock('./api/tablesStatus.js')
 vi.mock('./hooks/useTableStatusSocket.js', () => ({
   useTableStatusSocket: vi.fn(),
 }))
 
 function renderApp(path, auth) {
-  const value = { status: 'authenticated', user: null, expired: false, login: vi.fn(), logout: vi.fn(), ...auth }
+  const value = {
+    status: 'authenticated',
+    user: null,
+    expired: false,
+    login: vi.fn(),
+    logout: vi.fn(),
+    ...auth,
+  }
   render(
     <MemoryRouter initialEntries={[path]}>
       <AuthContext.Provider value={value}>
@@ -33,6 +42,7 @@ const anonymous = { status: 'anonymous', user: null }
 beforeEach(() => {
   vi.resetAllMocks()
   usersApi.listUsers.mockResolvedValue([])
+  staffApi.listShifts.mockResolvedValue([])
   tablesStatusApi.listTableStatuses.mockResolvedValue([])
 })
 
@@ -79,7 +89,10 @@ describe('rutas de la aplicacion', () => {
 
     it('"no encontrada" ofrece volver a su inicio', () => {
       renderApp('/nada-por-aqui', as('ADMIN'))
-      expect(screen.getByRole('link', { name: 'Volver al inicio' })).toHaveAttribute('href', '/admin/usuarios')
+      expect(screen.getByRole('link', { name: 'Volver al inicio' })).toHaveAttribute(
+        'href',
+        '/admin/usuarios',
+      )
     })
   })
 
@@ -133,6 +146,42 @@ describe('rutas de la aplicacion', () => {
       renderApp('/en-construccion', { ...as('COOK'), logout })
       await userEvent.setup().click(screen.getByRole('button', { name: 'Cerrar sesión' }))
       await waitFor(() => expect(logout).toHaveBeenCalledTimes(1))
+    })
+  })
+
+  describe('Mi turno (inicio y fin de turno)', () => {
+    it('el mesero llega a "Mi Turno" desde su menu, sin la insignia fija de turno activo', async () => {
+      renderApp('/mesero/turno', as('WAITER'))
+      expect(await screen.findByRole('heading', { name: 'Mi Turno' })).toBeInTheDocument()
+      expect(await screen.findByText('Sin turnos programados')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /Mi Turno/ })).toHaveAttribute('href', '/mesero/turno')
+      expect(screen.queryByText('Turno Activo')).not.toBeInTheDocument()
+      expect(staffApi.listShifts).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u1' }))
+    })
+
+    it('el cocinero (sin panel propio) llega a su turno desde la pantalla en construccion', async () => {
+      renderApp('/en-construccion', as('COOK'))
+      expect(screen.getByRole('link', { name: 'Ir a mi turno' })).toHaveAttribute('href', '/mi-turno')
+    })
+
+    it('/mi-turno muestra el turno del cocinero con cierre de sesion', async () => {
+      const logout = vi.fn().mockResolvedValue(undefined)
+      renderApp('/mi-turno', { ...as('COOK'), logout })
+      expect(await screen.findByRole('heading', { name: 'Mi turno' })).toBeInTheDocument()
+      expect(await screen.findByText('Sin turnos programados')).toBeInTheDocument()
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Cerrar sesión' }))
+      await waitFor(() => expect(logout).toHaveBeenCalledTimes(1))
+    })
+
+    it('/mi-turno exige iniciar sesion y no consulta la API', () => {
+      renderApp('/mi-turno', anonymous)
+      expect(screen.getByRole('heading', { name: 'Iniciar Sesión' })).toBeInTheDocument()
+      expect(staffApi.listShifts).not.toHaveBeenCalled()
+    })
+
+    it('un cocinero no entra al panel del mesero', () => {
+      renderApp('/mesero/turno', as('COOK'))
+      expect(screen.getByRole('heading', { name: 'Pantalla en construcción' })).toBeInTheDocument()
     })
   })
 })
