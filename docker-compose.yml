@@ -53,6 +53,7 @@ services:
       SERVICE_NAME: staff
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       DATABASE_URL: postgresql://staff_user:${STAFF_DB_PASSWORD}@postgres:5432/staff_db
+      AUTH_URL: http://auth:3001
     volumes:
       - ./keys/public:/run/keys/public:ro
 

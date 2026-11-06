@@ -7,6 +7,8 @@ const schema = z.object({
   CORS_ORIGIN: z.string().min(1).default('http://localhost'),
   DATABASE_URL: z.string().min(1),
   JWT_PUBLIC_KEY_PATH: z.string().min(1).default('/run/keys/public/jwt_public.pem'),
+  // Red interna de Docker: Staff consulta a Auth directamente, sin pasar por el gateway
+  AUTH_URL: z.string().url().default('http://auth:3001'),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -22,4 +24,5 @@ export const env = {
   corsOrigin: parsed.data.CORS_ORIGIN,
   databaseUrl: parsed.data.DATABASE_URL,
   jwtPublicKeyPath: parsed.data.JWT_PUBLIC_KEY_PATH,
+  authUrl: parsed.data.AUTH_URL,
 };
