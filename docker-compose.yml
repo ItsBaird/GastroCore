@@ -65,8 +65,10 @@ services:
       SERVICE_NAME: catalog
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       DATABASE_URL: postgresql://catalog_user:${CATALOG_DB_PASSWORD}@postgres:5432/catalog_db
+      UPLOADS_DIR: /app/uploads
     volumes:
       - ./keys/public:/run/keys/public:ro
+      - uploads:/app/uploads
 
   orders:
     <<: *node-service
@@ -125,3 +127,4 @@ services:
 volumes:
   pgdata:
   pgadmin_data:
+  uploads:
