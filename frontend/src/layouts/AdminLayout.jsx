@@ -17,7 +17,7 @@ import { useAuth } from '../auth/useAuth.js'
 import { initial } from '../utils/user.js'
 import './AdminLayout.css'
 
-// Usuarios, Empleados, Turnos, Mesas, Productos y Categorias existen por ahora; el resto se activa cuando se construya cada modulo.
+// Usuarios, Empleados, Turnos, Metodos de pago, Mesas, Productos y Categorias existen por ahora; el resto se activa cuando se construya cada modulo.
 // "mobile" marca los 4 destinos de la barra inferior (el diseno permite 4-5).
 const NAV = [
   { label: 'Dashboard', icon: LayoutDashboard, mobile: true },
@@ -29,7 +29,7 @@ const NAV = [
   { label: 'Turnos', icon: Clock, to: '/admin/turnos', mobile: true },
   { label: 'Ventas', icon: DollarSign },
   { label: 'Cierre de Caja', icon: Wallet },
-  { label: 'Métodos Pago', icon: CreditCard },
+  { label: 'Métodos Pago', icon: CreditCard, to: '/admin/metodos-pago' },
 ]
 
 function NavItem({ item }) {
