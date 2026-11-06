@@ -13,6 +13,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY prisma ./prisma
 COPY src ./src
+# Carpeta de fotos de productos: el volumen 'uploads' hereda este dueno al montarse por primera vez
+RUN mkdir -p /app/uploads && chown node:node /app/uploads
 USER node
 EXPOSE 3003
 CMD ["node", "src/server.js"]
