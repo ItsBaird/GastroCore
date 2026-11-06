@@ -5,6 +5,7 @@ import { env } from './config/env.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { notFound } from './middlewares/notFound.js';
 import { createRateLimiter } from './middlewares/rateLimiter.js';
+import { internalRouter } from './routes/internal.routes.js';
 import { itemRouter } from './routes/item.routes.js';
 import { orderRouter } from './routes/order.routes.js';
 import { paymentMethodRouter } from './routes/paymentMethod.routes.js';
@@ -35,6 +36,7 @@ app.use('/api/orders', router);
 app.get('/internal/health', (req, res) => {
   res.json({ service: env.serviceName, internal: true });
 });
+app.use('/internal', internalRouter);
 
 app.use(notFound);
 app.use(errorHandler);

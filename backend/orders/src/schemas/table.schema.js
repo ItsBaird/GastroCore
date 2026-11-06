@@ -15,3 +15,7 @@ export const updateTableSchema = z
 export const tableIdParamsSchema = z.object({
   id: z.string().uuid(),
 });
+
+export const openTablesQuerySchema = z.object({
+  waiterId: z.string().uuid(),
+});
