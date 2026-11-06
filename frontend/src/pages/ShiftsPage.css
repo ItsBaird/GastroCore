@@ -1,0 +1,126 @@
+/* Programacion de turnos (GC-STAFF-0002). Reutiliza la tabla de Usuarios, el formulario de Catalogo y la pastilla de estado. */
+.shift-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+  padding: var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.shift-toolbar__filter {
+  width: auto;
+  min-width: 220px;
+}
+
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.week-nav__label {
+  min-width: 170px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+}
+
+.icon-btn:hover {
+  background: var(--n-100);
+}
+
+/* Estado del turno: programado (azul), activo (verde, pill--active) y finalizado (gris) */
+.pill--scheduled {
+  background: var(--blue-50);
+  color: var(--blue-600);
+}
+
+.pill--done {
+  background: var(--n-100);
+  color: var(--n-500);
+}
+
+/* Cada dia de la semana es una fila de encabezado con su boton para programar */
+.shifts-table .day-row th {
+  padding: var(--sp-4) var(--sp-2) var(--sp-2);
+  background: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.day-row__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.day-row__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.day-row__today {
+  padding: 1px 8px;
+  background: var(--red-50);
+  border-radius: var(--radius-full);
+  color: var(--red-600);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.shifts-table .day-empty td {
+  padding: var(--sp-2);
+  color: var(--n-400);
+  font-size: 14px;
+}
+
+/* ---------- Tablet ---------- */
+@media (width <= 900px) {
+  .col-duration {
+    display: none;
+  }
+}
+
+/* ---------- Mobile ---------- */
+@media (width <= 640px) {
+  .shift-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .week-nav {
+    justify-content: space-between;
+  }
+
+  .week-nav__label {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .shift-toolbar__filter {
+    width: 100%;
+  }
+
+  .shifts-table {
+    min-width: 420px;
+  }
+}
