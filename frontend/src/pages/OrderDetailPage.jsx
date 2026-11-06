@@ -1,9 +1,13 @@
-import { ArrowLeft, Clock, Plus, RefreshCw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ArrowLeft, Ban, Clock, Plus, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getOrderDetail } from '../api/orders.js'
+import { cancelItem, getOrderDetail } from '../api/orders.js'
+import { useAuth } from '../auth/useAuth.js'
+import { useToast } from '../components/Toast.jsx'
+import { useRealtimeEvent } from '../hooks/useRealtimeEvent.js'
 import { WaiterPage } from '../layouts/WaiterLayout.jsx'
 import { formatCOP } from '../utils/formatCOP.js'
+import { CancelItemModal } from './CancelItemModal.jsx'
 import './OrderDetailPage.css'
 
 const STATUS_PILL = {
@@ -12,6 +16,17 @@ const STATUS_PILL = {
   listo: { label: 'Listo', className: 'od-pill--listo' },
   entregado: { label: 'Entregado', className: 'od-pill--entregado' },
   cancelado: { label: 'Cancelado', className: 'od-pill--cancelado' },
+}
+
+// La autoridad es el backend; esto solo evita ofrecer una accion que seria rechazada.
+// El mesero que ve el detalle es el asignado: a los demas el backend ya responde 403.
+const CANCELLABLE_BY_ROLE = {
+  ADMIN: ['pendiente', 'en_preparacion', 'listo'],
+  WAITER: ['pendiente'],
+}
+
+function canCancel(role, status) {
+  return (CANCELLABLE_BY_ROLE[role] ?? []).includes(status)
 }
 
 function ElapsedTimer({ since }) {
@@ -40,33 +55,78 @@ function ElapsedTimer({ since }) {
 export default function OrderDetailPage() {
   const { orderId } = useParams()
   const navigate = useNavigate()
+  const toast = useToast()
+  const { user } = useAuth()
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [cancelling, setCancelling] = useState(null)
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true)
     setError('')
     getOrderDetail(orderId)
       .then(setOrder)
       .catch((err) => setError(err?.message || 'Error al cargar la orden'))
       .finally(() => setLoading(false))
-  }
+  }, [orderId])
 
-  useEffect(load, [orderId])
+  useEffect(load, [load])
+
+  // Otro dispositivo anulo un item o cocina avanzo su estado: se refleja sin recargar.
+  useRealtimeEvent(
+    'item:status_changed',
+    useCallback(
+      (changed) => {
+        if (!changed?.itemId || changed.orderId !== orderId) return
+        setOrder((current) => {
+          if (!current) return current
+          return {
+            ...current,
+            rounds: current.rounds.map((round) => ({
+              ...round,
+              items: round.items.map((item) =>
+                item.itemId === changed.itemId ? { ...item, ...changed } : item,
+              ),
+            })),
+          }
+        })
+      },
+      [orderId],
+    ),
+  )
+
+  const handleCancel = async (reason) => {
+    let updated
+    try {
+      updated = await cancelItem(cancelling.itemId, reason)
+    } catch (err) {
+      // El estado que veiamos quedo viejo (otro dispositivo o cocina): se recarga detras del modal
+      if (err?.status === 409 || err?.status === 404) load()
+      throw err
+    }
+    setOrder((current) => ({
+      ...current,
+      rounds: current.rounds.map((round) => ({
+        ...round,
+        items: round.items.map((item) => (item.itemId === updated.itemId ? updated : item)),
+      })),
+    }))
+    setCancelling(null)
+    toast.success(`Se anuló ${updated.productName}`)
+  }
 
   const allItems = order?.rounds?.flatMap((r) => r.items) || []
   const activeItems = allItems.filter((i) => i.status !== 'cancelado')
 
-  const statusCounts = activeItems.reduce(
-    (acc, item) => {
-      acc[item.status] = (acc[item.status] || 0) + item.quantity
-      return acc
-    },
-    {},
-  )
+  const statusCounts = activeItems.reduce((acc, item) => {
+    acc[item.status] = (acc[item.status] || 0) + item.quantity
+    return acc
+  }, {})
 
+  // Los items cancelados no se cobran (R4: los totales que manda el backend son la verdad)
   const subtotal = activeItems.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0)
+  const cancelledCount = allItems.length - activeItems.length
 
   return (
     <WaiterPage
@@ -107,18 +167,45 @@ export default function OrderDetailPage() {
               <span className="od-th od-th--cant">Cant.</span>
               <span className="od-th od-th--estado">Estado</span>
               <span className="od-th od-th--precio">Precio</span>
+              <span className="od-th od-th--acciones">Acciones</span>
             </div>
-            {activeItems.length === 0 ? (
+            {allItems.length === 0 ? (
               <p className="od-empty">No hay ítems en esta orden.</p>
             ) : (
-              activeItems.map((item) => {
+              allItems.map((item) => {
                 const cfg = STATUS_PILL[item.status] || STATUS_PILL.pendiente
+                const isCancelled = item.status === 'cancelado'
                 return (
-                  <div key={item.itemId} className="od-item-row">
-                    <span className="od-item-name">{item.productName}</span>
+                  <div
+                    key={item.itemId}
+                    className={`od-item-row${isCancelled ? ' od-item-row--cancelado' : ''}`}
+                  >
+                    <span className="od-item-name">
+                      <span className="od-item-name__text">{item.productName}</span>
+                      {isCancelled && item.cancelledReason && (
+                        <span className="od-item-reason">
+                          {item.cancelledBy === user?.userId ? 'Anulado por ti' : 'Anulado'} ·{' '}
+                          {item.cancelledReason}
+                        </span>
+                      )}
+                    </span>
                     <span className="od-item-qty">{item.quantity}</span>
                     <span className={`od-pill ${cfg.className}`}>{cfg.label}</span>
-                    <span className="od-item-price">{formatCOP(item.unitPrice * item.quantity)}</span>
+                    <span className="od-item-price">
+                      {formatCOP(item.unitPrice * item.quantity)}
+                    </span>
+                    <span className="od-item-actions">
+                      {canCancel(user?.role, item.status) && (
+                        <button
+                          type="button"
+                          className="od-btn-anular"
+                          onClick={() => setCancelling(item)}
+                        >
+                          <Ban size={13} />
+                          Anular
+                        </button>
+                      )}
+                    </span>
                   </div>
                 )
               })
@@ -136,7 +223,9 @@ export default function OrderDetailPage() {
               </div>
               <div className="od-summary__row">
                 <span className="od-summary__label">Ítems totales:</span>
-                <span className="od-summary__value">{activeItems.reduce((s, i) => s + i.quantity, 0)}</span>
+                <span className="od-summary__value">
+                  {activeItems.reduce((s, i) => s + i.quantity, 0)}
+                </span>
               </div>
               <div className="od-summary__row">
                 <span className="od-summary__label">Pendientes:</span>
@@ -154,6 +243,14 @@ export default function OrderDetailPage() {
                 <span className="od-summary__label">Entregados:</span>
                 <span className="od-summary__value">{statusCounts.entregado || 0}</span>
               </div>
+              {cancelledCount > 0 && (
+                <div className="od-summary__row">
+                  <span className="od-summary__label">Anulados (no se cobran):</span>
+                  <span className="od-summary__value od-summary__value--cancelado">
+                    {cancelledCount}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="od-summary__divider" />
@@ -170,20 +267,28 @@ export default function OrderDetailPage() {
             <button
               type="button"
               className="od-btn-add"
-              onClick={() => navigate(`/mesero/mesas/${orderId}/nueva-ronda`, { state: { tableNumber: order.tableNumber } })}
+              onClick={() =>
+                navigate(`/mesero/mesas/${orderId}/nueva-ronda`, {
+                  state: { tableNumber: order.tableNumber },
+                })
+              }
             >
               <Plus size={16} />
               Agregar Ítem
             </button>
-            <button
-              type="button"
-              className="od-btn-cobro"
-              disabled
-            >
+            <button type="button" className="od-btn-cobro" disabled>
               Solicitar Cobro
             </button>
           </aside>
         </div>
+      )}
+
+      {cancelling && (
+        <CancelItemModal
+          item={cancelling}
+          onConfirm={handleCancel}
+          onClose={() => setCancelling(null)}
+        />
       )}
     </WaiterPage>
   )

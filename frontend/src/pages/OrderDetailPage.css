@@ -62,7 +62,7 @@
 /* Items table */
 .od-table-header {
   display: grid;
-  grid-template-columns: 1fr 60px 100px 100px;
+  grid-template-columns: 1fr 60px 100px 100px 80px;
   gap: var(--sp-3);
   padding: 13px 15px;
   background: var(--surface);
@@ -80,7 +80,7 @@
 
 .od-item-row {
   display: grid;
-  grid-template-columns: 1fr 60px 100px 100px;
+  grid-template-columns: 1fr 60px 100px 100px 80px;
   gap: var(--sp-3);
   padding: 17px 15px;
   background: var(--surface);
@@ -94,6 +94,32 @@
   font-size: 14px;
   font-weight: 500;
   color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Anulado: sigue a la vista para dejar rastro, pero fuera de la cuenta.
+   El tachado va en el span del nombre, no en .od-item-name: la linea del padre se propaga
+   a los descendientes y el hijo no puede quitarsela, asi que el motivo saldria tachado. */
+.od-item-row--cancelado .od-item-name,
+.od-item-row--cancelado .od-item-qty,
+.od-item-row--cancelado .od-item-price {
+  color: var(--text-muted);
+}
+
+.od-item-row--cancelado .od-item-name__text,
+.od-item-row--cancelado .od-item-qty,
+.od-item-row--cancelado .od-item-price {
+  text-decoration: line-through;
+}
+
+.od-item-reason {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
 }
 
 .od-item-qty {
@@ -144,8 +170,42 @@
 }
 
 .od-pill--cancelado {
-  background: #fef2f2;
-  color: var(--accent);
+  background: var(--red-50);
+  color: var(--red-600);
+}
+
+/* Acciones por fila. La geometria y el lenguaje salen del boton "Entregar" del Figma
+   (32:39: 70x28, radio 8, relleno solido del color semantico, texto blanco 11px semibold);
+   aqui el color semantico es el de peligro porque la accion es destructiva. */
+.od-item-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.od-btn-anular {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 70px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--red-600);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.od-btn-anular:hover {
+  background: var(--red-700);
+}
+
+.od-btn-anular:focus-visible {
+  outline: 2px solid var(--red-600);
+  outline-offset: 2px;
 }
 
 /* Summary panel */
@@ -183,6 +243,10 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
+}
+
+.od-summary__value--cancelado {
+  color: var(--red-600);
 }
 
 .od-summary__label-lg {
@@ -274,6 +338,49 @@
   gap: var(--sp-3);
 }
 
+/* Modal de anulacion */
+.ci-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.ci-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3);
+  background: var(--page);
+  border-radius: var(--radius-md);
+}
+
+.ci-item__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ci-item__meta,
+.ci-item__note {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ci-textarea {
+  resize: vertical;
+  min-height: 76px;
+  font-family: inherit;
+  line-height: 1.4;
+  padding: var(--sp-3);
+}
+
+.ci-counter {
+  margin: calc(var(--sp-3) * -1) 0 0;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* Tablet */
 @media (width <= 1100px) {
   .od-layout {
@@ -287,7 +394,13 @@
 
   .od-table-header,
   .od-item-row {
-    grid-template-columns: 1fr 50px 90px 80px;
+    grid-template-columns: 1fr 50px 90px 80px 76px;
+  }
+
+  /* Figma tablet 37:25 y mobile 41:19: el boton de fila baja a 66x26 */
+  .od-btn-anular {
+    width: 66px;
+    height: 26px;
   }
 }
 
@@ -314,5 +427,19 @@
 
   .od-status-badge {
     display: none;
+  }
+
+  .od-item-actions {
+    justify-content: flex-start;
+    margin-top: var(--sp-2);
+  }
+
+  /* Objetivo tactil comodo en movil, por encima de los 26px del mockup */
+  .od-btn-anular {
+    width: auto;
+    min-width: 88px;
+    height: 36px;
+    padding: 0 var(--sp-4);
+    font-size: 12px;
   }
 }

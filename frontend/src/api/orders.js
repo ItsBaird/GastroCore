@@ -7,3 +7,10 @@ export const createRound = (orderId, items) =>
     method: 'POST',
     body: { items },
   })
+
+// R4: solo viaja el motivo. El backend decide si el rol puede anular en ese estado.
+export const cancelItem = (itemId, reason) =>
+  api(`/api/orders/items/${itemId}/cancel`, {
+    method: 'POST',
+    body: { reason },
+  })
