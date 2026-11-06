@@ -23,6 +23,10 @@ export const createShiftSchema = z
     error: 'El rango horario no es valido: la hora de fin debe ser posterior a la de inicio',
   });
 
+export const shiftIdParamsSchema = z.object({
+  id: z.uuid('El id debe ser un UUID valido'),
+});
+
 // Fecha de calendario AAAA-MM-DD que exista de verdad
 const calendarDate = z
   .string()
