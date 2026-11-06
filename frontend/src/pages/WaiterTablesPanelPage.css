@@ -103,12 +103,18 @@
 
 /* ---------- Table card ---------- */
 .ts-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   background: var(--surface);
   border-radius: var(--radius-card);
   border: 1.5px solid var(--n-200);
   overflow: hidden;
+}
+
+/* Solo entra en juego en movil, donde se oculta .ts-card__actions */
+.ts-card__tap {
+  display: none;
 }
 
 .ts-card--libre {
@@ -457,5 +463,28 @@
 
   .ts-card__pill-wrap {
     padding-right: var(--sp-3);
+  }
+
+  /* El Figma movil (40:2) no dibuja boton en la fila: la fila entera es la accion.
+     Cubre la tarjeta (min-height 72px), asi que el objetivo tactil es toda la fila. */
+  .ts-card__tap {
+    display: block;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: inherit;
+    cursor: pointer;
+  }
+
+  .ts-card__tap:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -3px;
+  }
+
+  .ts-card__tap:disabled {
+    cursor: progress;
   }
 }

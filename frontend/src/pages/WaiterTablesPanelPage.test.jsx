@@ -13,6 +13,12 @@ vi.mock('../hooks/useTableStatusSocket.js', () => ({
   useTableStatusSocket: vi.fn(),
 }))
 
+const mockNavigate = vi.fn()
+vi.mock('react-router-dom', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useNavigate: () => mockNavigate,
+}))
+
 const ME = { userId: 'user-1', email: 'mesero@lapizzeta.com', role: 'WAITER', isActive: true }
 
 const TABLES = [
@@ -168,5 +174,104 @@ describe('WaiterTablesPanelPage', () => {
 
     expect(screen.getByRole('button', { name: 'Abriendo…' })).toBeDisabled()
     resolve({ orderId: 'x', tableId: 't1', waiterId: 'user-1', status: 'ABIERTA', openedAt: new Date().toISOString() })
+  })
+})
+
+// Por debajo de 640px el CSS oculta .ts-card__actions (el Figma movil 40:2 no dibuja boton:
+// la fila entera es el objetivo). Sin esta fila clicable el mesero se queda sin salida.
+describe('WaiterTablesPanelPage — fila clicable en movil', () => {
+  const rowButton = (name) => screen.getByRole('button', { name })
+
+  it('cada mesa expone la accion de su estado como boton de fila', async () => {
+    renderPage()
+
+    await screen.findByText('Mesa 1')
+    expect(rowButton('Mesa 1, abrir mesa')).toBeInTheDocument()
+    expect(rowButton('Mesa 2, ver detalle')).toBeInTheDocument()
+    expect(rowButton('Mesa 3, cobrar')).toBeInTheDocument()
+  })
+
+  it('una mesa ocupada sin items ofrece tomar pedido, no ver detalle', async () => {
+    renderPage([
+      { tableId: 't2', tableNumber: 2, status: 'ocupada', orderId: 'o1', waiterId: 'user-1', pendingCalls: [], itemsCount: 0 },
+    ])
+
+    await screen.findByText('Mesa 2')
+    expect(rowButton('Mesa 2, tomar pedido')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Mesa 2, ver detalle' })).not.toBeInTheDocument()
+  })
+
+  it('lleva al detalle de la orden', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Mesa 2')
+    await user.click(rowButton('Mesa 2, ver detalle'))
+
+    expect(mockNavigate).toHaveBeenCalledWith('/mesero/mesas/o1')
+  })
+
+  it('lleva a la toma de pedido con el numero de mesa', async () => {
+    const user = userEvent.setup()
+    renderPage([
+      { tableId: 't2', tableNumber: 2, status: 'ocupada', orderId: 'o1', waiterId: 'user-1', pendingCalls: [], itemsCount: 0 },
+    ])
+
+    await screen.findByText('Mesa 2')
+    await user.click(rowButton('Mesa 2, tomar pedido'))
+
+    expect(mockNavigate).toHaveBeenCalledWith('/mesero/mesas/o1/nueva-ronda', {
+      state: { tableNumber: 2 },
+    })
+  })
+
+  it('abre una mesa libre desde la fila', async () => {
+    const user = userEvent.setup()
+    tablesStatusApi.openTable.mockResolvedValue({
+      orderId: 'o9', tableId: 't1', waiterId: 'user-1', status: 'ABIERTA', openedAt: new Date().toISOString(),
+    })
+    renderPage()
+
+    await screen.findByText('Mesa 1')
+    await user.click(rowButton('Mesa 1, abrir mesa'))
+
+    expect(tablesStatusApi.openTable).toHaveBeenCalledWith('t1')
+  })
+
+  it('se activa con el teclado', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Mesa 2')
+    rowButton('Mesa 2, ver detalle').focus()
+    await user.keyboard('{Enter}')
+
+    expect(mockNavigate).toHaveBeenCalledWith('/mesero/mesas/o1')
+  })
+
+  it('queda deshabilitada mientras la mesa se esta abriendo, para no abrirla dos veces', async () => {
+    let resolve
+    tablesStatusApi.openTable.mockImplementation(() => new Promise((r) => { resolve = r }))
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Mesa 1')
+    await user.click(rowButton('Mesa 1, abrir mesa'))
+
+    expect(rowButton('Mesa 1, abrir mesa')).toBeDisabled()
+    resolve({ orderId: 'x', tableId: 't1', waiterId: 'user-1', status: 'ABIERTA', openedAt: new Date().toISOString() })
+  })
+
+  it('la fila y el boton de escritorio comparten la misma accion', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Mesa 2')
+    await user.click(screen.getByRole('button', { name: 'Ver Detalle' }))
+    await user.click(rowButton('Mesa 2, ver detalle'))
+
+    expect(mockNavigate).toHaveBeenCalledTimes(2)
+    expect(mockNavigate).toHaveBeenNthCalledWith(1, '/mesero/mesas/o1')
+    expect(mockNavigate).toHaveBeenNthCalledWith(2, '/mesero/mesas/o1')
   })
 })
