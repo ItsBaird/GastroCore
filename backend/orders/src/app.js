@@ -6,6 +6,7 @@ import { errorHandler } from './middlewares/errorHandler.js';
 import { notFound } from './middlewares/notFound.js';
 import { createRateLimiter } from './middlewares/rateLimiter.js';
 import { orderRouter } from './routes/order.routes.js';
+import { paymentMethodRouter } from './routes/paymentMethod.routes.js';
 import { roundRouter } from './routes/round.routes.js';
 import { tableRouter } from './routes/table.routes.js';
 
@@ -21,6 +22,8 @@ router.get('/health', (req, res) => {
   res.json({ service: env.serviceName, status: 'ok' });
 });
 router.use('/tables', tableRouter);
+// Antes de orderRouter: este tiene GET /:orderId y se tragaria /payment-methods
+router.use('/payment-methods', paymentMethodRouter);
 router.use('/', orderRouter);
 router.use('/:orderId/rounds', roundRouter);
 app.use('/api/orders', router);
