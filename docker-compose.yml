@@ -82,6 +82,10 @@ services:
       SERVICE_NAME: orders
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       DATABASE_URL: postgresql://orders_user:${ORDERS_DB_PASSWORD}@postgres:5432/orders_db
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-}
+      CATALOG_SERVICE_URL: ${CATALOG_SERVICE_URL:-http://catalog:3003}
+      # Con true solo conoce 5 productos de prueba. Pasar a false cuando Catalog tenga /internal/products
+      CATALOG_CLIENT_MOCK: ${CATALOG_CLIENT_MOCK:-true}
     volumes:
       - ./keys/public:/run/keys/public:ro
 
