@@ -9,6 +9,8 @@ import {
   formatWeekRange,
   mapShiftError,
   mondayOf,
+  pickCurrentShift,
+  shiftActionMessage,
   toIso,
   validateShift,
   weekDays,
@@ -126,5 +128,120 @@ describe('mapShiftError', () => {
     expect(mapShiftError(new ApiError(403, 'FORBIDDEN', 'sin permiso')).general).toBe('sin permiso')
     expect(mapShiftError(new ApiError(500, 'INTERNAL_ERROR', 'x')).general).toMatch(/Inténtalo/)
     expect(mapShiftError(new Error('x')).general).toBeDefined()
+  })
+})
+
+describe('pickCurrentShift', () => {
+  const NOW = Date.parse('2026-11-09T15:00:00Z') // lunes 10:00 a. m. en Colombia
+  const TODAY = '2026-11-09'
+  const mk = (id, status, date, from, to) => ({
+    shiftId: id,
+    status,
+    scheduledStart: new Date(toIso(date, from)).toISOString(),
+    scheduledEnd: new Date(toIso(date, to)).toISOString(),
+  })
+  const pick = (shifts) => pickCurrentShift(shifts, NOW, TODAY)
+
+  it('sin turnos -> ninguno', () => {
+    expect(pick([])).toEqual({ kind: 'ninguno', shift: null })
+  })
+
+  it('un turno activo manda sobre cualquier otro', () => {
+    const active = mk('a', 'activo', '2026-11-09', '08:00', '16:00')
+    const scheduled = mk('p', 'programado', '2026-11-09', '17:00', '22:00')
+    expect(pick([scheduled, active]).kind).toBe('activo')
+    expect(pick([scheduled, active]).shift.shiftId).toBe('a')
+  })
+
+  it('un turno activo de otro dia (se quedo abierto) tambien se muestra', () => {
+    expect(pick([mk('a', 'activo', '2026-11-08', '21:00', '23:00')]).kind).toBe('activo')
+  })
+
+  it('programado de hoy; entre varios prefiere el que aun no termino', () => {
+    const past = mk('past', 'programado', '2026-11-09', '06:00', '09:00')
+    const later = mk('later', 'programado', '2026-11-09', '17:00', '22:00')
+    expect(pick([past, later]).shift.shiftId).toBe('later')
+  })
+
+  it('si todos los programados de hoy ya terminaron, muestra el ultimo (el servidor explicara que ya paso)', () => {
+    const a = mk('a', 'programado', '2026-11-09', '05:00', '07:00')
+    const b = mk('b', 'programado', '2026-11-09', '07:30', '09:00')
+    expect(pick([a, b])).toMatchObject({ kind: 'programado', shift: { shiftId: 'b' } })
+  })
+
+  it('finalizado de hoy cuando no queda nada pendiente', () => {
+    expect(pick([mk('f', 'finalizado', '2026-11-09', '06:00', '09:00')]).kind).toBe('finalizado')
+  })
+
+  it('proximo turno de otro dia', () => {
+    const later = mk('n2', 'programado', '2026-11-12', '08:00', '16:00')
+    const sooner = mk('n1', 'programado', '2026-11-10', '08:00', '16:00')
+    expect(pick([later, sooner])).toMatchObject({ kind: 'proximo', shift: { shiftId: 'n1' } })
+  })
+
+  it('un turno programado de un dia pasado no cuenta como proximo', () => {
+    expect(pick([mk('old', 'programado', '2026-11-03', '08:00', '16:00')]).kind).toBe('ninguno')
+  })
+
+  it('el dia se cuenta en hora de Colombia: domingo 9 p. m. no es "hoy" lunes', () => {
+    const sundayNight = mk('s', 'finalizado', '2026-11-08', '21:00', '23:00')
+    expect(pick([sundayNight]).kind).toBe('ninguno')
+  })
+})
+
+describe('shiftActionMessage', () => {
+  const err = (status, code, details) => new ApiError(status, code, 'x', details)
+
+  it('antes de la hora: dice cuando empieza el turno', () => {
+    const msg = shiftActionMessage(
+      err(409, 'INVALID_TRANSITION', {
+        reason: 'BEFORE_START',
+        scheduledStart: '2026-11-09T13:00:00.000Z',
+        scheduledEnd: '2026-11-09T21:00:00.000Z',
+      }),
+    )
+    expect(msg.message).toBe('Todavía no es la hora de tu turno. Empieza hoy a las 8:00 a. m.')
+    expect(msg.refresh).toBeUndefined()
+  })
+
+  it('despues de la hora: dice a que hora termino', () => {
+    const msg = shiftActionMessage(
+      err(409, 'INVALID_TRANSITION', {
+        reason: 'AFTER_END',
+        scheduledStart: '2026-11-09T13:00:00.000Z',
+        scheduledEnd: '2026-11-09T21:00:00.000Z',
+      }),
+    )
+    expect(msg.message).toMatch(/ya terminó \(a las 4:00 p\. m\.\)/)
+  })
+
+  it('otro cambio de estado -> pide actualizar', () => {
+    const msg = shiftActionMessage(err(409, 'INVALID_TRANSITION', { status: 'activo' }))
+    expect(msg.refresh).toBe(true)
+  })
+
+  it('mesas abiertas: singular, plural y version para el admin', () => {
+    expect(shiftActionMessage(err(409, 'HAS_OPEN_TABLES', { count: 1 })).message).toMatch(
+      /Tienes 1 mesa abierta\. El administrador debe reasignarlas/,
+    )
+    expect(shiftActionMessage(err(409, 'HAS_OPEN_TABLES', { count: 3 })).message).toMatch(
+      /Tienes 3 mesas abiertas/,
+    )
+    expect(shiftActionMessage(err(409, 'HAS_OPEN_TABLES', { count: 2 }), { own: false }).message).toBe(
+      'El empleado tiene 2 mesas abiertas. Reasígnalas antes de finalizar su turno.',
+    )
+  })
+
+  it('Orders caido, turno inexistente, sin permiso, sin red y desconocido', () => {
+    expect(shiftActionMessage(err(503, 'DEPENDENCY_UNAVAILABLE')).message).toMatch(
+      /verificar las mesas abiertas/,
+    )
+    expect(shiftActionMessage(err(404, 'NOT_FOUND'))).toMatchObject({ refresh: true })
+    expect(
+      shiftActionMessage(new ApiError(403, 'FORBIDDEN', 'Solo puedes iniciar tu propio turno')).message,
+    ).toBe('Solo puedes iniciar tu propio turno')
+    expect(shiftActionMessage(err(0, 'NETWORK_ERROR')).message).toMatch(/conectar/)
+    expect(shiftActionMessage(err(500, 'INTERNAL_ERROR')).message).toMatch(/Inténtalo/)
+    expect(shiftActionMessage(new Error('x')).message).toBeDefined()
   })
 })

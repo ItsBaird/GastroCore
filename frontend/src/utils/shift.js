@@ -123,3 +123,64 @@ export function mapShiftError(err) {
   if (err.code === 'NETWORK_ERROR') return { general: 'No se pudo conectar con el servidor.' }
   return { general: 'No se pudo completar la acción. Inténtalo de nuevo.' }
 }
+
+const byStart = (a, b) => new Date(a.scheduledStart) - new Date(b.scheduledStart)
+
+// Que turno mostrarle al empleado ahora: el activo (si lo hay); si no, el programado de hoy (de preferencia
+// uno que aun no termino); si no, el ya finalizado de hoy; si no, el proximo de la semana. `shifts` son
+// los suyos (GET /shifts?userId=). Devuelve { kind: 'activo'|'programado'|'finalizado'|'proximo'|'ninguno', shift }.
+export function pickCurrentShift(shifts, now = Date.now(), today = todayKey()) {
+  const active = shifts.find((s) => s.status === 'activo')
+  if (active) return { kind: 'activo', shift: active }
+
+  const todays = shifts.filter((s) => dayKey(s.scheduledStart) === today).sort(byStart)
+  const scheduled = todays.filter((s) => s.status === 'programado')
+  const pending = scheduled.find((s) => new Date(s.scheduledEnd) > now) ?? scheduled.at(-1)
+  if (pending) return { kind: 'programado', shift: pending }
+
+  const finished = todays.filter((s) => s.status === 'finalizado').at(-1)
+  if (finished) return { kind: 'finalizado', shift: finished }
+
+  const next = shifts
+    .filter((s) => s.status === 'programado' && new Date(s.scheduledStart) > now)
+    .sort(byStart)[0]
+  return next ? { kind: 'proximo', shift: next } : { kind: 'ninguno', shift: null }
+}
+
+// Mensaje para el usuario cuando falla iniciar/finalizar un turno. `refresh` indica que conviene
+// volver a pedir el turno porque cambio de estado. `own` es false cuando un ADMIN actua sobre otro empleado.
+export function shiftActionMessage(err, { own = true } = {}) {
+  if (!(err instanceof ApiError)) return { message: 'No se pudo completar la acción.' }
+  const d = err.details ?? {}
+  if (err.code === 'INVALID_TRANSITION') {
+    // La hora ya termina en punto ("8:00 a. m."): se cuida no duplicarlo al cerrar la frase
+    if (d.reason === 'BEFORE_START') {
+      const at = formatTime(d.scheduledStart)
+      return {
+        message: `Todavía no es la hora de tu turno. Empieza hoy a las ${at}${at.endsWith('.') ? '' : '.'}`,
+      }
+    }
+    if (d.reason === 'AFTER_END') {
+      return {
+        message: `Tu turno programado ya terminó (a las ${formatTime(d.scheduledEnd)}). Habla con el administrador.`,
+      }
+    }
+    return { message: 'Este turno ya cambió de estado. Se actualizó la información.', refresh: true }
+  }
+  if (err.code === 'HAS_OPEN_TABLES') {
+    const n = d.count ?? 0
+    const tables = n === 1 ? '1 mesa abierta' : `${n} mesas abiertas`
+    return {
+      message: own
+        ? `Tienes ${tables}. El administrador debe reasignarlas antes de que puedas finalizar el turno.`
+        : `El empleado tiene ${tables}. Reasígnalas antes de finalizar su turno.`,
+    }
+  }
+  if (err.code === 'DEPENDENCY_UNAVAILABLE') {
+    return { message: 'No se pudo verificar las mesas abiertas. Inténtalo de nuevo en un momento.' }
+  }
+  if (err.code === 'NOT_FOUND') return { message: 'Este turno ya no existe.', refresh: true }
+  if (err.code === 'FORBIDDEN') return { message: err.message }
+  if (err.code === 'NETWORK_ERROR') return { message: 'No se pudo conectar con el servidor.' }
+  return { message: 'No se pudo completar la acción. Inténtalo de nuevo.' }
+}

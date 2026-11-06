@@ -20,3 +20,8 @@ export function listShifts({ week, userId } = {}) {
 
 // scheduledStart / scheduledEnd son fechas ISO 8601 con zona horaria; el servidor exige fin > inicio
 export const createShift = (values) => api('/api/staff/shifts', { method: 'POST', body: values })
+
+// Inicio y fin de turno. Los hace el propio empleado (el fin tambien un ADMIN) y el servidor valida
+// la hora del rango programado (inicio) y las mesas abiertas en Orders (fin).
+export const startShift = (shiftId) => api(`/api/staff/shifts/${shiftId}/start`, { method: 'POST' })
+export const endShift = (shiftId) => api(`/api/staff/shifts/${shiftId}/end`, { method: 'POST' })

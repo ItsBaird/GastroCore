@@ -51,6 +51,13 @@ export async function createShift({ userId, scheduledStart, scheduledEnd }) {
   }
 }
 
+// Consulta interna de Orders: { active: true, shift } si el empleado tiene un turno en estado 'activo'
+// (lo inicio y aun no lo finaliza), o { active: false }.
+export async function getActiveShift(userId) {
+  const shift = await shiftRepository.findActiveByUserId(userId);
+  return shift ? { active: true, shift: toShift(shift) } : { active: false };
+}
+
 async function findShift(shiftId) {
   const shift = await shiftRepository.findById(shiftId);
   if (!shift) throw shiftNotFound();
@@ -113,9 +120,12 @@ export async function endShift(shiftId, user, now = new Date()) {
     });
   }
 
+  // La base exige actual_end > actual_start (CHECK): si el reloj no avanzo ni un milisegundo desde el
+  // inicio (o retrocedio), el fin se registra un milisegundo despues en vez de fallar con un 500.
+  const endedAt = now > shift.actualStart ? now : new Date(shift.actualStart.getTime() + 1);
   const ended = await shiftRepository.transition(shiftId, 'activo', {
     status: 'finalizado',
-    actualEnd: now,
+    actualEnd: endedAt,
   });
   if (!ended) throw invalidTransition('El turno ya no esta activo');
   return toShift(ended);
