@@ -1,41 +1,6 @@
-import { useEffect, useRef } from 'react'
-import { getAccessToken } from '../auth/session.js'
+import { useRealtimeEvent } from './useRealtimeEvent.js'
 
-const MODULE_ID = 'socket.io-client'
-
+// Estado de una mesa recalculado por el backend (abrir mesa, anular un item, cobrar...).
 export function useTableStatusSocket(onStatusChanged) {
-  const cbRef = useRef(onStatusChanged)
-  cbRef.current = onStatusChanged
-
-  useEffect(() => {
-    let socket = null
-    let cancelled = false
-
-    async function connect() {
-      let io
-      try {
-        const mod = await import(/* @vite-ignore */ MODULE_ID)
-        io = mod.io ?? mod.default
-      } catch {
-        return
-      }
-      if (cancelled || !io) return
-
-      const token = getAccessToken()
-      if (!token) return
-
-      socket = io({ auth: { token }, transports: ['websocket'] })
-
-      socket.on('table:status_changed', (data) => {
-        cbRef.current?.(data)
-      })
-    }
-
-    connect()
-
-    return () => {
-      cancelled = true
-      socket?.disconnect()
-    }
-  }, [])
+  useRealtimeEvent('table:status_changed', onStatusChanged)
 }
