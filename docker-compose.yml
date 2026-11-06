@@ -54,6 +54,8 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       DATABASE_URL: postgresql://staff_user:${STAFF_DB_PASSWORD}@postgres:5432/staff_db
       AUTH_URL: http://auth:3001
+      ORDERS_URL: http://orders:3004
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-}
     volumes:
       - ./keys/public:/run/keys/public:ro
 

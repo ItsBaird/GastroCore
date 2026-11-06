@@ -21,6 +21,7 @@ Object.assign(process.env, {
   CORS_ORIGIN: 'http://localhost',
   DATABASE_URL: 'postgresql://test:test@localhost:5432/staff_test',
   JWT_PUBLIC_KEY_PATH: publicPath,
+  SERVICE_TOKEN: 'token-de-pruebas',
   // Solo para firmar tokens en las pruebas (el servicio real nunca tiene la clave privada)
   TEST_JWT_PRIVATE_KEY: privateKey,
 });
