@@ -744,6 +744,27 @@ paths:
         '409': { $ref: '#/components/responses/InvalidTransition' }
 
   # ───────────── Orders - Pedidos (F05, F07, F11) ─────────────
+  /api/orders/{orderId}:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    get:
+      tags: [Orders - Pedidos]
+      summary: Detalle de una orden con sus rondas e items
+      description: |
+        GC-ORD-0003. Incluye los items cancelados, con `cancelledReason` y `cancelledBy`. Los totales no
+        viajan aqui: la cuenta oficial la calcula `GET /api/orders/{orderId}/bill` (R4). Un mesero solo
+        puede consultar las ordenes que tiene asignadas; a cualquier otra recibe `403 FORBIDDEN`.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Detalle de la orden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderDetail' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/orders/{orderId}/rounds:
     parameters:
       - $ref: '#/components/parameters/OrderId'
@@ -799,6 +820,8 @@ paths:
       description: |
         GC-ORD-0009. El mesero asignado solo puede anular items `pendiente`; los `en_preparacion` o `listo`
         solo los anula el ADMIN (queda en auditoria). Un mesero fuera de ese caso recibe `403 FORBIDDEN`.
+        Tras confirmar la anulacion emite `item:status_changed` (payload `ItemStatusChangedEvent`) a las salas
+        `kitchen` y `waiter:{waiterId}`, y `table:status_changed` (payload `TableStatus`) a la sala `waiters`.
       x-roles: [WAITER, ADMIN]
       requestBody:
         required: true
@@ -846,8 +869,8 @@ paths:
       summary: Avanzar el estado de un item (COOK)
       description: |
         `pendiente` -> `en_preparacion` (registra `preparationStartedAt`) -> `listo` (registra `readyAt`).
-        Emite `item:status_changed` a las salas `kitchen` y `waiter:{userId}`. Cualquier otra transicion
-        responde `409 INVALID_TRANSITION`.
+        Emite `item:status_changed` (payload `ItemStatusChangedEvent`) a las salas `kitchen` y
+        `waiter:{userId}`. Cualquier otra transicion responde `409 INVALID_TRANSITION`.
       x-roles: [COOK, ADMIN]
       requestBody:
         required: true
@@ -1566,6 +1589,10 @@ components:
         status: { $ref: '#/components/schemas/TableState' }
         orderId: { type: string, format: uuid, nullable: true }
         waiterId: { type: string, format: uuid, nullable: true }
+        itemsCount:
+          type: integer
+          minimum: 0
+          description: Lineas de item no canceladas de la orden abierta. Solo viene si la mesa tiene orden.
         pendingCalls:
           type: array
           items: { $ref: '#/components/schemas/ServiceCall' }
@@ -1618,6 +1645,17 @@ components:
         deliveredAt: { type: string, format: date-time, nullable: true }
         cancelledReason: { type: string, nullable: true }
         cancelledBy: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ItemStatusChangedEvent:
+      description: Payload del evento Socket.io `item:status_changed`.
+      allOf:
+        - $ref: '#/components/schemas/Item'
+        - type: object
+          required: [orderId, tableNumber]
+          properties:
+            orderId: { type: string, format: uuid }
+            tableNumber: { type: integer }
     Round:
       type: object
       required: [roundId, orderId, source, createdAt, items]
@@ -1631,6 +1669,21 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/Item' }
+    OrderDetail:
+      type: object
+      required: [orderId, tableId, tableNumber, waiterId, status, openedAt, discountAmount, rounds]
+      properties:
+        orderId: { type: string, format: uuid }
+        tableId: { type: string, format: uuid }
+        tableNumber: { type: integer }
+        waiterId: { type: string, format: uuid }
+        status: { type: string, enum: [ABIERTA, EN_COBRO, CERRADA] }
+        openedAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time, nullable: true }
+        discountAmount: { type: integer, minimum: 0 }
+        rounds:
+          type: array
+          items: { $ref: '#/components/schemas/Round' }
     CreateRoundResponse:
       type: object
       required: [round]
