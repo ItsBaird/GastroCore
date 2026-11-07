@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from './auth/RequireAuth.jsx'
 import { homePathFor } from './auth/paths.js'
 import { useAuth } from './auth/useAuth.js'
+import BillPage from './pages/BillPage.jsx'
 import { AdminLayout } from './layouts/AdminLayout.jsx'
 import { WaiterLayout } from './layouts/WaiterLayout.jsx'
 import CategoriesPage from './pages/CategoriesPage.jsx'
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="mesas" element={<WaiterTablesPanelPage />} />
           <Route path="mesas/:orderId" element={<OrderDetailPage />} />
           <Route path="mesas/:orderId/nueva-ronda" element={<OrderTakingPage />} />
+          <Route path="mesas/:orderId/cobro" element={<BillPage />} />
           <Route path="turno" element={<WaiterShiftPage />} />
         </Route>
       </Route>
