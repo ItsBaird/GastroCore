@@ -1,8 +1,12 @@
 import { Router } from 'express';
-import { cancelItemController } from '../controllers/item.controller.js';
+import { cancelItemController, updateItemStatusController } from '../controllers/item.controller.js';
 import { authenticate, requireRole } from '../middlewares/authenticate.js';
 import { validate } from '../middlewares/validate.js';
-import { cancelItemBodySchema, itemIdParamsSchema } from '../schemas/item.schema.js';
+import {
+  cancelItemBodySchema,
+  itemIdParamsSchema,
+  itemStatusBodySchema,
+} from '../schemas/item.schema.js';
 
 export const itemRouter = Router();
 
@@ -12,4 +16,12 @@ itemRouter.post(
   requireRole('WAITER', 'ADMIN'),
   validate({ params: itemIdParamsSchema, body: cancelItemBodySchema }),
   cancelItemController,
+);
+
+itemRouter.put(
+  '/:id/status',
+  authenticate,
+  requireRole('COOK', 'ADMIN'),
+  validate({ params: itemIdParamsSchema, body: itemStatusBodySchema }),
+  updateItemStatusController,
 );

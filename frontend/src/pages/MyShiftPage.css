@@ -29,6 +29,10 @@
   font-weight: 700;
 }
 
+.my-shift-page__back {
+  margin-top: var(--sp-5);
+}
+
 .my-shift-page__user {
   margin-bottom: var(--sp-5);
   color: var(--text-muted);

@@ -9,7 +9,8 @@ export function joinRooms(socket) {
     socket.join(ROOM_WAITERS);
     socket.join(waiterRoom(userId));
   }
-  if (role === 'COOK') {
+  // El ADMIN tambien opera la cocina (GET /kitchen y PUT /items/:id/status lo permiten)
+  if (role === 'COOK' || role === 'ADMIN') {
     socket.join(ROOM_KITCHEN);
   }
 }

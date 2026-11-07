@@ -12,6 +12,14 @@ import { ToastProvider } from './components/Toast.jsx'
 vi.mock('./api/users.js')
 vi.mock('./api/staff.js')
 vi.mock('./api/tablesStatus.js')
+vi.mock('./api/kitchen.js', () => ({
+  listKitchenRounds: async () => [],
+  fetchServerClockOffset: async () => 0,
+  updateItemStatus: async () => ({}),
+}))
+vi.mock('./hooks/useKitchenSocket.js', () => ({
+  useKitchenSocket: () => ({ connected: true }),
+}))
 vi.mock('./hooks/useTableStatusSocket.js', () => ({
   useTableStatusSocket: vi.fn(),
 }))
@@ -124,21 +132,21 @@ describe('rutas de la aplicacion', () => {
   })
 
   describe('COOK', () => {
-    it('la raiz lleva a "en construccion"', () => {
+    it('la raiz lleva a la cocina', () => {
       renderApp('/', as('COOK'))
-      expect(screen.getByRole('heading', { name: 'Pantalla en construcción' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /Kitchen Display System/ })).toBeInTheDocument()
     })
 
     it('no puede abrir la gestion de usuarios: se le redirige y no se llama a la API', () => {
       renderApp('/admin/usuarios', as('COOK'))
-      expect(screen.getByRole('heading', { name: 'Pantalla en construcción' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /Kitchen Display System/ })).toBeInTheDocument()
       expect(screen.queryByRole('heading', { name: 'Gestión de Usuarios' })).not.toBeInTheDocument()
       expect(usersApi.listUsers).not.toHaveBeenCalled()
     })
 
     it('si ya inicio sesion, /login lo devuelve a su inicio', () => {
       renderApp('/login', as('COOK'))
-      expect(screen.getByRole('heading', { name: 'Pantalla en construcción' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /Kitchen Display System/ })).toBeInTheDocument()
     })
 
     it('el boton de cerrar sesion llama al logout del contexto', async () => {
@@ -181,7 +189,22 @@ describe('rutas de la aplicacion', () => {
 
     it('un cocinero no entra al panel del mesero', () => {
       renderApp('/mesero/turno', as('COOK'))
-      expect(screen.getByRole('heading', { name: 'Pantalla en construcción' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /Kitchen Display System/ })).toBeInTheDocument()
+    })
+
+    it('desde su turno el cocinero vuelve a la cocina', async () => {
+      renderApp('/mi-turno', as('COOK'))
+      expect(await screen.findByRole('link', { name: 'Ir a cocina' })).toHaveAttribute('href', '/cocina')
+    })
+
+    it('el ADMIN entra a la cocina', () => {
+      renderApp('/cocina', as('ADMIN'))
+      expect(screen.getByRole('heading', { name: /Kitchen Display System/ })).toBeInTheDocument()
+    })
+
+    it('un mesero no entra a la cocina', () => {
+      renderApp('/cocina', as('WAITER'))
+      expect(screen.queryByRole('heading', { name: /Kitchen Display System/ })).not.toBeInTheDocument()
     })
   })
 })
