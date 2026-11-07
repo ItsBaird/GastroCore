@@ -1,4 +1,4 @@
-import { ROOM_KITCHEN, waiterRoom } from './rooms.js';
+import { ROOM_KITCHEN, ROOM_WAITERS, waiterRoom } from './rooms.js';
 
 let ioInstance = null;
 
@@ -14,6 +14,15 @@ export function getIo() {
 export function emitTableStatusChanged(tableStatus) {
   const io = getIo();
   io.to('waiters').emit('table:status_changed', tableStatus);
+}
+
+// Una sola emision a varias salas: Socket.io entrega una vez aunque un socket este en mas de una
+export function emitTableReassigned(tableStatus, { previousWaiterId, newWaiterId }) {
+  const io = getIo();
+  io.to([ROOM_WAITERS, waiterRoom(previousWaiterId), waiterRoom(newWaiterId)]).emit(
+    'table:status_changed',
+    tableStatus,
+  );
 }
 
 export function emitRoundCreated(kitchenRound) {

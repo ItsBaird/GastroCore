@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import { openTableController } from '../controllers/openTable.controller.js';
+import { reassignTableController } from '../controllers/reassignTable.controller.js';
 import { create, list, update } from '../controllers/table.controller.js';
 import { getTableStatuses } from '../controllers/tableStatus.controller.js';
 import { authenticate, requireRole } from '../middlewares/authenticate.js';
 import { validate } from '../middlewares/validate.js';
 import {
   createTableSchema,
+  reassignTableSchema,
   tableIdParamsSchema,
   updateTableSchema,
 } from '../schemas/table.schema.js';
@@ -29,6 +31,13 @@ tableRouter.post(
   requireRole('WAITER', 'ADMIN'),
   validate({ params: tableIdParamsSchema }),
   openTableController,
+);
+tableRouter.put(
+  '/:id/reassign',
+  authenticate,
+  requireRole('ADMIN'),
+  validate({ params: tableIdParamsSchema, body: reassignTableSchema }),
+  reassignTableController,
 );
 tableRouter.put(
   '/:id',
