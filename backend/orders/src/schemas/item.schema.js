@@ -12,6 +12,9 @@ export const itemStatusBodySchema = z
   })
   .strict();
 
+// Entregar no lleva datos (R4): sin cuerpo o {} vacio. Cualquier campo (status, deliveredAt) es 400.
+export const deliverItemBodySchema = z.object({}).strict().optional();
+
 // R4: el cliente solo envia el motivo. .strict() rechaza status, cancelledBy y cualquier otro campo.
 // El trim corre antes del minimo, asi que un motivo de solo espacios es VALIDATION_ERROR.
 export const cancelItemBodySchema = z

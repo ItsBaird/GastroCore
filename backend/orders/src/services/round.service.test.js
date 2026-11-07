@@ -338,3 +338,28 @@ describe('createRound', () => {
     });
   });
 });
+
+// GC-ORD-0005 Esc. 2: el cliente pide mas con la mesa ocupada y la ronda cae en la misma orden.
+describe('nueva ronda en la misma orden', () => {
+  it('dos rondas usan el mismo orderId, no abren otra orden y cada una guarda su propio snapshot', async () => {
+    repo.findOrderById.mockResolvedValue(makeOrder());
+    repo.createRoundWithItems.mockImplementation(async ({ items }) => makeRoundResult(items));
+    // Entre la primera y la segunda ronda Catalog sube el precio
+    catalogClient.getProductsByIds
+      .mockResolvedValueOnce(makeCatalogProducts([[PRODUCT_A, 'Pizza Margarita', 28000, true]]))
+      .mockResolvedValueOnce(makeCatalogProducts([[PRODUCT_A, 'Pizza Margarita', 31000, true]]));
+
+    const first = await createRound(ORDER_ID, makeItems(), waiterUser);
+    const second = await createRound(ORDER_ID, makeItems(), waiterUser);
+
+    expect(repo.createRoundWithItems).toHaveBeenCalledTimes(2);
+    for (const [args] of repo.createRoundWithItems.mock.calls) {
+      expect(args.orderId).toBe(ORDER_ID);
+    }
+    // Que no exista una segunda orden en la base (indice uix_orders_one_open_per_table) lo prueba el E2E
+    expect(first.round.orderId).toBe(ORDER_ID);
+    expect(second.round.orderId).toBe(ORDER_ID);
+    expect(first.round.items[0].unitPrice).toBe(28000);
+    expect(second.round.items[0].unitPrice).toBe(31000);
+  });
+});

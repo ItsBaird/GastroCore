@@ -1,7 +1,7 @@
 import { ArrowLeft, Ban, Clock, Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { cancelItem, getOrderDetail } from '../api/orders.js'
+import { cancelItem, deliverItem, getOrderDetail } from '../api/orders.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useToast } from '../components/Toast.jsx'
 import { useRealtimeEvent } from '../hooks/useRealtimeEvent.js'
@@ -25,8 +25,38 @@ const CANCELLABLE_BY_ROLE = {
   WAITER: ['pendiente'],
 }
 
-function canCancel(role, status) {
-  return (CANCELLABLE_BY_ROLE[role] ?? []).includes(status)
+// Con la orden en cobro el backend rechaza anular (409): no se ofrece.
+function canCancel(role, status, orderStatus) {
+  return orderStatus === 'ABIERTA' && (CANCELLABLE_BY_ROLE[role] ?? []).includes(status)
+}
+
+// GC-ORD-0005: solo los listos se entregan, tambien con la mesa en cobro (decision de la PARADA 0).
+function canDeliver(status, orderStatus) {
+  return status === 'listo' && orderStatus !== 'CERRADA'
+}
+
+const ORDER_BADGE = {
+  ABIERTA: { label: 'Ocupada', className: '' },
+  EN_COBRO: { label: 'En Cobro', className: 'od-status-badge--en-cobro' },
+  CERRADA: { label: 'Cerrada', className: 'od-status-badge--cerrada' },
+}
+
+function replaceItem(order, updated) {
+  return {
+    ...order,
+    rounds: order.rounds.map((round) => ({
+      ...round,
+      items: round.items.map((item) =>
+        item.itemId === updated.itemId ? { ...item, ...updated } : item,
+      ),
+    })),
+  }
+}
+
+function deliverErrorMessage(err) {
+  if (err?.status === 0) return 'Sin conexión: no se entregó el ítem. Intenta de nuevo.'
+  if (err?.status === 404) return 'El ítem ya no existe.'
+  return err?.message || 'No se pudo entregar el ítem.'
 }
 
 function ElapsedTimer({ since }) {
@@ -61,6 +91,7 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [cancelling, setCancelling] = useState(null)
+  const [delivering, setDelivering] = useState(() => new Set())
 
   const load = useCallback(() => {
     setLoading(true)
@@ -71,29 +102,26 @@ export default function OrderDetailPage() {
       .finally(() => setLoading(false))
   }, [orderId])
 
+  // Recarga sin vaciar la pantalla: tras un 409/404 o al reconectar el socket.
+  const refresh = useCallback(() => {
+    getOrderDetail(orderId)
+      .then(setOrder)
+      .catch(() => {})
+  }, [orderId])
+
   useEffect(load, [load])
 
-  // Otro dispositivo anulo un item o cocina avanzo su estado: se refleja sin recargar.
+  // Cocina marca listo, otro dispositivo entrega o anula: se refleja sin recargar.
   useRealtimeEvent(
     'item:status_changed',
     useCallback(
       (changed) => {
         if (!changed?.itemId || changed.orderId !== orderId) return
-        setOrder((current) => {
-          if (!current) return current
-          return {
-            ...current,
-            rounds: current.rounds.map((round) => ({
-              ...round,
-              items: round.items.map((item) =>
-                item.itemId === changed.itemId ? { ...item, ...changed } : item,
-              ),
-            })),
-          }
-        })
+        setOrder((current) => (current ? replaceItem(current, changed) : current))
       },
       [orderId],
     ),
+    { onReconnect: refresh },
   )
 
   const handleCancel = async (reason) => {
@@ -102,18 +130,32 @@ export default function OrderDetailPage() {
       updated = await cancelItem(cancelling.itemId, reason)
     } catch (err) {
       // El estado que veiamos quedo viejo (otro dispositivo o cocina): se recarga detras del modal
-      if (err?.status === 409 || err?.status === 404) load()
+      if (err?.status === 409 || err?.status === 404) refresh()
       throw err
     }
-    setOrder((current) => ({
-      ...current,
-      rounds: current.rounds.map((round) => ({
-        ...round,
-        items: round.items.map((item) => (item.itemId === updated.itemId ? updated : item)),
-      })),
-    }))
+    setOrder((current) => replaceItem(current, updated))
     setCancelling(null)
     toast.success(`Se anuló ${updated.productName}`)
+  }
+
+  // Sin actualizacion optimista: el item cambia solo con la respuesta del backend.
+  const handleDeliver = async (item) => {
+    setDelivering((current) => new Set(current).add(item.itemId))
+    try {
+      const updated = await deliverItem(item.itemId)
+      setOrder((current) => replaceItem(current, updated))
+      toast.success(`${updated.productName} entregado`)
+    } catch (err) {
+      toast.error(deliverErrorMessage(err))
+      // Otro dispositivo lo entrego, el ADMIN lo anulo o la mesa cambio: se muestra el estado real
+      if (err?.status === 409 || err?.status === 404 || err?.status === 403) refresh()
+    } finally {
+      setDelivering((current) => {
+        const next = new Set(current)
+        next.delete(item.itemId)
+        return next
+      })
+    }
   }
 
   const allItems = order?.rounds?.flatMap((r) => r.items) || []
@@ -140,10 +182,17 @@ export default function OrderDetailPage() {
           >
             <ArrowLeft size={20} />
           </button>
-          <span>Mesa {order?.tableNumber ?? '—'} — Detalle</span>
+          <span>
+            Mesa {order?.tableNumber ?? '—'}
+            <span className="od-title-suffix"> — Detalle</span>
+          </span>
           {order && (
             <>
-              <span className="od-status-badge">Ocupada</span>
+              <span
+                className={`od-status-badge ${(ORDER_BADGE[order.status] ?? ORDER_BADGE.ABIERTA).className}`}
+              >
+                {(ORDER_BADGE[order.status] ?? ORDER_BADGE.ABIERTA).label}
+              </span>
               <ElapsedTimer since={order.openedAt} />
             </>
           )}
@@ -195,7 +244,18 @@ export default function OrderDetailPage() {
                       {formatCOP(item.unitPrice * item.quantity)}
                     </span>
                     <span className="od-item-actions">
-                      {canCancel(user?.role, item.status) && (
+                      {canDeliver(item.status, order.status) && (
+                        <button
+                          type="button"
+                          className="od-btn-entregar"
+                          disabled={delivering.has(item.itemId)}
+                          aria-label={`Entregar ${item.productName}`}
+                          onClick={() => handleDeliver(item)}
+                        >
+                          {delivering.has(item.itemId) ? 'Entregando…' : 'Entregar'}
+                        </button>
+                      )}
+                      {canCancel(user?.role, item.status, order.status) && (
                         <button
                           type="button"
                           className="od-btn-anular"
@@ -236,7 +296,10 @@ export default function OrderDetailPage() {
                 <span className="od-summary__value">{statusCounts.en_preparacion || 0}</span>
               </div>
               <div className="od-summary__row">
-                <span className="od-summary__label">Listos:</span>
+                {/* Figma: "Listos:" en escritorio (32:78) y movil (41:48), "Listos para entregar:" en tablet (37:56) */}
+                <span className="od-summary__label">
+                  Listos<span className="od-label-tablet"> para entregar</span>:
+                </span>
                 <span className="od-summary__value">{statusCounts.listo || 0}</span>
               </div>
               <div className="od-summary__row">
@@ -267,6 +330,8 @@ export default function OrderDetailPage() {
             <button
               type="button"
               className="od-btn-add"
+              disabled={order.status !== 'ABIERTA'}
+              title={order.status === 'EN_COBRO' ? 'Cancela el cobro para agregar ítems' : undefined}
               onClick={() =>
                 navigate(`/mesero/mesas/${orderId}/nueva-ronda`, {
                   state: { tableNumber: order.tableNumber },

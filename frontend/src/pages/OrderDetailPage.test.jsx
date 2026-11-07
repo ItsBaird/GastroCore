@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,13 +36,13 @@ function makeItem(itemId, status, overrides = {}) {
   }
 }
 
-function makeOrder(items) {
+function makeOrder(items, status = 'ABIERTA') {
   return {
     orderId: ORDER_ID,
     tableId: 'table-1',
     tableNumber: 2,
     waiterId: WAITER.userId,
-    status: 'ABIERTA',
+    status,
     openedAt: new Date().toISOString(),
     closedAt: null,
     discountAmount: 0,
@@ -50,8 +50,8 @@ function makeOrder(items) {
   }
 }
 
-function renderPage({ user = WAITER, items = [makeItem('i1', 'pendiente')] } = {}) {
-  ordersApi.getOrderDetail.mockResolvedValue(makeOrder(items))
+function renderPage({ user = WAITER, items = [makeItem('i1', 'pendiente')], status = 'ABIERTA' } = {}) {
+  ordersApi.getOrderDetail.mockResolvedValue(makeOrder(items, status))
   const auth = { status: 'authenticated', user, login: vi.fn(), logout: vi.fn() }
   return render(
     <MemoryRouter initialEntries={[`/mesero/mesas/${ORDER_ID}`]}>
@@ -290,7 +290,9 @@ describe('OrderDetailPage — tiempo real', () => {
     renderPage()
     await screen.findByText('Producto i1')
 
-    expect(useRealtimeEvent).toHaveBeenCalledWith('item:status_changed', expect.any(Function))
+    expect(useRealtimeEvent).toHaveBeenCalledWith('item:status_changed', expect.any(Function), {
+      onReconnect: expect.any(Function),
+    })
   })
 
   it('refleja la anulación hecha desde otro dispositivo sin recargar', async () => {
@@ -316,5 +318,139 @@ describe('OrderDetailPage — tiempo real', () => {
     handler({ ...makeItem('i1', 'cancelado'), orderId: 'otra-orden' })
 
     expect(screen.queryByText('Cancelado', { selector: '.od-pill' })).toBeNull()
+  })
+})
+
+const entregarIn = (name) => within(rowOf(name)).queryByRole('button', { name: /entregar/i })
+
+describe('OrderDetailPage — entregar ítems listos (GC-ORD-0005)', () => {
+  const STATES = ['pendiente', 'en_preparacion', 'listo', 'entregado', 'cancelado']
+
+  it('"Entregar" aparece solo en los ítems listos', async () => {
+    renderPage({ user: WAITER, items: STATES.map((s, i) => makeItem(`i${i}`, s)) })
+    await screen.findByText('Producto i0')
+
+    expect(entregarIn('Producto i0')).toBeNull()
+    expect(entregarIn('Producto i1')).toBeNull()
+    expect(entregarIn('Producto i2')).toBeInTheDocument()
+    expect(entregarIn('Producto i3')).toBeNull()
+    expect(entregarIn('Producto i4')).toBeNull()
+    expect(screen.getByText('Listo', { selector: '.od-pill' })).toHaveClass('od-pill--listo')
+  })
+
+  it('el ADMIN ve Entregar y Anular en un ítem listo', async () => {
+    renderPage({ user: ADMIN, items: [makeItem('i1', 'listo')] })
+    await screen.findByText('Producto i1')
+
+    expect(entregarIn('Producto i1')).toBeInTheDocument()
+    expect(anularIn('Producto i1')).toBeInTheDocument()
+  })
+
+  it('con la mesa en cobro se puede entregar pero no anular ni agregar ítems', async () => {
+    renderPage({ user: ADMIN, items: [makeItem('i1', 'listo')], status: 'EN_COBRO' })
+    await screen.findByText('Producto i1')
+
+    expect(entregarIn('Producto i1')).toBeInTheDocument()
+    expect(anularIn('Producto i1')).toBeNull()
+    expect(screen.getByRole('button', { name: /Agregar Ítem/ })).toBeDisabled()
+    expect(screen.getByText('En Cobro')).toHaveClass('od-status-badge--en-cobro')
+  })
+
+  it('se deshabilita mientras la petición está en curso y sin actualización optimista', async () => {
+    const user = userEvent.setup()
+    renderPage({ user: WAITER, items: [makeItem('i1', 'listo')] })
+    await screen.findByText('Producto i1')
+    let resolve
+    ordersApi.deliverItem.mockImplementation(() => new Promise((r) => (resolve = r)))
+
+    await user.click(entregarIn('Producto i1'))
+
+    const button = entregarIn('Producto i1')
+    expect(button).toBeDisabled()
+    expect(button).toHaveTextContent('Entregando…')
+    expect(screen.getByText('Listo', { selector: '.od-pill' })).toBeInTheDocument()
+
+    resolve(makeItem('i1', 'entregado', { deliveredAt: '2026-11-07T18:00:00Z' }))
+    expect(await screen.findByText('Entregado', { selector: '.od-pill' })).toBeInTheDocument()
+  })
+
+  it('al entregar pasa a "Entregado", deja de resaltarse y no envía datos (R4)', async () => {
+    const user = userEvent.setup()
+    renderPage({ user: WAITER, items: [makeItem('i1', 'listo')] })
+    await screen.findByText('Producto i1')
+    ordersApi.deliverItem.mockResolvedValue(makeItem('i1', 'entregado', { deliveredAt: '2026-11-07T18:00:00Z' }))
+
+    await user.click(entregarIn('Producto i1'))
+
+    expect(ordersApi.deliverItem).toHaveBeenCalledWith('i1')
+    expect(await screen.findByText('Entregado', { selector: '.od-pill' })).toBeInTheDocument()
+    expect(entregarIn('Producto i1')).toBeNull()
+    expect(await screen.findByText(/Producto i1 entregado/)).toBeInTheDocument()
+  })
+
+  it.each([
+    [409, 'INVALID_TRANSITION', 'Solo se entregan ítems listos; este está cancelado', 2],
+    [404, 'NOT_FOUND', 'El ítem no existe', 2],
+    [403, 'FORBIDDEN', 'No tienes asignada esta mesa', 2],
+  ])('%s avisa con mensaje claro y refresca el detalle', async (status, code, message, loads) => {
+    const user = userEvent.setup()
+    renderPage({ user: WAITER, items: [makeItem('i1', 'listo')] })
+    await screen.findByText('Producto i1')
+    ordersApi.deliverItem.mockRejectedValue(new ApiError(status, code, message))
+
+    await user.click(entregarIn('Producto i1'))
+
+    const toast = await screen.findByText(status === 404 ? /ya no existe/ : message, { selector: '.toast--error' })
+    expect(toast).toHaveAttribute('role', 'status')
+    expect(ordersApi.getOrderDetail).toHaveBeenCalledTimes(loads)
+  })
+
+  it('un error de red avisa, no recarga y deja reintentar', async () => {
+    const user = userEvent.setup()
+    renderPage({ user: WAITER, items: [makeItem('i1', 'listo')] })
+    await screen.findByText('Producto i1')
+    ordersApi.deliverItem.mockRejectedValue(new ApiError(0, 'NETWORK_ERROR', 'No se pudo conectar'))
+
+    await user.click(entregarIn('Producto i1'))
+
+    expect(await screen.findByText(/Sin conexión/, { selector: '.toast--error' })).toBeInTheDocument()
+    expect(ordersApi.getOrderDetail).toHaveBeenCalledTimes(1)
+    expect(entregarIn('Producto i1')).toBeEnabled()
+  })
+
+  it('cocina marca listo: el ítem se resalta en vivo con su botón', async () => {
+    renderPage({ user: WAITER, items: [makeItem('i1', 'en_preparacion')] })
+    await screen.findByText('Producto i1')
+    expect(entregarIn('Producto i1')).toBeNull()
+
+    const handler = useRealtimeEvent.mock.calls.at(-1)[1]
+    act(() => handler({ ...makeItem('i1', 'listo'), orderId: ORDER_ID, tableNumber: 2 }))
+
+    expect(await screen.findByText('Listo', { selector: '.od-pill' })).toBeInTheDocument()
+    expect(entregarIn('Producto i1')).toBeInTheDocument()
+  })
+
+  it('otro dispositivo lo entrega: deja de resaltarse en vivo', async () => {
+    renderPage({ user: WAITER, items: [makeItem('i1', 'listo')] })
+    await screen.findByText('Producto i1')
+
+    const handler = useRealtimeEvent.mock.calls.at(-1)[1]
+    act(() => handler({ ...makeItem('i1', 'entregado'), orderId: ORDER_ID, tableNumber: 2 }))
+
+    expect(await screen.findByText('Entregado', { selector: '.od-pill' })).toBeInTheDocument()
+    expect(entregarIn('Producto i1')).toBeNull()
+  })
+
+  it('al reconectar el socket recarga el detalle sin vaciar la pantalla', async () => {
+    renderPage({ user: WAITER, items: [makeItem('i1', 'listo')] })
+    await screen.findByText('Producto i1')
+    ordersApi.getOrderDetail.mockResolvedValue(makeOrder([makeItem('i1', 'entregado')]))
+
+    const { onReconnect } = useRealtimeEvent.mock.calls.at(-1)[2]
+    act(() => onReconnect())
+
+    expect(screen.queryByText('Cargando detalle…')).toBeNull()
+    expect(await screen.findByText('Entregado', { selector: '.od-pill' })).toBeInTheDocument()
+    expect(ordersApi.getOrderDetail).toHaveBeenCalledTimes(2)
   })
 })
