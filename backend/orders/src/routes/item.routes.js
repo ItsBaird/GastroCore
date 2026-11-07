@@ -1,9 +1,14 @@
 import { Router } from 'express';
-import { cancelItemController, updateItemStatusController } from '../controllers/item.controller.js';
+import {
+  cancelItemController,
+  deliverItemController,
+  updateItemStatusController,
+} from '../controllers/item.controller.js';
 import { authenticate, requireRole } from '../middlewares/authenticate.js';
 import { validate } from '../middlewares/validate.js';
 import {
   cancelItemBodySchema,
+  deliverItemBodySchema,
   itemIdParamsSchema,
   itemStatusBodySchema,
 } from '../schemas/item.schema.js';
@@ -16,6 +21,15 @@ itemRouter.post(
   requireRole('WAITER', 'ADMIN'),
   validate({ params: itemIdParamsSchema, body: cancelItemBodySchema }),
   cancelItemController,
+);
+
+// GC-ORD-0005. Mesero asignado o ADMIN; la pertenencia la decide el servicio.
+itemRouter.put(
+  '/:id/deliver',
+  authenticate,
+  requireRole('WAITER', 'ADMIN'),
+  validate({ params: itemIdParamsSchema, body: deliverItemBodySchema }),
+  deliverItemController,
 );
 
 itemRouter.put(

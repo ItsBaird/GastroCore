@@ -28,6 +28,20 @@ export async function advanceItemStatus({ itemId, from, to, timestampField }) {
   });
 }
 
+// Entrega atomica (GC-ORD-0005): solo un item que sigue `listo` y cuya orden no se cerro. Si el ADMIN lo
+// anulo o otro dispositivo ya lo entrego entre la lectura y la escritura, devuelve null. deliveredAt sale
+// del servidor (R4).
+export async function deliverReadyItem(itemId) {
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.orderItem.updateMany({
+      where: { itemId, status: 'listo', round: { order: { status: { not: 'CERRADA' } } } },
+      data: { status: 'entregado', deliveredAt: new Date() },
+    });
+    if (updated.count === 0) return null;
+    return tx.orderItem.findUnique({ where: { itemId } });
+  });
+}
+
 // Anulacion atomica (RNF-12). Nunca "leer, decidir y luego escribir" sin condicion: el item se
 // relee dentro de la transaccion y el updateMany se condiciona a ese mismo estado, asi que si
 // cocina lo avanza en medio no se pisa el cambio y applied queda en false con el estado real.
