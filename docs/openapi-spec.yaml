@@ -978,10 +978,17 @@ paths:
       - $ref: '#/components/parameters/OrderId'
     post:
       tags: [Orders - Cobro]
-      summary: Aplicar un descuento (permiso discount:apply)
-      description: GC-ORD-0007. Registra `discountAmount`, `discountAppliedBy` y `discountAppliedAt`, y crea un registro de auditoria.
+      summary: Aplicar un descuento (ADMIN, o WAITER con permiso discount:apply)
+      description: |
+        GC-ORD-0007 (MVP). El ADMIN siempre puede aplicarlo. Un WAITER solo si su token trae el permiso
+        `discount:apply` y es el mesero asignado; si no, `403 FORBIDDEN`. Solo con la orden `EN_COBRO`; en otro
+        estado `409 INVALID_TRANSITION`. El monto, en pesos enteros, no puede superar el subtotal de la cuenta
+        calculado en el backend (`computeBill`); si lo supera, `409 DISCOUNT_EXCEEDS_SUBTOTAL`. Un descuento nuevo
+        reemplaza al anterior. Registra `discountAmount`, `discountAppliedBy` y `discountAppliedAt`, y en la misma
+        transaccion un registro de auditoria `DISCOUNT_APPLIED` con el monto, el anterior, el subtotal y el motivo.
+        La asignacion del permiso `discount:apply` a los usuarios no forma parte de este MVP.
       x-roles: [WAITER, ADMIN]
-      x-permissions: ['discount:apply']
+      x-permissions: ['discount:apply (solo WAITER; el ADMIN no lo necesita)']
       requestBody:
         required: true
         content:
@@ -989,11 +996,16 @@ paths:
             schema:
               type: object
               required: [discountAmount]
+              additionalProperties: false
               properties:
                 discountAmount:
                   type: integer
                   minimum: 1
                   description: Pesos colombianos enteros
+                reason:
+                  type: string
+                  maxLength: 255
+                  description: Motivo opcional; queda en la auditoria
       responses:
         '200':
           description: Orden con descuento
@@ -1004,7 +1016,11 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/InvalidTransition' }
+        '409':
+          description: Orden no `EN_COBRO` (`INVALID_TRANSITION`) o monto mayor que el subtotal (`DISCOUNT_EXCEEDS_SUBTOTAL`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /api/orders/{orderId}/pay:
     parameters:
       - $ref: '#/components/parameters/OrderId'
@@ -1467,7 +1483,7 @@ components:
               example: NOT_FOUND
               description: |
                 NOT_FOUND, VALIDATION_ERROR, UNAUTHENTICATED, FORBIDDEN, CONFLICT, EMAIL_ALREADY_EXISTS, ACCOUNT_LOCKED, INVALID_TRANSITION,
-                NO_ACTIVE_SHIFT, TABLE_ALREADY_OPEN, TABLE_NOT_OPEN, HAS_OPEN_TABLES, DAY_CLOSED, NO_DELIVERED_ITEMS,
+                NO_ACTIVE_SHIFT, TABLE_ALREADY_OPEN, TABLE_NOT_OPEN, HAS_OPEN_TABLES, DAY_CLOSED, NO_DELIVERED_ITEMS, DISCOUNT_EXCEEDS_SUBTOTAL,
                 RATE_LIMITED, DEPENDENCY_UNAVAILABLE, INTERNAL_ERROR
             message: { type: string, example: Recurso no encontrado }
             details:
