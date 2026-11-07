@@ -6,6 +6,7 @@ import { AdminLayout } from './layouts/AdminLayout.jsx'
 import { WaiterLayout } from './layouts/WaiterLayout.jsx'
 import CategoriesPage from './pages/CategoriesPage.jsx'
 import EmployeesPage from './pages/EmployeesPage.jsx'
+import KitchenPage from './pages/KitchenPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import MyShiftPage from './pages/MyShiftPage.jsx'
 import PaymentMethodsPage from './pages/PaymentMethodsPage.jsx'
@@ -53,6 +54,10 @@ export default function App() {
           <Route path="mesas/:orderId/nueva-ronda" element={<OrderTakingPage />} />
           <Route path="turno" element={<WaiterShiftPage />} />
         </Route>
+      </Route>
+
+      <Route element={<RequireAuth roles={['COOK', 'ADMIN']} />}>
+        <Route path="/cocina" element={<KitchenPage />} />
       </Route>
 
       <Route element={<RequireAuth />}>

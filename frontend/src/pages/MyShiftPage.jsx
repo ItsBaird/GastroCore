@@ -1,11 +1,11 @@
 import { LogOut, Pizza } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { MyShiftPanel } from '../components/MyShiftPanel.jsx'
 import './MyShiftPage.css'
 
-// Mi turno fuera de los paneles de admin y mesero: para el cocinero, que todavia no tiene panel propio
-// (el kitchen display llegara con su historia). Cualquier usuario con sesion puede entrar.
+// Mi turno fuera de los paneles de admin y mesero: para el cocinero, que llega desde la cocina.
+// Cualquier usuario con sesion puede entrar.
 export default function MyShiftPage() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -28,6 +28,11 @@ export default function MyShiftPage() {
       <h1 className="my-shift-page__title">Mi turno</h1>
       <p className="my-shift-page__user">{user.email}</p>
       <MyShiftPanel />
+      {user.role === 'COOK' && (
+        <Link className="btn btn--primary my-shift-page__back" to="/cocina">
+          Ir a cocina
+        </Link>
+      )}
     </main>
   )
 }
