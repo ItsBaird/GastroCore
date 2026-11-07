@@ -40,7 +40,7 @@ describe('turno activo', () => {
   it('sin turno activo responde 409 NO_ACTIVE_SHIFT y no crea la orden', async () => {
     staffClient.hasActiveShift.mockResolvedValue(false);
 
-    await expect(openTable(TABLE_ID, USER_ID)).rejects.toMatchObject({
+    await expect(openTable(TABLE_ID, USER_ID, 'WAITER')).rejects.toMatchObject({
       status: 409,
       code: 'NO_ACTIVE_SHIFT',
     });
@@ -55,8 +55,41 @@ describe('turno activo', () => {
       Object.assign(new Error('caido'), { status: 503, code: 'DEPENDENCY_UNAVAILABLE' }),
     );
 
-    await expect(openTable(TABLE_ID, USER_ID)).rejects.toMatchObject({ status: 503 });
+    await expect(openTable(TABLE_ID, USER_ID, 'WAITER')).rejects.toMatchObject({ status: 503 });
     expect(repo.createOrder).not.toHaveBeenCalled();
+  });
+
+  it('el ADMIN abre sin turno: no consulta Staff y queda como autor y responsable', async () => {
+    staffClient.hasActiveShift.mockResolvedValue(false);
+    repo.createOrder.mockResolvedValue({ orderId: 'admin-order', status: 'ABIERTA' });
+
+    await expect(openTable(TABLE_ID, USER_ID, 'ADMIN')).resolves.toMatchObject({
+      orderId: 'admin-order',
+    });
+
+    expect(staffClient.hasActiveShift).not.toHaveBeenCalled();
+    expect(repo.createOrder).toHaveBeenCalledWith({
+      tableId: TABLE_ID,
+      openedBy: USER_ID,
+      waiterId: USER_ID,
+    });
+  });
+
+  it('el ADMIN abre aunque Staff este caido', async () => {
+    staffClient.hasActiveShift.mockRejectedValue(
+      Object.assign(new Error('caido'), { status: 503, code: 'DEPENDENCY_UNAVAILABLE' }),
+    );
+    repo.createOrder.mockResolvedValue({ orderId: 'admin-order', status: 'ABIERTA' });
+
+    await expect(openTable(TABLE_ID, USER_ID, 'ADMIN')).resolves.toMatchObject({
+      orderId: 'admin-order',
+    });
+  });
+
+  it('un rol que no viene no se trata como ADMIN: exige turno', async () => {
+    staffClient.hasActiveShift.mockResolvedValue(false);
+
+    await expect(openTable(TABLE_ID, USER_ID)).rejects.toMatchObject({ code: 'NO_ACTIVE_SHIFT' });
   });
 
   it('dos meseros a la vez: el indice unico se traduce a TABLE_ALREADY_OPEN', async () => {
