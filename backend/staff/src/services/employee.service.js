@@ -61,6 +61,11 @@ export async function listEmployees() {
   return (await employeeRepository.findAll()).map(toEmployee);
 }
 
+// Consulta interna de Orders para el panel de mesas: solo el nombre, nunca documento ni telefono
+export async function listEmployeeNames(userIds) {
+  return employeeRepository.findNamesByIds(userIds);
+}
+
 export async function getEmployee(userId) {
   const employee = await employeeRepository.findById(userId);
   if (!employee) throw notFound();

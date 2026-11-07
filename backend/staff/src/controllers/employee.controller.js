@@ -1,9 +1,14 @@
 import {
   createEmployee,
   getEmployee,
+  listEmployeeNames,
   listEmployees,
   updateEmployee,
 } from '../services/employee.service.js';
+
+export async function listNames(req, res) {
+  res.json(await listEmployeeNames(req.valid.query.ids));
+}
 
 export async function list(req, res) {
   res.json(await listEmployees());
