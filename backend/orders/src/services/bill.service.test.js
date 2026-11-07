@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../repositories/bill.repository.js', () => ({
   findOrderForBill: vi.fn(),
   moveOrderToBilling: vi.fn(),
+  moveOrderBackToOpen: vi.fn(),
 }));
 vi.mock('../realtime/events.js', () => ({ emitTableStatusChanged: vi.fn() }));
 vi.mock('./tableStatus.service.js', () => ({ getTableStatus: vi.fn() }));
@@ -10,7 +11,7 @@ vi.mock('./tableStatus.service.js', () => ({ getTableStatus: vi.fn() }));
 const repo = await import('../repositories/bill.repository.js');
 const events = await import('../realtime/events.js');
 const { getTableStatus } = await import('./tableStatus.service.js');
-const { getBill } = await import('./bill.service.js');
+const { cancelBill, getBill } = await import('./bill.service.js');
 
 const WAITER = { userId: 'waiter-1', role: 'WAITER' };
 const OTHER = { userId: 'waiter-2', role: 'WAITER' };
@@ -187,5 +188,72 @@ describe('getBill: transicion a en_cobro', () => {
     await expect(getBill('order-1', WAITER)).rejects.toMatchObject({
       code: 'INVALID_TRANSITION',
     });
+  });
+});
+
+describe('cancelBill', () => {
+  const reopenedRow = {
+    ...makeOrder({ status: 'ABIERTA' }),
+    openedBy: 'waiter-1',
+    openedAt: new Date('2026-11-07T18:00:00Z'),
+    closedAt: null,
+    discountAppliedBy: null,
+    discountAppliedAt: null,
+  };
+
+  it('en_cobro -> ocupada: devuelve la Order del contrato y emite tras escribir', async () => {
+    repo.findOrderForBill.mockResolvedValue(makeOrder({ status: 'EN_COBRO' }));
+    repo.moveOrderBackToOpen.mockImplementation(async () => {
+      expect(events.emitTableStatusChanged).not.toHaveBeenCalled();
+      return reopenedRow;
+    });
+    getTableStatus.mockResolvedValue({ ...TABLE_STATUS, status: 'ocupada' });
+
+    const order = await cancelBill('order-1', WAITER);
+
+    expect(order).toEqual({
+      orderId: 'order-1',
+      tableId: 'table-1',
+      openedBy: 'waiter-1',
+      waiterId: 'waiter-1',
+      status: 'ABIERTA',
+      openedAt: reopenedRow.openedAt,
+      closedAt: null,
+      discountAmount: 0,
+      discountAppliedBy: null,
+      discountAppliedAt: null,
+    });
+    expect(events.emitTableStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'ocupada' }),
+    );
+  });
+
+  it.each(['ABIERTA', 'CERRADA'])('con la orden %s responde 409 sin escribir', async (status) => {
+    repo.findOrderForBill.mockResolvedValue(makeOrder({ status }));
+
+    await expect(cancelBill('order-1', WAITER)).rejects.toMatchObject({
+      status: 409,
+      code: 'INVALID_TRANSITION',
+    });
+    expect(repo.moveOrderBackToOpen).not.toHaveBeenCalled();
+  });
+
+  it('si otro dispositivo la cancelo o se pago en medio: 409 y sin evento', async () => {
+    repo.findOrderForBill.mockResolvedValue(makeOrder({ status: 'EN_COBRO' }));
+    repo.moveOrderBackToOpen.mockResolvedValue(null);
+
+    await expect(cancelBill('order-1', WAITER)).rejects.toMatchObject({ status: 409 });
+    expect(events.emitTableStatusChanged).not.toHaveBeenCalled();
+  });
+
+  it('otro mesero 403, ADMIN permitido, orden inexistente 404', async () => {
+    repo.findOrderForBill.mockResolvedValue(makeOrder({ status: 'EN_COBRO' }));
+    repo.moveOrderBackToOpen.mockResolvedValue(reopenedRow);
+
+    await expect(cancelBill('order-1', OTHER)).rejects.toMatchObject({ status: 403 });
+    await expect(cancelBill('order-1', ADMIN)).resolves.toMatchObject({ status: 'ABIERTA' });
+
+    repo.findOrderForBill.mockResolvedValue(null);
+    await expect(cancelBill('order-1', WAITER)).rejects.toMatchObject({ status: 404 });
   });
 });

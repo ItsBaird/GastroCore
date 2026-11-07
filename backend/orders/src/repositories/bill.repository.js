@@ -30,3 +30,16 @@ export async function moveOrderToBilling(orderId) {
     return updated.count === 1;
   });
 }
+
+// EN_COBRO -> ABIERTA solo si aun no hay pago registrado (GC-ORD-0008 cierra la orden al pagar).
+// Devuelve la orden actualizada o null si el estado ya no lo permitia.
+export async function moveOrderBackToOpen(orderId) {
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.order.updateMany({
+      where: { orderId, status: 'EN_COBRO', payment: { is: null } },
+      data: { status: 'ABIERTA' },
+    });
+    if (updated.count === 0) return null;
+    return tx.order.findUnique({ where: { orderId } });
+  });
+}

@@ -1,6 +1,10 @@
 import { AppError } from '../errors/AppError.js';
 import { emitTableStatusChanged } from '../realtime/events.js';
-import { findOrderForBill, moveOrderToBilling } from '../repositories/bill.repository.js';
+import {
+  findOrderForBill,
+  moveOrderBackToOpen,
+  moveOrderToBilling,
+} from '../repositories/bill.repository.js';
 import { assertBillPayable, computeBill } from './computeBill.js';
 import { getTableStatus } from './tableStatus.service.js';
 
@@ -75,4 +79,40 @@ export async function getBill(orderId, user) {
   if (tableStatus) emitTableStatusChanged(tableStatus);
 
   return toBill(fresh);
+}
+
+// Contrato Order: la fila de Prisma ya viene en camelCase; se listan los campos para no filtrar relaciones.
+function toOrder(order) {
+  return {
+    orderId: order.orderId,
+    tableId: order.tableId,
+    openedBy: order.openedBy,
+    waiterId: order.waiterId,
+    status: order.status,
+    openedAt: order.openedAt,
+    closedAt: order.closedAt,
+    discountAmount: order.discountAmount,
+    discountAppliedBy: order.discountAppliedBy,
+    discountAppliedAt: order.discountAppliedAt,
+  };
+}
+
+// GC-ORD-0006 Esc. 2: el cliente pide algo mas estando en cobro. La mesa vuelve a ocupada y se pueden
+// agregar rondas. Solo desde EN_COBRO y sin pago registrado.
+export async function cancelBill(orderId, user) {
+  const order = await loadOwnedOrder(orderId, user);
+  if (order.status !== 'EN_COBRO') {
+    throw invalidTransition('Solo se puede cancelar el cobro de una mesa en cobro');
+  }
+
+  const reopened = await moveOrderBackToOpen(orderId);
+  if (!reopened) {
+    // Otro dispositivo ya lo cancelo o se registro el pago en medio
+    throw invalidTransition('La mesa ya no está en cobro');
+  }
+
+  const tableStatus = await getTableStatus(order.tableId);
+  if (tableStatus) emitTableStatusChanged(tableStatus);
+
+  return toOrder(reopened);
 }
