@@ -212,6 +212,7 @@
   display: grid;
   flex: 1;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
   align-items: start;
   gap: var(--sp-4);
   padding: var(--sp-4) var(--sp-5) var(--sp-5);
