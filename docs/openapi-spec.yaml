@@ -694,12 +694,13 @@ paths:
       - $ref: '#/components/parameters/Id'
     post:
       tags: [Orders - Mesas]
-      summary: Abrir una mesa libre (WAITER con turno activo)
+      summary: Abrir una mesa libre (WAITER con turno activo, ADMIN sin turno)
       description: |
-        GC-ORD-0002. Verifica el turno activo contra Staff (`GET /internal/shifts/active/:userId`), crea la
-        orden `ABIERTA` con `openedBy` y `waiterId` del mesero, y marca como atendidos los llamados pendientes.
-        La verificacion de turno tambien aplica al ADMIN. Emite `table:status_changed` (payload `TableStatus`)
-        a la sala `waiters`.
+        GC-ORD-0002. Para WAITER verifica el turno activo contra Staff (`GET /internal/shifts/active/:userId`);
+        el ADMIN abre sin turno y sin consultar Staff. Crea la orden `ABIERTA` con `openedBy` y `waiterId` de
+        quien abre, y marca como atendidos los llamados pendientes. Emite `table:status_changed` (payload
+        `TableStatus`) a la sala `waiters`. Una mesa abierta por un ADMIN sin perfil de empleado llega con
+        `waiterName: null`.
       x-roles: [WAITER, ADMIN]
       responses:
         '201':
@@ -711,7 +712,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Sin turno activo (`NO_ACTIVE_SHIFT`) o mesa ya abierta (`TABLE_ALREADY_OPEN`)
+          description: WAITER sin turno activo (`NO_ACTIVE_SHIFT`) o mesa ya abierta (`TABLE_ALREADY_OPEN`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
