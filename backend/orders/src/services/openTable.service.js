@@ -16,7 +16,9 @@ function tableAlreadyOpen() {
   });
 }
 
-export async function openTable(tableId, userId) {
+// El turno controla que meseros estan disponibles y que no salgan con mesas abiertas (HAS_OPEN_TABLES).
+// El ADMIN supervisa sin turno programado y cubre en hora pico: abre sin turno, opened_by conserva la autoria.
+export async function openTable(tableId, userId, role) {
   const table = await findTableById(tableId);
   if (!table) {
     throw new AppError({
@@ -29,7 +31,7 @@ export async function openTable(tableId, userId) {
   const existing = await findOpenOrderByTable(tableId);
   if (existing) throw tableAlreadyOpen();
 
-  if (!(await staffClient.hasActiveShift(userId))) {
+  if (role !== 'ADMIN' && !(await staffClient.hasActiveShift(userId))) {
     throw new AppError({
       status: 409,
       code: 'NO_ACTIVE_SHIFT',
