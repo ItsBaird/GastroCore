@@ -810,7 +810,13 @@ paths:
     put:
       tags: [Orders - Pedidos]
       summary: Marcar un item listo como entregado (mesero asignado)
-      description: GC-ORD-0005. Registra `deliveredAt`.
+      description: |
+        GC-ORD-0005. Unica transicion `listo` -> `entregado`; registra `deliveredAt` en el backend (sin cuerpo:
+        el cliente no envia estado ni fecha, R4). Aplica con la orden `ABIERTA` o `EN_COBRO` (entregar no
+        cambia la cuenta, que ya incluye todos los items no cancelados); con la orden `CERRADA`, o el item en
+        otro estado, responde `409 INVALID_TRANSITION`. Un mesero solo entrega items de sus mesas (`403`).
+        Tras confirmar emite `item:status_changed` (payload `ItemStatusChangedEvent`) a las salas `kitchen` y
+        `waiter:{waiterId}` (el mesero actual de la orden), una sola vez por socket; cocina lo retira.
       x-roles: [WAITER, ADMIN]
       responses:
         '200':
@@ -818,6 +824,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Item' }
+        '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
