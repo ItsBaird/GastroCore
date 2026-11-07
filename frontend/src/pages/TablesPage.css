@@ -43,6 +43,59 @@
   color: var(--text);
 }
 
+.table-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+/* Figma 13:96, 13:114 y 13:123: 80x24, radio 12, texto 11px semibold */
+.table-card__pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+  height: 24px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.table-card__pill--libre {
+  background: var(--green-50);
+  color: var(--green-600);
+}
+
+.table-card__pill--ocupada {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+
+.table-card__pill--en_cobro {
+  background: var(--orange-50);
+  color: var(--orange-500);
+}
+
+.table-card__waiter {
+  font-size: 13px;
+  color: var(--n-700);
+  overflow-wrap: anywhere;
+}
+
+.table-card__actions {
+  display: flex;
+  gap: var(--sp-4);
+}
+
+.reassign-current,
+.reassign-note {
+  font-size: 14px;
+  color: var(--n-700);
+}
+
 .table-card__qr {
   display: flex;
   align-items: center;
@@ -52,6 +105,7 @@
 .table-card__qr-path {
   overflow: hidden;
   flex: 1;
+  min-width: 0;
   padding: 4px 8px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -124,14 +178,27 @@
   }
 }
 
+/* Objetivo tactil de 44px en tablet y movil */
+@media (width <= 1100px) {
+  .table-card__actions .link-btn {
+    min-height: 44px;
+  }
+
+  .table-card__qr .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
 @media (width <= 640px) {
   .tables-card {
     padding: var(--sp-4);
     border-radius: var(--radius-lg);
   }
 
+  /* minmax(0, ...): con 1fr la ruta del QR, sin saltos de linea, ensanchaba la columna y la tarjeta se salia */
   .tables-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .btn__text {
