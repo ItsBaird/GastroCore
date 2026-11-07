@@ -2,6 +2,7 @@
   display: flex;
   align-items: center;
   gap: var(--sp-3);
+  white-space: nowrap;
 }
 
 .od-back {
@@ -15,9 +16,12 @@
   padding: 0;
 }
 
+/* Figma 32:21: 90x28, radio 14, 12px semibold */
 .od-status-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 90px;
   height: 28px;
   padding: 0 var(--sp-4);
   border-radius: var(--radius-full);
@@ -25,6 +29,17 @@
   color: var(--blue-600);
   font-size: 12px;
   font-weight: 600;
+}
+
+/* Figma 35:21: 90x28, radio 14, #fff7ed / #f97316, 12px semibold */
+.od-status-badge--en-cobro {
+  background: var(--orange-50);
+  color: var(--orange-500);
+}
+
+.od-status-badge--cerrada {
+  background: var(--n-100);
+  color: var(--text-muted);
 }
 
 .od-timer {
@@ -136,11 +151,12 @@
   text-align: right;
 }
 
-/* Status pills */
+/* Status pills. Figma 32:36: 90x26, radio 13, 11px semibold */
 .od-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 90px;
   height: 26px;
   padding: 0 var(--sp-3);
   border-radius: var(--radius-full);
@@ -177,9 +193,53 @@
 /* Acciones por fila. La geometria y el lenguaje salen del boton "Entregar" del Figma
    (32:39: 70x28, radio 8, relleno solido del color semantico, texto blanco 11px semibold);
    aqui el color semantico es el de peligro porque la accion es destructiva. */
+/* Un ADMIN ve Entregar y Anular en un item listo: se apilan dentro de la columna */
 .od-item-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: var(--sp-1);
+}
+
+/* Figma 32:39: 70x28, radio 8, #16a34a, texto blanco 11px semibold */
+.od-btn-entregar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 70px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--green-600);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.od-btn-entregar:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.od-btn-entregar:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.od-btn-entregar:focus-visible {
+  outline: 2px solid var(--green-600);
+  outline-offset: 2px;
+}
+
+.od-label-tablet {
+  display: none;
+}
+
+.od-btn-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .od-btn-anular {
@@ -402,6 +462,35 @@
     width: 66px;
     height: 26px;
   }
+
+  /* Figma 37:25: 66x26, texto 10px */
+  .od-btn-entregar {
+    width: 66px;
+    height: 26px;
+    font-size: 10px;
+  }
+
+  /* Figma 37:22: 80x24, texto 10px */
+  .od-pill {
+    min-width: 80px;
+    height: 24px;
+    font-size: 10px;
+  }
+
+  /* Figma 37:8: 76x24 */
+  .od-status-badge {
+    min-width: 76px;
+    height: 24px;
+    padding: 0 var(--sp-3);
+    font-size: 11px;
+  }
+}
+
+/* "Listos para entregar:" solo en tablet (37:56) */
+@media (640px < width <= 1100px) {
+  .od-label-tablet {
+    display: inline;
+  }
 }
 
 /* Mobile */
@@ -410,14 +499,47 @@
     display: none;
   }
 
+  /* Figma 41:13: tarjeta 358x68, radio 12. Arriba el nombre (14 semibold) con la pildora y la accion a
+     la derecha; abajo "×1" (12 medium, gris) y el precio (14 bold). */
   .od-item-row {
-    grid-template-columns: 1fr;
-    gap: var(--sp-1);
-    padding: var(--sp-3) var(--sp-4);
+    grid-template-columns: auto 1fr auto minmax(66px, auto);
+    grid-template-areas:
+      'name name pill actions'
+      'qty price price price';
+    column-gap: var(--sp-2);
+    row-gap: 6px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
   }
 
-  .od-item-qty,
+  .od-item-name {
+    grid-area: name;
+    font-weight: 600;
+  }
+
+  .od-item-row > .od-pill {
+    grid-area: pill;
+  }
+
+  .od-item-actions {
+    grid-area: actions;
+  }
+
+  .od-item-qty {
+    grid-area: qty;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-align: left;
+  }
+
+  .od-item-qty::before {
+    content: '×';
+  }
+
   .od-item-price {
+    grid-area: price;
+    font-weight: 700;
     text-align: left;
   }
 
@@ -425,21 +547,41 @@
     display: none;
   }
 
+  /* Figma 41:8: la insignia sigue visible en movil, 68x22, texto 10px */
   .od-status-badge {
+    min-width: 68px;
+    height: 22px;
+    padding: 0 var(--sp-2);
+    font-size: 10px;
+  }
+
+  /* Figma 41:17: 76x22 */
+  .od-pill {
+    min-width: 76px;
+    height: 22px;
+  }
+
+  /* Figma 41:7: en movil el titulo es solo "Mesa N", 16px; el reloj (41:10) baja a 12px */
+  .od-title-suffix {
     display: none;
   }
 
-  .od-item-actions {
-    justify-content: flex-start;
-    margin-top: var(--sp-2);
+  .od-title-row {
+    gap: var(--sp-2);
+    font-size: 16px;
   }
 
-  /* Objetivo tactil comodo en movil, por encima de los 26px del mockup */
-  .od-btn-anular {
-    width: auto;
-    min-width: 88px;
-    height: 36px;
-    padding: 0 var(--sp-4);
+  .od-timer {
     font-size: 12px;
+  }
+
+  /* Objetivo tactil en movil: 44px de alto (Figma 41:19 dibuja 66x26), mismo criterio que cocina (K7) */
+  .od-btn-anular,
+  .od-btn-entregar {
+    width: auto;
+    min-width: 66px;
+    height: 44px;
+    padding: 0 var(--sp-3);
+    font-size: 10px;
   }
 }
