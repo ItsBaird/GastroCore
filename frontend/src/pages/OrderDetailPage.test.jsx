@@ -1,6 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/errors.js'
 import * as ordersApi from '../api/orders.js'
@@ -59,11 +59,18 @@ function renderPage({ user = WAITER, items = [makeItem('i1', 'pendiente')], stat
         <ToastProvider>
           <Routes>
             <Route path="/mesero/mesas/:orderId" element={<OrderDetailPage />} />
+            <Route path="/mesero/mesas/:orderId/cobro" element={<CobroProbe />} />
           </Routes>
         </ToastProvider>
       </AuthContext.Provider>
     </MemoryRouter>,
   )
+}
+
+// Destino de Solicitar Cobro: muestra la cuenta que llega por el estado de la navegacion
+function CobroProbe() {
+  const { state } = useLocation()
+  return <p>Pantalla de cobro, total {state?.bill?.total}</p>
 }
 
 const rowOf = (name) => screen.getByText(name).closest('.od-item-row')
@@ -452,5 +459,82 @@ describe('OrderDetailPage — entregar ítems listos (GC-ORD-0005)', () => {
     expect(screen.queryByText('Cargando detalle…')).toBeNull()
     expect(await screen.findByText('Entregado', { selector: '.od-pill' })).toBeInTheDocument()
     expect(ordersApi.getOrderDetail).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('OrderDetailPage — Solicitar Cobro (GC-ORD-0006)', () => {
+  const cobroButton = () => screen.getByRole('button', { name: /Solicitar Cobro|Ver Cobro|Generando/ })
+
+  it('sin ítems entregados está deshabilitado con una pista', async () => {
+    renderPage({ user: WAITER, items: [makeItem('i1', 'listo')] })
+    await screen.findByText('Producto i1')
+
+    expect(cobroButton()).toBeDisabled()
+    expect(cobroButton()).toHaveAttribute('title', expect.stringMatching(/Entrega al menos un ítem/))
+  })
+
+  it('con un ítem entregado pide la cuenta al backend y navega con ella', async () => {
+    const user = userEvent.setup()
+    renderPage({ user: WAITER, items: [makeItem('i1', 'entregado'), makeItem('i2', 'pendiente')] })
+    await screen.findByText('Producto i1')
+    ordersApi.getBill.mockResolvedValue({ orderId: ORDER_ID, tableNumber: 2, total: 20000 })
+
+    await user.click(cobroButton())
+
+    expect(ordersApi.getBill).toHaveBeenCalledWith(ORDER_ID)
+    expect(await screen.findByText('Pantalla de cobro, total 20000')).toBeInTheDocument()
+  })
+
+  it('mientras la pide queda deshabilitado', async () => {
+    const user = userEvent.setup()
+    renderPage({ user: WAITER, items: [makeItem('i1', 'entregado')] })
+    await screen.findByText('Producto i1')
+    ordersApi.getBill.mockImplementation(() => new Promise(() => {}))
+
+    await user.click(cobroButton())
+
+    expect(cobroButton()).toBeDisabled()
+    expect(cobroButton()).toHaveTextContent('Generando cuenta…')
+  })
+
+  it.each([
+    [409, 'NO_DELIVERED_ITEMS', 'Para generar la cuenta debe haber al menos un ítem entregado', 2],
+    [403, 'FORBIDDEN', 'No tienes asignada esta mesa', 2],
+    [0, 'NETWORK_ERROR', 'Sin conexión: no se generó la cuenta. Intenta de nuevo.', 1],
+  ])('%s %s: avisa y no navega', async (status, code, message, loads) => {
+    const user = userEvent.setup()
+    renderPage({ user: WAITER, items: [makeItem('i1', 'entregado')] })
+    await screen.findByText('Producto i1')
+    ordersApi.getBill.mockRejectedValue(new ApiError(status, code, 'mensaje del servidor'))
+
+    await user.click(cobroButton())
+
+    const expected = status === 0 ? message : 'mensaje del servidor'
+    expect(await screen.findByText(expected, { selector: '.toast--error' })).toBeInTheDocument()
+    expect(screen.queryByText(/Pantalla de cobro/)).toBeNull()
+    expect(ordersApi.getOrderDetail).toHaveBeenCalledTimes(loads)
+    expect(cobroButton()).toBeEnabled()
+  })
+
+  it('con la mesa ya en cobro el botón dice "Ver Cobro" y lleva a la cuenta', async () => {
+    const user = userEvent.setup()
+    renderPage({ user: WAITER, items: [makeItem('i1', 'entregado')], status: 'EN_COBRO' })
+    await screen.findByText('Producto i1')
+    ordersApi.getBill.mockResolvedValue({ orderId: ORDER_ID, tableNumber: 2, total: 10000 })
+
+    await user.click(screen.getByRole('button', { name: 'Ver Cobro' }))
+
+    expect(await screen.findByText('Pantalla de cobro, total 10000')).toBeInTheDocument()
+  })
+
+  it('el resumen marca las filas que tablet y móvil ocultan (37:51, 41:45)', async () => {
+    renderPage({ user: WAITER, items: [makeItem('i1', 'entregado')] })
+    await screen.findByText('Producto i1')
+
+    expect(screen.getByText('Mesa:').closest('.od-summary__row')).toHaveClass('od-summary__row--desktop')
+    expect(screen.getByText('En preparación:').closest('.od-summary__row')).toHaveClass('od-summary__row--desktop')
+    expect(screen.getByText('Subtotal:').closest('.od-summary__row')).toHaveClass('od-summary__row--desktop')
+    expect(screen.getByText('Pendientes:').closest('.od-summary__row')).toHaveClass('od-summary__row--no-mobile')
+    expect(cobroButton().closest('.od-summary__actions')).toBeInTheDocument()
   })
 })

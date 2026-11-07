@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -386,5 +386,28 @@ describe('WaiterTablesPanelPage — fila clicable en movil', () => {
     expect(mockNavigate).toHaveBeenCalledTimes(2)
     expect(mockNavigate).toHaveBeenNthCalledWith(1, '/mesero/mesas/o1')
     expect(mockNavigate).toHaveBeenNthCalledWith(2, '/mesero/mesas/o1')
+  })
+})
+
+describe('WaiterTablesPanelPage — Cobrar (GC-ORD-0006)', () => {
+  it('la mesa en cobro abre su cuenta', async () => {
+    const user = userEvent.setup()
+    renderPage([MY_BILLING_TABLE])
+
+    await user.click(await screen.findByRole('button', { name: 'Cobrar' }))
+
+    expect(mockNavigate).toHaveBeenCalledWith('/mesero/mesas/o2/cobro')
+  })
+
+  it('cambia a en cobro en vivo con table:status_changed', async () => {
+    const { useTableStatusSocket } = await import('../hooks/useTableStatusSocket.js')
+    renderPage([{ ...MY_BILLING_TABLE, status: 'ocupada', itemsCount: 2 }])
+    await screen.findByRole('button', { name: 'Ver Detalle' })
+
+    const handler = useTableStatusSocket.mock.calls.at(-1)[0]
+    act(() => handler(MY_BILLING_TABLE))
+
+    expect(await screen.findByRole('button', { name: 'Cobrar' })).toBeInTheDocument()
+    expect(screen.getByText('En Cobro', { selector: '.pill' })).toBeInTheDocument()
   })
 })

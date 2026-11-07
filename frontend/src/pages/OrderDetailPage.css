@@ -486,10 +486,14 @@
   }
 }
 
-/* "Listos para entregar:" solo en tablet (37:56) */
+/* "Listos para entregar:" solo en tablet (37:56); titulo 16px (37:7) */
 @media (640px < width <= 1100px) {
   .od-label-tablet {
     display: inline;
+  }
+
+  .od-title-row {
+    font-size: 16px;
   }
 }
 
@@ -583,5 +587,135 @@
     height: 44px;
     padding: 0 var(--sp-3);
     font-size: 10px;
+  }
+}
+
+/* ---------- Resumen (GC-ORD-0006: ajuste a los frames de tablet y movil) ---------- */
+.od-summary__actions {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Tablet, Figma 37:51: tarjeta 736 de ancho, radio 12, padding 24. Filas a la izquierda (13px, valor en una
+   columna fija), "Total:" 20/700 y a la derecha los botones de 260x44, radio 10, separados 12. */
+@media (640px < width <= 1100px) {
+  .od-summary {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    column-gap: var(--sp-6);
+    align-items: start;
+    padding: var(--sp-6);
+    border-radius: var(--radius-md);
+  }
+
+  .od-summary__actions {
+    gap: var(--sp-3);
+    padding-top: 5px;
+  }
+
+  .od-summary__actions .od-btn-add,
+  .od-summary__actions .od-btn-cobro {
+    margin-top: 0;
+    border-radius: 10px;
+  }
+}
+
+/* Tablet y movil: sin titulo, sin divisores, sin Mesa, En preparacion ni Subtotal (37:51, 41:45) */
+@media (width <= 1100px) {
+  .od-summary__title,
+  .od-summary__divider,
+  .od-summary__row--desktop {
+    display: none;
+  }
+
+  .od-summary__row {
+    justify-content: flex-start;
+  }
+
+  .od-summary__rows .od-summary__label {
+    width: 196px;
+    flex: none;
+  }
+
+  .od-summary__row--total {
+    gap: 31px;
+    margin-top: 30px;
+  }
+
+  .od-summary__total-label,
+  .od-summary__total-value {
+    font-size: 20px;
+  }
+}
+
+/* Movil, Figma 41:45: tarjeta compacta (radio 12, padding 16) y los botones fuera, a lo ancho (41:54/41:56) */
+@media (width <= 640px) {
+  .od-summary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    padding: 0;
+    background: none;
+    border: none;
+  }
+
+  .od-summary__card {
+    padding: 14px var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .od-summary__rows {
+    gap: var(--sp-2);
+  }
+
+  .od-summary__rows .od-summary__label,
+  .od-summary__rows .od-summary__value {
+    font-size: 12px;
+  }
+
+  .od-summary__rows .od-summary__label {
+    width: 154px;
+  }
+
+  .od-summary__row--no-mobile {
+    display: none;
+  }
+
+  .od-summary__row--total {
+    gap: var(--sp-6);
+    margin-top: 15px;
+  }
+
+  .od-summary__total-label,
+  .od-summary__total-value {
+    font-size: 18px;
+  }
+
+  .od-summary__actions {
+    gap: var(--sp-3);
+  }
+
+  .od-summary__actions .od-btn-add,
+  .od-summary__actions .od-btn-cobro {
+    margin-top: 0;
+    border-radius: 10px;
+  }
+}
+
+/* Figma 32:34, 32:83, 37:53, 41:47: el texto de Detalle es #171717 (--n-900), no #0a0a0a (--text) */
+.od-item-name,
+.od-item-price,
+.od-summary__title,
+.od-summary__value,
+.od-summary__value-lg,
+.od-summary__total-label {
+  color: var(--n-900);
+}
+
+@media (width > 640px) {
+  .od-item-qty {
+    color: var(--n-900);
   }
 }
