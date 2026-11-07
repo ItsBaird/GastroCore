@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { useActiveShift } from '../hooks/useActiveShift.js'
 import { initial } from '../utils/user.js'
 import './WaiterLayout.css'
 
@@ -94,16 +95,23 @@ export function WaiterLayout() {
 
 export function WaiterPage({ title, actions, children, showShiftBadge = true }) {
   const { user } = useAuth()
+  const shiftActive = useActiveShift(user?.userId, showShiftBadge)
 
   return (
     <>
       <header className="topbar">
         <div className="topbar__left">
           <h1 className="topbar__title">{title}</h1>
-          {showShiftBadge && (
+          {showShiftBadge && shiftActive === true && (
             <span className="turno-badge">
               <span className="turno-badge__dot" />
               Turno Activo
+            </span>
+          )}
+          {showShiftBadge && shiftActive === false && (
+            <span className="turno-badge turno-badge--off">
+              <span className="turno-badge__dot" />
+              Sin Turno
             </span>
           )}
         </div>

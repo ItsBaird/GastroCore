@@ -1,5 +1,6 @@
 import {
   createTableService,
+  listOpenTablesByWaiterService,
   listTablesService,
   updateTableService,
 } from '../services/table.service.js';
@@ -16,4 +17,8 @@ export async function update(req, res) {
 
 export async function list(req, res) {
   res.json(await listTablesService());
+}
+
+export async function listOpenByWaiter(req, res) {
+  res.json(await listOpenTablesByWaiterService(req.valid.query.waiterId));
 }

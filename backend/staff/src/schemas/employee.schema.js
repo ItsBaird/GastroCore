@@ -40,6 +40,14 @@ export const userIdParamsSchema = z.object({
   userId: z.uuid('El userId debe ser un UUID valido'),
 });
 
+// GET /internal/employees?ids=a,b,c
+export const employeeNamesQuerySchema = z.object({
+  ids: z
+    .string()
+    .transform((value) => [...new Set(value.split(',').map((id) => id.trim()))])
+    .pipe(z.array(z.uuid()).min(1).max(100)),
+});
+
 // CreateEmployeeRequest del contrato
 export const createEmployeeSchema = z.object({
   userId: z.uuid('El userId debe ser un UUID valido'),

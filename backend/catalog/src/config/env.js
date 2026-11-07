@@ -9,6 +9,8 @@ const schema = z.object({
   JWT_PUBLIC_KEY_PATH: z.string().min(1).default('/run/keys/public/jwt_public.pem'),
   // Volumen donde se guardan las fotos de productos (SAD: volumen uploads)
   UPLOADS_DIR: z.string().min(1).default('/app/uploads'),
+  // Autenticacion entre servicios en /internal/* (cabecera X-Service-Token)
+  SERVICE_TOKEN: z.string().default(''),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -25,4 +27,5 @@ export const env = {
   databaseUrl: parsed.data.DATABASE_URL,
   jwtPublicKeyPath: parsed.data.JWT_PUBLIC_KEY_PATH,
   uploadsDir: parsed.data.UPLOADS_DIR,
+  serviceToken: parsed.data.SERVICE_TOKEN,
 };

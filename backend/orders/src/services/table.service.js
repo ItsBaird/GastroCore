@@ -3,6 +3,7 @@ import { AppError } from '../errors/AppError.js';
 import {
   createTable,
   findAllTablesOrderedByNumber,
+  findOpenTablesByWaiter,
   findTableById,
   updateTable,
 } from '../repositories/table.repository.js';
@@ -73,4 +74,9 @@ export async function updateTableService(id, { tableNumber }) {
 export async function listTablesService() {
   const tables = await findAllTablesOrderedByNumber();
   return tables.map(toResponse);
+}
+
+export async function listOpenTablesByWaiterService(waiterId) {
+  const tables = await findOpenTablesByWaiter(waiterId);
+  return { count: tables.length, tables: tables.map(toResponse) };
 }

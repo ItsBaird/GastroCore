@@ -1,11 +1,12 @@
 import { catalogClient } from '../clients/catalogClient.js';
 import { AppError } from '../errors/AppError.js';
 import { mapRound } from '../mappers/item.mapper.js';
-import { emitRoundCreated } from '../realtime/events.js';
+import { emitRoundCreated, emitTableStatusChanged } from '../realtime/events.js';
 import {
   createRoundWithItems,
   findOrderById,
 } from '../repositories/round.repository.js';
+import { getTableStatus } from './tableStatus.service.js';
 
 export async function createRound(orderId, items, user) {
   const order = await findOrderById(orderId);
@@ -83,6 +84,10 @@ export async function createRound(orderId, items, user) {
     createdAt: round.createdAt,
     items: mappedRound.items,
   });
+
+  // El panel cambia de "Tomar Pedido" a "Ver Detalle" segun itemsCount
+  const tableStatus = await getTableStatus(order.tableId);
+  if (tableStatus) emitTableStatusChanged(tableStatus);
 
   const response = { round: mappedRound };
   if (unavailable.length > 0) {

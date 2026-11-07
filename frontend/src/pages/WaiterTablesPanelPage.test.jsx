@@ -6,11 +6,15 @@ import { ApiError } from '../api/errors.js'
 import * as tablesStatusApi from '../api/tablesStatus.js'
 import { AuthContext } from '../auth/authContext.js'
 import { ToastProvider } from '../components/Toast.jsx'
+import { useActiveShift } from '../hooks/useActiveShift.js'
 import WaiterTablesPanelPage from './WaiterTablesPanelPage.jsx'
 
 vi.mock('../api/tablesStatus.js')
 vi.mock('../hooks/useTableStatusSocket.js', () => ({
   useTableStatusSocket: vi.fn(),
+}))
+vi.mock('../hooks/useActiveShift.js', () => ({
+  useActiveShift: vi.fn(),
 }))
 
 const mockNavigate = vi.fn()
@@ -29,9 +33,18 @@ const TABLES = [
   ] },
 ]
 
-function renderPage(tables = TABLES) {
+const MY_BILLING_TABLE = {
+  tableId: 't3',
+  tableNumber: 3,
+  status: 'en_cobro',
+  orderId: 'o2',
+  waiterId: 'user-1',
+  pendingCalls: [],
+}
+
+function renderPage(tables = TABLES, user = ME) {
   tablesStatusApi.listTableStatuses.mockResolvedValue(tables)
-  const auth = { status: 'authenticated', user: ME, login: vi.fn(), logout: vi.fn() }
+  const auth = { status: 'authenticated', user, login: vi.fn(), logout: vi.fn() }
   return render(
     <MemoryRouter>
       <AuthContext.Provider value={auth}>
@@ -113,7 +126,7 @@ describe('WaiterTablesPanelPage', () => {
   })
 
   it('renders action buttons: Abrir Mesa, Ver Detalle and Cobrar all enabled', async () => {
-    renderPage()
+    renderPage([TABLES[0], TABLES[1], MY_BILLING_TABLE])
 
     await screen.findByText('Mesa 1')
     expect(screen.getByRole('button', { name: 'Abrir Mesa' })).toBeEnabled()
@@ -177,13 +190,113 @@ describe('WaiterTablesPanelPage', () => {
   })
 })
 
+describe('WaiterTablesPanelPage — mesa de un compañero', () => {
+  const COLLEAGUE_TABLE = {
+    tableId: 't4',
+    tableNumber: 4,
+    status: 'ocupada',
+    orderId: 'o4',
+    waiterId: 'user-2',
+    waiterName: 'Carlos Rojas',
+    pendingCalls: [],
+    itemsCount: 2,
+  }
+
+  it('el mesero la ve ocupada, con el nombre de quien atiende y sin acciones', async () => {
+    renderPage([COLLEAGUE_TABLE])
+
+    expect(await screen.findByText('Atiende: Carlos Rojas')).toBeInTheDocument()
+    expect(screen.getByText('Ocupada', { selector: '.pill' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /detalle|pedido/i })).not.toBeInTheDocument()
+  })
+
+  it('tampoco puede tomarle el pedido si la mesa aun no tiene items', async () => {
+    renderPage([{ ...COLLEAGUE_TABLE, itemsCount: 0 }])
+
+    await screen.findByText('Atiende: Carlos Rojas')
+    expect(screen.queryByRole('button', { name: /pedido/i })).not.toBeInTheDocument()
+  })
+
+  it('si no hay perfil en Staff dice "otro mesero"', async () => {
+    renderPage([{ ...COLLEAGUE_TABLE, waiterName: null }])
+
+    expect(await screen.findByText('Atiende: otro mesero')).toBeInTheDocument()
+  })
+
+  it('el ADMIN ve el nombre y conserva las acciones', async () => {
+    renderPage([COLLEAGUE_TABLE], { ...ME, userId: 'admin-1', role: 'ADMIN' })
+
+    expect(await screen.findByText('Atiende: Carlos Rojas')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver Detalle' })).toBeEnabled()
+  })
+
+  it('en su propia mesa el mesero no ve "Atiende"', async () => {
+    renderPage([{ ...COLLEAGUE_TABLE, waiterId: ME.userId }])
+
+    await screen.findByText('Mesa 4')
+    expect(screen.queryByText(/Atiende:/)).not.toBeInTheDocument()
+  })
+
+  it('si un compañero la abrio primero avisa y recarga el panel', async () => {
+    const user = userEvent.setup()
+    tablesStatusApi.openTable.mockRejectedValue(
+      new ApiError(409, 'TABLE_ALREADY_OPEN', 'La mesa ya tiene una orden abierta'),
+    )
+    renderPage([TABLES[0]])
+
+    await user.click(await screen.findByRole('button', { name: 'Abrir Mesa' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('La mesa ya tiene una orden abierta')
+    expect(tablesStatusApi.listTableStatuses).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('WaiterTablesPanelPage — insignia de turno', () => {
+  it('con el turno iniciado muestra "Turno Activo"', async () => {
+    useActiveShift.mockReturnValue(true)
+    renderPage([])
+
+    expect(await screen.findByText('Turno Activo')).toBeInTheDocument()
+    expect(screen.queryByText('Sin Turno')).not.toBeInTheDocument()
+  })
+
+  it('sin turno iniciado muestra "Sin Turno"', async () => {
+    useActiveShift.mockReturnValue(false)
+    renderPage([])
+
+    expect(await screen.findByText('Sin Turno')).toBeInTheDocument()
+    expect(screen.queryByText('Turno Activo')).not.toBeInTheDocument()
+  })
+
+  it('mientras no se sabe no afirma ninguno de los dos', async () => {
+    useActiveShift.mockReturnValue(null)
+    renderPage([])
+
+    await screen.findByText('No hay mesas registradas.')
+    expect(screen.queryByText('Turno Activo')).not.toBeInTheDocument()
+    expect(screen.queryByText('Sin Turno')).not.toBeInTheDocument()
+  })
+
+  it('al abrir sin turno muestra el mensaje del servidor', async () => {
+    const user = userEvent.setup()
+    tablesStatusApi.openTable.mockRejectedValue(
+      new ApiError(409, 'NO_ACTIVE_SHIFT', 'Debes iniciar tu turno para abrir una mesa'),
+    )
+    renderPage([TABLES[0]])
+
+    await user.click(await screen.findByRole('button', { name: 'Abrir Mesa' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Debes iniciar tu turno')
+  })
+})
+
 // Por debajo de 640px el CSS oculta .ts-card__actions (el Figma movil 40:2 no dibuja boton:
 // la fila entera es el objetivo). Sin esta fila clicable el mesero se queda sin salida.
 describe('WaiterTablesPanelPage — fila clicable en movil', () => {
   const rowButton = (name) => screen.getByRole('button', { name })
 
   it('cada mesa expone la accion de su estado como boton de fila', async () => {
-    renderPage()
+    renderPage([TABLES[0], TABLES[1], MY_BILLING_TABLE])
 
     await screen.findByText('Mesa 1')
     expect(rowButton('Mesa 1, abrir mesa')).toBeInTheDocument()

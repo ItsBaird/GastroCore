@@ -1,3 +1,4 @@
+import { staffClient } from '../clients/staffClient.js';
 import {
   findAllTablesWithOpenOrdersAndPendingCalls,
   findTableWithOpenOrderAndPendingCalls,
@@ -16,7 +17,7 @@ function countActiveItems(order) {
   return order.rounds.reduce((total, round) => total + round.items.length, 0);
 }
 
-function toTableStatus(table) {
+function toTableStatus(table, names) {
   const status = deriveStatus(table.orders);
   const order = table.orders[0] ?? null;
 
@@ -36,18 +37,26 @@ function toTableStatus(table) {
   if (order) {
     result.orderId = order.orderId;
     result.waiterId = order.waiterId;
+    result.waiterName = names.get(order.waiterId) ?? null;
     result.itemsCount = countActiveItems(order);
   }
 
   return result;
 }
 
+function waiterIdsOf(tables) {
+  return [...new Set(tables.flatMap((t) => t.orders.map((o) => o.waiterId)))];
+}
+
 export async function listTableStatuses() {
   const tables = await findAllTablesWithOpenOrdersAndPendingCalls();
-  return tables.map(toTableStatus);
+  const names = await staffClient.getEmployeeNames(waiterIdsOf(tables));
+  return tables.map((table) => toTableStatus(table, names));
 }
 
 export async function getTableStatus(tableId) {
   const table = await findTableWithOpenOrderAndPendingCalls(tableId);
-  return table ? toTableStatus(table) : null;
+  if (!table) return null;
+  const names = await staffClient.getEmployeeNames(waiterIdsOf([table]));
+  return toTableStatus(table, names);
 }

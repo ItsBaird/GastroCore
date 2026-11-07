@@ -43,6 +43,15 @@
   background: var(--green-600);
 }
 
+.turno-badge--off {
+  background: var(--n-100);
+  color: var(--text-muted);
+}
+
+.turno-badge--off .turno-badge__dot {
+  background: var(--n-400);
+}
+
 /* ---------- Llamados nav badge ---------- */
 .nav-badge {
   display: grid;
