@@ -859,7 +859,9 @@ paths:
     get:
       tags: [Orders - Cocina]
       summary: Kitchen display (COOK)
-      description: GC-ORD-0004. Rondas con items `pendiente` o `en_preparacion`, la mas antigua primero.
+      description: |
+        GC-ORD-0004. Rondas de ordenes no cerradas con items `pendiente`, `en_preparacion` o `listo`, la mas
+        antigua primero. Cada ronda trae solo esos items: `entregado` y `cancelado` salen de cocina.
       x-roles: [COOK, ADMIN]
       responses:
         '200':
@@ -880,7 +882,9 @@ paths:
       description: |
         `pendiente` -> `en_preparacion` (registra `preparationStartedAt`) -> `listo` (registra `readyAt`).
         Emite `item:status_changed` (payload `ItemStatusChangedEvent`) a las salas `kitchen` y
-        `waiter:{userId}`. Cualquier otra transicion responde `409 INVALID_TRANSITION`.
+        `waiter:{waiterId}` (el mesero actual de la orden), una sola vez por socket. Cualquier otra transicion
+        entre estados reales, o una orden `CERRADA`, responde `409 INVALID_TRANSITION`; un estado que no existe
+        responde `400 VALIDATION_ERROR`.
       x-roles: [COOK, ADMIN]
       requestBody:
         required: true
@@ -892,7 +896,8 @@ paths:
               properties:
                 status:
                   type: string
-                  enum: [en_preparacion, listo]
+                  enum: [pendiente, en_preparacion, listo, entregado, cancelado]
+                  description: Solo `en_preparacion` y `listo` pueden aplicar; los demas responden 409.
       responses:
         '200':
           description: Item actualizado
@@ -1743,11 +1748,12 @@ components:
               name: { type: string }
     KitchenRound:
       type: object
-      required: [roundId, orderId, tableNumber, createdAt, items]
+      required: [roundId, orderId, tableNumber, source, createdAt, items]
       properties:
         roundId: { type: string, format: uuid }
         orderId: { type: string, format: uuid }
         tableNumber: { type: integer }
+        source: { type: string, enum: [WAITER, QR] }
         createdAt: { type: string, format: date-time }
         items:
           type: array
