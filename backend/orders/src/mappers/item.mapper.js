@@ -20,6 +20,18 @@ export function mapItem(item) {
   };
 }
 
+// KitchenRound del contrato: el mismo cuerpo en GET /kitchen y en el evento round:created.
+export function mapKitchenRound(round, tableNumber) {
+  return {
+    roundId: round.roundId,
+    orderId: round.orderId,
+    tableNumber,
+    source: round.source,
+    createdAt: round.createdAt,
+    items: round.items.map(mapItem),
+  };
+}
+
 export function mapRound(round) {
   return {
     roundId: round.roundId,

@@ -7,6 +7,7 @@ import { notFound } from './middlewares/notFound.js';
 import { createRateLimiter } from './middlewares/rateLimiter.js';
 import { internalRouter } from './routes/internal.routes.js';
 import { itemRouter } from './routes/item.routes.js';
+import { kitchenRouter } from './routes/kitchen.routes.js';
 import { orderRouter } from './routes/order.routes.js';
 import { paymentMethodRouter } from './routes/paymentMethod.routes.js';
 import { roundRouter } from './routes/round.routes.js';
@@ -28,6 +29,7 @@ router.get('/health', (req, res) => {
 router.use('/tables', tableRouter);
 router.use('/payment-methods', paymentMethodRouter);
 router.use('/items', itemRouter);
+router.use('/kitchen', kitchenRouter);
 router.use('/', orderRouter);
 router.use('/:orderId/rounds', roundRouter);
 app.use('/api/orders', router);
