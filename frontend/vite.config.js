@@ -9,6 +9,7 @@ export default defineConfig({
     // funciona en localhost sin CORS
     proxy: {
       '/api': 'http://localhost',
+      '/socket.io': { target: 'http://localhost', ws: true },
     },
   },
   test: {
