@@ -39,7 +39,10 @@ describe('PUT /api/orders/items/:id/deliver', () => {
     const res = await put(tokenFor('ADMIN'), { body: {} });
 
     expect(res.status).toBe(200);
-    expect(deliverItem).toHaveBeenCalledWith(ITEM_ID, expect.objectContaining({ userId: ADMIN_ID }));
+    expect(deliverItem).toHaveBeenCalledWith(
+      ITEM_ID,
+      expect.objectContaining({ userId: ADMIN_ID }),
+    );
   });
 
   it('sin token responde 401', async () => {
@@ -76,7 +79,11 @@ describe('PUT /api/orders/items/:id/deliver', () => {
   it('los errores del servicio llegan con el formato del contrato', async () => {
     const { AppError } = await import('../errors/AppError.js');
     deliverItem.mockRejectedValue(
-      new AppError({ status: 409, code: 'INVALID_TRANSITION', message: 'Solo se entregan ítems listos' }),
+      new AppError({
+        status: 409,
+        code: 'INVALID_TRANSITION',
+        message: 'Solo se entregan ítems listos',
+      }),
     );
 
     const res = await put(tokenFor('WAITER'));

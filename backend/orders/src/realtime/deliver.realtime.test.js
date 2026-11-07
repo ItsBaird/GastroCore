@@ -41,7 +41,9 @@ function row(status, waiterId) {
     cancelledBy: null,
     createdAt: new Date('2026-11-07T17:55:00Z'),
     updatedAt: new Date('2026-11-07T18:12:00Z'),
-    round: { order: { orderId: 'order-1', status: 'ABIERTA', waiterId, table: { tableNumber: 9 } } },
+    round: {
+      order: { orderId: 'order-1', status: 'ABIERTA', waiterId, table: { tableNumber: 9 } },
+    },
   };
 }
 
