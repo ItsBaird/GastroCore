@@ -1,0 +1,658 @@
+/* Figma 44:2 (desktop), 45:2 (tablet) y 45:82 (mobile). Estos dos grises no tienen token global. */
+.kds {
+  --kds-bar: #171717;
+  --kds-card: #262626;
+  --kds-line: var(--n-700);
+  --kds-pending: var(--yellow-400);
+  --kds-preparing: var(--orange-500);
+  --kds-ready: var(--green-600);
+
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--n-950);
+  color: var(--white);
+}
+
+/* ---------- Barra superior ---------- */
+.kds-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--sp-4);
+  min-height: 56px;
+  padding: 0 var(--sp-5);
+  background: var(--kds-bar);
+  border-bottom: 1px solid var(--kds-line);
+}
+
+.kds-bar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.kds-bar__logo {
+  flex: none;
+  color: var(--red-600);
+}
+
+.kds-bar__name {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.kds-bar__role {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 24px;
+  margin-left: var(--sp-3);
+  padding: 0 var(--sp-3);
+  background: var(--orange-50);
+  border-radius: var(--radius-full);
+  color: var(--orange-500);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.kds-bar__title {
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.kds-bar__title-short {
+  display: none;
+}
+
+.kds-bar__end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-4);
+}
+
+.kds-counters {
+  display: flex;
+  gap: var(--sp-6);
+  margin: 0;
+}
+
+.kds-counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 56px;
+}
+
+.kds-counter__label {
+  color: var(--n-400);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.kds-counter__label-short {
+  display: none;
+}
+
+.kds-counter__value {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.kds-counter--pendiente .kds-counter__value {
+  color: var(--kds-pending);
+}
+
+.kds-counter--en_preparacion .kds-counter__value {
+  color: var(--kds-preparing);
+}
+
+.kds-counter--listo .kds-counter__value {
+  color: var(--kds-ready);
+}
+
+.kds-bar__clock {
+  color: var(--n-300);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* Sin Figma: el cocinero necesita llegar a su turno y salir (decision K8) */
+.kds-bar__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--kds-line);
+  border-radius: var(--radius-sm);
+  color: var(--n-300);
+}
+
+.kds-bar__icon:hover {
+  background: var(--kds-card);
+  color: var(--white);
+}
+
+/* ---------- Avisos ---------- */
+.kds-offline {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-5);
+  background: var(--red-600);
+  color: var(--white);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.kds-offline svg {
+  flex: none;
+}
+
+.kds-state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--n-300);
+  text-align: center;
+}
+
+.kds-state .btn--ghost {
+  background: var(--kds-card);
+  border-color: var(--kds-line);
+  color: var(--white);
+}
+
+/* ---------- Filtros (solo tablet y mobile) ---------- */
+.kds-filters {
+  display: none;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4) 0;
+}
+
+.kds-filter {
+  min-height: 44px;
+  padding: 0 var(--sp-3);
+  background: var(--kds-bar);
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--n-400);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.kds-filter--active {
+  background: var(--kds-line);
+  color: var(--white);
+  font-weight: 600;
+}
+
+.kds-filter__short {
+  display: none;
+}
+
+/* ---------- Tablero ---------- */
+.kds-board {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
+}
+
+.kds-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.kds-column__header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 40px;
+  padding: 0 14px;
+  background: var(--kds-card);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.kds-column__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--status-color);
+}
+
+.kds-column__empty {
+  padding: var(--sp-4);
+  color: var(--n-500);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* En escritorio cada columna ya dice "Sin pedidos"; este aviso es para la cuadricula de tablet y mobile */
+.kds-empty {
+  display: none;
+}
+
+.kds-column--pendiente,
+.kds-card--pendiente {
+  --status-color: var(--kds-pending);
+}
+
+.kds-column--en_preparacion,
+.kds-card--en_preparacion {
+  --status-color: var(--kds-preparing);
+}
+
+.kds-column--listo,
+.kds-card--listo {
+  --status-color: var(--kds-ready);
+}
+
+/* ---------- Tarjeta ---------- */
+.kds-card {
+  min-width: 0;
+  padding: var(--sp-2) 12px;
+  background: var(--kds-card);
+  border: 1.5px solid var(--status-color);
+  border-radius: 10px;
+}
+
+.kds-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: 28px;
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--kds-line);
+}
+
+.kds-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.kds-card__table {
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.kds-card__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--kds-preparing);
+}
+
+.kds-card__pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-width: 90px;
+  height: 24px;
+  background: var(--green-50);
+  border-radius: var(--radius-full);
+  color: var(--green-600);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.kds-card__time {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--status-color);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.kds-card__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: var(--sp-1) 0 0;
+  list-style: none;
+}
+
+/* ---------- Item ---------- */
+.kds-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: 38px;
+  padding: var(--sp-1) 0;
+}
+
+.kds-item--delayed {
+  padding-left: var(--sp-2);
+  border-left: 3px solid var(--red-600);
+}
+
+.kds-item__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kds-item__name {
+  color: var(--n-100);
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.kds-card--listo .kds-item__name {
+  color: var(--kds-ready);
+}
+
+.kds-item__note {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  color: var(--kds-pending);
+  font-size: 11px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.kds-item__note svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.kds-item__delay {
+  padding: 2px var(--sp-2);
+  background: var(--red-600);
+  border-radius: var(--radius-full);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.kds-item__done {
+  flex: none;
+  margin-right: 18px;
+  color: var(--kds-ready);
+}
+
+.kds-action {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  min-width: 66px;
+  height: 38px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.kds-action--start {
+  background: var(--orange-500);
+}
+
+.kds-action--ready {
+  background: var(--green-600);
+}
+
+.kds-action:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.kds-action:focus-visible,
+.kds-filter:focus-visible,
+.kds-bar__icon:focus-visible {
+  outline: 2px solid var(--white);
+  outline-offset: 2px;
+}
+
+/* ---------- Tablet: cuadricula continua y filtros ---------- */
+@media (width <= 1100px) {
+  .kds-bar {
+    padding: 0 var(--sp-4);
+  }
+
+  .kds-bar__name {
+    font-size: 15px;
+  }
+
+  .kds-bar__role {
+    height: 22px;
+    margin-left: var(--sp-2);
+    padding: 0 10px;
+  }
+
+  .kds-bar__title {
+    font-size: 16px;
+  }
+
+  .kds-bar__title-full,
+  .kds-bar__clock,
+  .kds-counter__label-full,
+  .kds-card__pill,
+  .kds-column__header,
+  .kds-column__empty {
+    display: none;
+  }
+
+  .kds-bar__title-short,
+  .kds-counter__label-short {
+    display: inline;
+  }
+
+  .kds-bar__end {
+    gap: var(--sp-2);
+  }
+
+  .kds-counters {
+    gap: var(--sp-2);
+  }
+
+  .kds-counter {
+    min-width: 40px;
+  }
+
+  .kds-counter__value {
+    font-size: 18px;
+  }
+
+  .kds-bar__icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .kds-filters {
+    display: flex;
+  }
+
+  /* Las columnas ceden sus tarjetas a una sola cuadricula: pendiente, preparacion y listo, en ese orden */
+  .kds-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  }
+
+  .kds-column {
+    display: contents;
+  }
+
+  .kds-column--filtered .kds-card {
+    display: none;
+  }
+
+  .kds-empty {
+    display: block;
+    grid-column: 1 / -1;
+    padding: var(--sp-8) var(--sp-4);
+    color: var(--n-400);
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .kds-card__table {
+    font-size: 15px;
+  }
+
+  .kds-card__time {
+    font-size: 11px;
+  }
+
+  .kds-item__name {
+    font-size: 13px;
+  }
+
+  .kds-item__note {
+    font-size: 10px;
+  }
+
+  .kds-item__done {
+    margin-right: 0;
+  }
+
+  .kds-action {
+    min-width: 72px;
+    height: 44px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+  }
+}
+
+/* ---------- Mobile: una columna, solo "KDS" y contadores sin etiqueta ---------- */
+@media (width <= 640px) {
+  /* Logo, "KDS" y COCINA en fila: la marca cede sus hijos para que el titulo quede en medio */
+  .kds-bar {
+    display: flex;
+    gap: 6px;
+    min-height: 50px;
+    padding: 0 var(--sp-3);
+  }
+
+  .kds-bar__brand {
+    display: contents;
+  }
+
+  .kds-bar__logo {
+    width: 16px;
+    height: 16px;
+  }
+
+  .kds-bar__name {
+    display: none;
+  }
+
+  .kds-bar__title {
+    order: 1;
+    font-size: 14px;
+  }
+
+  .kds-bar__role {
+    order: 2;
+    height: 20px;
+    margin-left: 0;
+    padding: 0 var(--sp-2);
+    font-size: 9px;
+  }
+
+  .kds-bar__end {
+    order: 3;
+    margin-left: auto;
+  }
+
+  .kds-counter {
+    justify-content: center;
+    min-width: 28px;
+    height: 24px;
+    background: var(--kds-card);
+    border-radius: 6px;
+  }
+
+  .kds-counter__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .kds-counter__value {
+    font-size: 14px;
+  }
+
+  .kds-filters {
+    gap: 6px;
+    padding: var(--sp-2) var(--sp-3) 0;
+  }
+
+  .kds-filter {
+    flex: 1;
+    padding: 0 var(--sp-2);
+    border-radius: 6px;
+    font-size: 11px;
+  }
+
+  .kds-filter__full {
+    display: none;
+  }
+
+  .kds-filter__short {
+    display: inline;
+  }
+
+  .kds-board {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px var(--sp-3) var(--sp-4);
+  }
+
+  .kds-card {
+    padding: 6px 10px;
+  }
+
+  .kds-card__table {
+    font-size: 14px;
+  }
+
+  .kds-card__time {
+    font-size: 10px;
+  }
+
+  .kds-item__name {
+    font-size: 12px;
+  }
+}
