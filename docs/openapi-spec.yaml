@@ -926,8 +926,15 @@ paths:
       tags: [Orders - Cobro]
       summary: Generar la cuenta (mesero asignado)
       description: |
-        GC-ORD-0006. Items no cancelados con los precios del snapshot, subtotal, descuento y total calculados
-        en el backend (R4). La mesa pasa a `en_cobro` (orden `EN_COBRO`).
+        GC-ORD-0006. Items no cancelados con los precios del snapshot, `lineTotal` por linea, subtotal, descuento y
+        total calculados en el backend (R4); la cuenta no se persiste. Con la orden `ABIERTA` y al menos un item
+        `entregado`, la orden pasa a `EN_COBRO` (mesa `en_cobro`) con una actualizacion condicional y, tras el
+        commit, emite `table:status_changed` (payload `TableStatus`) a la sala `waiters`. Es idempotente: con la
+        orden ya `EN_COBRO` devuelve la cuenta recalculada sin otra transicion ni otro evento. No acepta parametros
+        de consulta. Sin items entregados responde `409 NO_DELIVERED_ITEMS`; con la orden `CERRADA`,
+        `409 INVALID_TRANSITION`. Un mesero solo pide la cuenta de sus mesas (`403`).
+        Nota para revision: un GET con efecto de estado no es seguro ante prefetch; se propone separar
+        "ver cuenta" (GET) de "solicitar cobro" (POST) en una version futura.
       x-roles: [WAITER, ADMIN]
       responses:
         '200':
@@ -935,17 +942,25 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Bill' }
+        '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/InvalidTransition' }
+        '409':
+          description: Sin items entregados (`NO_DELIVERED_ITEMS`) u orden cerrada (`INVALID_TRANSITION`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /api/orders/{orderId}/cancel-bill:
     parameters:
       - $ref: '#/components/parameters/OrderId'
     post:
       tags: [Orders - Cobro]
-      summary: Cancelar el cobro (propuesto)
-      description: La mesa vuelve a `ocupada` y se pueden agregar mas rondas. La ruta no esta fijada en la documentacion.
+      summary: Cancelar el cobro (mesero asignado)
+      description: |
+        GC-ORD-0006. Sin cuerpo. Solo con la orden `EN_COBRO` y sin pago registrado: vuelve a `ABIERTA` (mesa
+        `ocupada`) con una actualizacion condicional y se pueden agregar mas rondas. Tras el commit emite
+        `table:status_changed` a la sala `waiters`. En otro estado responde `409 INVALID_TRANSITION`.
       x-roles: [WAITER, ADMIN]
       responses:
         '200':
@@ -953,6 +968,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Order' }
+        '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1451,7 +1467,7 @@ components:
               example: NOT_FOUND
               description: |
                 NOT_FOUND, VALIDATION_ERROR, UNAUTHENTICATED, FORBIDDEN, CONFLICT, EMAIL_ALREADY_EXISTS, ACCOUNT_LOCKED, INVALID_TRANSITION,
-                NO_ACTIVE_SHIFT, TABLE_ALREADY_OPEN, TABLE_NOT_OPEN, HAS_OPEN_TABLES, DAY_CLOSED,
+                NO_ACTIVE_SHIFT, TABLE_ALREADY_OPEN, TABLE_NOT_OPEN, HAS_OPEN_TABLES, DAY_CLOSED, NO_DELIVERED_ITEMS,
                 RATE_LIMITED, DEPENDENCY_UNAVAILABLE, INTERNAL_ERROR
             message: { type: string, example: Recurso no encontrado }
             details:
@@ -1766,19 +1782,28 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/Item' }
+    BillItem:
+      description: Item de la cuenta con su total de linea calculado en el backend (R4).
+      allOf:
+        - $ref: '#/components/schemas/Item'
+        - type: object
+          required: [lineTotal]
+          properties:
+            lineTotal: { type: integer, description: unitPrice x quantity (snapshot R3, COP entero) }
     Bill:
       type: object
-      required: [orderId, items, subtotal, discountAmount, total]
+      required: [orderId, tableNumber, status, items, subtotal, discountAmount, total]
       properties:
         orderId: { type: string, format: uuid }
         tableNumber: { type: integer }
+        status: { type: string, enum: [EN_COBRO], description: Estado de la orden tras generar la cuenta }
         items:
           type: array
-          description: Solo items no cancelados
-          items: { $ref: '#/components/schemas/Item' }
-        subtotal: { type: integer, description: suma de unitPrice x quantity }
-        discountAmount: { type: integer }
-        total: { type: integer, description: subtotal - discountAmount }
+          description: Solo items no cancelados, en el orden de las rondas
+          items: { $ref: '#/components/schemas/BillItem' }
+        subtotal: { type: integer, description: suma de lineTotal }
+        discountAmount: { type: integer, description: 0 si no hay descuento }
+        total: { type: integer, minimum: 0, description: subtotal - discountAmount }
     PaymentMethodInput:
       type: object
       required: [name]
