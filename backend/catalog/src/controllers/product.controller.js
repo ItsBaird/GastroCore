@@ -3,8 +3,13 @@ import {
   getProduct,
   getPublicMenu,
   listProducts,
+  listProductsForOrders,
   updateProduct,
 } from '../services/product.service.js';
+
+export async function listForOrders(req, res) {
+  res.json(await listProductsForOrders(req.valid.query.ids));
+}
 
 export async function list(req, res) {
   res.json(await listProducts());

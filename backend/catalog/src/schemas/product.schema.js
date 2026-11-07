@@ -48,3 +48,11 @@ export const updateProductSchema = z.object({
   categoryId: categoryId.optional(),
   isAvailable: isAvailable.optional(),
 });
+
+// GET /internal/products?ids=a,b,c (contrato: ids separados por coma)
+export const internalProductsQuerySchema = z.object({
+  ids: z
+    .string()
+    .transform((value) => [...new Set(value.split(',').map((id) => id.trim()))])
+    .pipe(z.array(z.uuid()).min(1).max(100)),
+});

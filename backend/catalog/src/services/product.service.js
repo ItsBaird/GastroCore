@@ -51,6 +51,17 @@ export async function listProducts() {
   return (await productRepository.findAll()).map(toProduct);
 }
 
+// Consulta interna de Orders: lo justo para validar la ronda y copiar el snapshot (R3)
+export async function listProductsForOrders(productIds) {
+  const products = await productRepository.findByIds(productIds);
+  return products.map(({ productId, name, price, isAvailable }) => ({
+    productId,
+    name,
+    price,
+    isAvailable,
+  }));
+}
+
 export async function getProduct(id) {
   const product = await productRepository.findById(id);
   if (!product) throw notFound();

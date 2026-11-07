@@ -6,6 +6,7 @@ import { errorHandler } from './middlewares/errorHandler.js';
 import { notFound } from './middlewares/notFound.js';
 import { createRateLimiter } from './middlewares/rateLimiter.js';
 import { catalogRouter } from './routes/catalog.routes.js';
+import { internalRouter } from './routes/internal.routes.js';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -25,6 +26,7 @@ app.use('/api/catalog', router);
 app.get('/internal/health', (req, res) => {
   res.json({ service: env.serviceName, internal: true });
 });
+app.use('/internal', internalRouter);
 
 app.use(notFound);
 app.use(errorHandler);
