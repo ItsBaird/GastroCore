@@ -15,6 +15,19 @@ export async function findItemWithOrder(itemId) {
   });
 }
 
+// Avance atomico: condicionado al estado leido y a que la orden siga sin cerrar. Dos cocineros que
+// toquen el mismo item a la vez no se pisan: el segundo recibe null. La marca de tiempo sale de aqui.
+export async function advanceItemStatus({ itemId, from, to, timestampField }) {
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.orderItem.updateMany({
+      where: { itemId, status: from, round: { order: { status: { not: 'CERRADA' } } } },
+      data: { status: to, [timestampField]: new Date() },
+    });
+    if (updated.count === 0) return null;
+    return tx.orderItem.findUnique({ where: { itemId } });
+  });
+}
+
 // Anulacion atomica (RNF-12). Nunca "leer, decidir y luego escribir" sin condicion: el item se
 // relee dentro de la transaccion y el updateMany se condiciona a ese mismo estado, asi que si
 // cocina lo avanza en medio no se pisa el cambio y applied queda en false con el estado real.
