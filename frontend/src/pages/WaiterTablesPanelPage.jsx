@@ -115,9 +115,23 @@ function tableAction(table, { onOpen, opening, onComingSoon, onViewDetail, onTak
   return null
 }
 
-function TableCard({ table, isMe, onOpen, opening, onComingSoon, onViewDetail, onTakeOrder }) {
+function TableCard({
+  table,
+  isMe,
+  isAdmin,
+  onOpen,
+  opening,
+  onComingSoon,
+  onViewDetail,
+  onTakeOrder,
+}) {
   const config = STATUS_CONFIG[table.status] ?? STATUS_CONFIG.libre
-  const action = tableAction(table, { onOpen, opening, onComingSoon, onViewDetail, onTakeOrder })
+  // La mesa de un compañero se ve pero no se opera: el backend responderia 403
+  const isColleagues = table.status !== 'libre' && !isMe
+  const action =
+    isColleagues && !isAdmin
+      ? null
+      : tableAction(table, { onOpen, opening, onComingSoon, onViewDetail, onTakeOrder })
 
   return (
     <article className={`ts-card ${config.className}`}>
@@ -137,6 +151,11 @@ function TableCard({ table, isMe, onOpen, opening, onComingSoon, onViewDetail, o
         <div className="ts-card__circle">{table.tableNumber}</div>
         <div className="ts-card__title-group">
           <span className="ts-card__number">Mesa {table.tableNumber}</span>
+          {isColleagues && (
+            <span className="ts-card__attendant">
+              Atiende: {table.waiterName ?? 'otro mesero'}
+            </span>
+          )}
         </div>
         <div className="ts-card__pill-wrap">
           <span className={`pill pill--table-${table.status}`}>{config.label}</span>
@@ -211,6 +230,8 @@ export default function WaiterTablesPanelPage() {
       })
     } catch (err) {
       setOpenError(err?.message || 'No se pudo abrir la mesa.')
+      // Un compañero la abrio primero: el panel que se ve aqui quedo viejo
+      if (err?.code === 'TABLE_ALREADY_OPEN') fetchStatuses().then(setData)
     } finally {
       setOpeningId(null)
     }
@@ -278,6 +299,7 @@ export default function WaiterTablesPanelPage() {
                   key={t.tableId}
                   table={t}
                   isMe={t.waiterId === user?.userId}
+                  isAdmin={user?.role === 'ADMIN'}
                   onOpen={handleOpen}
                   opening={openingId === t.tableId}
                   onComingSoon={handleComingSoon}
