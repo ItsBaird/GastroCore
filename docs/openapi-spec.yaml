@@ -722,7 +722,10 @@ paths:
     put:
       tags: [Orders - Mesas]
       summary: Reasignar una mesa abierta a otro mesero (ADMIN)
-      description: GC-ADM-0003. Actualiza `waiterId`; `openedBy` no cambia. Queda en auditoria.
+      description: |
+        GC-ADM-0003. Actualiza `waiterId`; `openedBy` no cambia. Queda en auditoria (`TABLE_REASSIGNED`).
+        Aplica a mesas `ocupada` y `en_cobro`. El mesero destino debe tener turno activo en Staff.
+        Emite `table:status_changed` (payload `TableStatus`) a `waiters`, `waiter:{anterior}` y `waiter:{nuevo}`.
       x-roles: [ADMIN]
       requestBody:
         required: true
@@ -743,7 +746,12 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/InvalidTransition' }
+        '409':
+          description: Mesa libre (`TABLE_NOT_OPEN`), destino sin turno (`NO_ACTIVE_SHIFT`) o destino igual al mesero actual (`INVALID_TRANSITION`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
 
   # ───────────── Orders - Pedidos (F05, F07, F11) ─────────────
   /api/orders/{orderId}:
