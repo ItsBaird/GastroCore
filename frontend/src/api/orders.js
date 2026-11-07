@@ -8,6 +8,13 @@ export const createRound = (orderId, items) =>
     body: { items },
   })
 
+// GC-ORD-0006. La cuenta la calcula el backend (R4): no se envia nada. Pasa la mesa a en_cobro y es
+// idempotente si ya lo estaba.
+export const getBill = (orderId) => api(`/api/orders/${orderId}/bill`)
+
+export const cancelBill = (orderId) =>
+  api(`/api/orders/${orderId}/cancel-bill`, { method: 'POST' })
+
 // R4: sin cuerpo. El backend fija el estado y deliveredAt.
 export const deliverItem = (itemId) =>
   api(`/api/orders/items/${itemId}/deliver`, { method: 'PUT' })

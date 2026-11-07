@@ -1,13 +1,16 @@
 import { ArrowLeft, Ban, Clock, Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { cancelItem, deliverItem, getOrderDetail } from '../api/orders.js'
+import { cancelItem, deliverItem, getBill, getOrderDetail } from '../api/orders.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useToast } from '../components/Toast.jsx'
 import { useRealtimeEvent } from '../hooks/useRealtimeEvent.js'
 import { WaiterPage } from '../layouts/WaiterLayout.jsx'
 import { formatCOP } from '../utils/formatCOP.js'
+import '../styles/waiter.tokens.css'
 import { CancelItemModal } from './CancelItemModal.jsx'
+// --n-600 lo usaban .od-timer y la etiqueta de Subtotal sin estar definido en tokens.css
+import './billing.tokens.css'
 import './OrderDetailPage.css'
 
 const STATUS_PILL = {
@@ -158,6 +161,26 @@ export default function OrderDetailPage() {
     }
   }
 
+  // GC-ORD-0006: la cuenta se pide al backend (R4); sus errores (sin entregados, orden cerrada) son la
+  // autoridad. Habilitar el boton solo con algo entregado es una ayuda, no la validacion.
+  const [requestingBill, setRequestingBill] = useState(false)
+
+  const handleRequestBill = async () => {
+    setRequestingBill(true)
+    try {
+      const bill = await getBill(orderId)
+      navigate(`/mesero/mesas/${orderId}/cobro`, { state: { bill } })
+    } catch (err) {
+      toast.error(
+        err?.status === 0
+          ? 'Sin conexión: no se generó la cuenta. Intenta de nuevo.'
+          : err?.message || 'No se pudo generar la cuenta.',
+      )
+      if (err?.status === 409 || err?.status === 404 || err?.status === 403) refresh()
+      setRequestingBill(false)
+    }
+  }
+
   const allItems = order?.rounds?.flatMap((r) => r.items) || []
   const activeItems = allItems.filter((i) => i.status !== 'cancelado')
 
@@ -169,9 +192,14 @@ export default function OrderDetailPage() {
   // Los items cancelados no se cobran (R4: los totales que manda el backend son la verdad)
   const subtotal = activeItems.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0)
   const cancelledCount = allItems.length - activeItems.length
+  const billAvailable =
+    order?.status === 'EN_COBRO' ||
+    (order?.status === 'ABIERTA' && activeItems.some((i) => i.status === 'entregado'))
 
   return (
     <WaiterPage
+      // Los frames de Detalle (32:2, 37:2, 41:2) no muestran la insignia de turno en la barra
+      showShiftBadge={false}
       title={
         <span className="od-title-row">
           <button
@@ -272,12 +300,16 @@ export default function OrderDetailPage() {
             )}
           </div>
 
+          {/* Una sola estructura para los tres frames: en escritorio (32:65) el panel lateral completo;
+              en tablet (37:51) tarjeta de dos columnas con las filas a la izquierda y los botones a la
+              derecha; en movil (41:45) tarjeta compacta y los botones debajo, fuera de ella (41:54). */}
           <aside className="od-summary">
+            <div className="od-summary__card">
             <h3 className="od-summary__title">Resumen del Pedido</h3>
             <div className="od-summary__divider" />
 
             <div className="od-summary__rows">
-              <div className="od-summary__row">
+              <div className="od-summary__row od-summary__row--desktop">
                 <span className="od-summary__label">Mesa:</span>
                 <span className="od-summary__value">{order.tableNumber}</span>
               </div>
@@ -287,11 +319,11 @@ export default function OrderDetailPage() {
                   {activeItems.reduce((s, i) => s + i.quantity, 0)}
                 </span>
               </div>
-              <div className="od-summary__row">
+              <div className="od-summary__row od-summary__row--no-mobile">
                 <span className="od-summary__label">Pendientes:</span>
                 <span className="od-summary__value">{statusCounts.pendiente || 0}</span>
               </div>
-              <div className="od-summary__row">
+              <div className="od-summary__row od-summary__row--desktop">
                 <span className="od-summary__label">En preparación:</span>
                 <span className="od-summary__value">{statusCounts.en_preparacion || 0}</span>
               </div>
@@ -316,34 +348,48 @@ export default function OrderDetailPage() {
               )}
             </div>
 
-            <div className="od-summary__divider" />
+            <div className="od-summary__divider od-summary__divider--bottom" />
 
-            <div className="od-summary__row">
+            <div className="od-summary__row od-summary__row--desktop">
               <span className="od-summary__label-lg">Subtotal:</span>
               <span className="od-summary__value-lg">{formatCOP(subtotal)}</span>
             </div>
+            {/* Informativo: la cuenta oficial la calcula GET /bill en el backend (R4) */}
             <div className="od-summary__row od-summary__row--total">
               <span className="od-summary__total-label">Total:</span>
               <span className="od-summary__total-value">{formatCOP(subtotal)}</span>
             </div>
+            </div>
 
-            <button
-              type="button"
-              className="od-btn-add"
-              disabled={order.status !== 'ABIERTA'}
-              title={order.status === 'EN_COBRO' ? 'Cancela el cobro para agregar ítems' : undefined}
-              onClick={() =>
-                navigate(`/mesero/mesas/${orderId}/nueva-ronda`, {
-                  state: { tableNumber: order.tableNumber },
-                })
-              }
-            >
-              <Plus size={16} />
-              Agregar Ítem
-            </button>
-            <button type="button" className="od-btn-cobro" disabled>
-              Solicitar Cobro
-            </button>
+            <div className="od-summary__actions">
+              <button
+                type="button"
+                className="od-btn-add"
+                disabled={order.status !== 'ABIERTA'}
+                title={order.status === 'EN_COBRO' ? 'Cancela el cobro para agregar ítems' : undefined}
+                onClick={() =>
+                  navigate(`/mesero/mesas/${orderId}/nueva-ronda`, {
+                    state: { tableNumber: order.tableNumber },
+                  })
+                }
+              >
+                <Plus size={16} />
+                Agregar Ítem
+              </button>
+              <button
+                type="button"
+                className="od-btn-cobro"
+                disabled={!billAvailable || requestingBill}
+                title={billAvailable ? undefined : 'Entrega al menos un ítem para pedir la cuenta'}
+                onClick={handleRequestBill}
+              >
+                {requestingBill
+                  ? 'Generando cuenta…'
+                  : order.status === 'EN_COBRO'
+                    ? 'Ver Cobro'
+                    : 'Solicitar Cobro'}
+              </button>
+            </div>
           </aside>
         </div>
       )}
