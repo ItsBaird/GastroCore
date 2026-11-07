@@ -1,0 +1,662 @@
+/* Cobro: Figma 35:2 (escritorio), 39:2 (tablet), 43:2 (movil). Valores medidos con get_design_context. */
+
+.bill-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  white-space: nowrap;
+}
+
+.bill-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* 35:21: 90x28, radio 14, #fff7ed / #f97316, 12px semibold */
+.bill-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 90px;
+  height: 28px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-full);
+  background: var(--orange-50);
+  color: var(--orange-500);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bill-only-compact {
+  display: none;
+}
+
+/* ---------- Estructura de escritorio ---------- */
+/* Dos tarjetas de 620 y 460 separadas 26; la de pago termina con los botones (35:81, 35:83) */
+.bill-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 620fr) minmax(0, 460fr);
+  grid-template-rows: 1fr auto;
+  grid-template-areas:
+    'detail payment'
+    'detail actions';
+  column-gap: 26px;
+  max-width: 1106px;
+  min-height: 740px;
+}
+
+.bill-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: var(--sp-6);
+}
+
+.bill-detail {
+  grid-area: detail;
+}
+
+.bill-payment {
+  grid-area: payment;
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+}
+
+.bill-actions {
+  grid-area: actions;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-6) 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+}
+
+/* 35:26: 18px semibold #171717; divisor #e5e5e5 a 12px */
+.bill-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--n-900);
+}
+
+.bill-divider {
+  height: 1px;
+  margin: 13px 0 var(--sp-4);
+  background: var(--border);
+}
+
+.bill-soon {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-full);
+  background: var(--n-100);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ---------- Detalle de la cuenta (35:28 a 35:55) ---------- */
+.bill-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.bill-table th {
+  padding: 0 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+.bill-table th:nth-child(2) {
+  width: 70px;
+}
+
+.bill-table th:nth-child(3) {
+  width: 110px;
+}
+
+.bill-table th:nth-child(4) {
+  width: 76px;
+}
+
+/* Filas de 40px separadas por #f5f5f5 */
+.bill-table td {
+  height: 40px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--n-100);
+}
+
+.bill-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.bill-table__name {
+  font-weight: 500;
+  color: var(--n-900);
+  overflow-wrap: anywhere;
+}
+
+.bill-table__qty,
+.bill-table__unit {
+  font-weight: 400;
+  color: var(--n-700);
+}
+
+.bill-table__qty {
+  text-align: center;
+  padding-right: 24px;
+}
+
+.bill-table__line {
+  font-weight: 600;
+  color: var(--n-900);
+}
+
+.bill-empty {
+  padding: var(--sp-4) 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.bill-divider--totals {
+  margin-top: var(--sp-8);
+}
+
+/* 35:57 a 35:60: Subtotal 14/500 #525252 y 14/600; Total a Pagar 20/700 #525252 y #dc2626 */
+.bill-totals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  margin: 0;
+}
+
+/* Valor con 76 de minimo (columna Subtotal del Figma) que crece con montos largos: "$119.000" a 20px
+   no cabe en 76 */
+.bill-totals__row {
+  display: grid;
+  grid-template-columns: 1fr minmax(76px, auto);
+  align-items: baseline;
+  column-gap: var(--sp-3);
+}
+
+.bill-totals__row dt {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--n-600);
+  text-align: right;
+}
+
+.bill-totals__row dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--n-900);
+  white-space: nowrap;
+}
+
+.bill-totals__row--discount dd {
+  color: var(--green-600);
+}
+
+.bill-totals__row--total dt,
+.bill-totals__row--total dd {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.bill-totals__row--total dd {
+  color: var(--accent);
+}
+
+/* ---------- Metodo de pago (35:64 a 35:80) ---------- */
+.bill-methods {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* 412x64, radio 12, borde #e5e5e5, texto 15/500 #404040, circulo de 20 con borde 2 #d4d4d4 */
+.bill-method {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 64px;
+  padding: 0 var(--sp-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--n-700);
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.bill-method:disabled {
+  cursor: not-allowed;
+}
+
+.bill-method__radio {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--n-300);
+  border-radius: var(--radius-full);
+}
+
+/* 35:74: caja #fafafa radio 12, padding 20; etiqueta 14/500 #525252; campo 44 de alto radio 10 borde #d4d4d4 */
+.bill-cash {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    'label label'
+    'input input'
+    'change-label change';
+  row-gap: var(--sp-3);
+  margin-top: var(--sp-6);
+  padding: var(--sp-5);
+  background: var(--n-50);
+  border-radius: var(--radius-md);
+}
+
+.bill-cash__label {
+  grid-area: label;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--n-600);
+}
+
+.bill-cash__input {
+  grid-area: input;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 13px;
+  background: var(--surface);
+  border: 1px solid var(--n-300);
+  border-radius: 10px;
+  font-size: 16px;
+}
+
+.bill-cash__input span {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.bill-cash__input input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-weight: 500;
+  color: var(--n-900);
+}
+
+.bill-cash__input input:disabled {
+  cursor: not-allowed;
+}
+
+.bill-cash__change-label {
+  grid-area: change-label;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--n-600);
+}
+
+.bill-cash__change {
+  grid-area: change;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--green-600);
+}
+
+/* ---------- Botones (35:81 y 35:83) ---------- */
+/* Confirmar Pago: 412x52, radio 12, #16a34a, 16/600 blanco. Deshabilitado hasta GC-ORD-0008. */
+.bill-btn-pay {
+  height: 52px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--green-600);
+  color: var(--white);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.bill-btn-pay:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Imprimir Recibo (35:83) y Cancelar Cobro (39:57): 44 de alto, radio 12, borde #d4d4d4, #525252 */
+.bill-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  height: 44px;
+  background: none;
+  border: 1px solid var(--n-300);
+  border-radius: var(--radius-md);
+  color: var(--n-600);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.bill-btn-outline:hover {
+  background: var(--n-50);
+}
+
+.bill-btn-pay:focus-visible,
+.bill-btn-outline:focus-visible,
+.bill-back:focus-visible {
+  outline: 2px solid var(--n-900);
+  outline-offset: 2px;
+}
+
+/* ---------- Estados ---------- */
+.bill-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.bill-state svg {
+  color: var(--accent);
+}
+
+/* ---------- Tablet (39:2): una columna, tarjetas de 736 radio 12 separadas 16 ---------- */
+@media (width <= 1100px) {
+  .bill-only-desktop {
+    display: none;
+  }
+
+  .bill-only-compact {
+    display: inline;
+  }
+
+  .bill-layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    min-height: 0;
+  }
+
+  /* 39:7 y 43:7: titulo 16px semibold */
+  .bill-title-row {
+    font-size: 16px;
+  }
+
+  /* 39:8: 76x24, 11px */
+  .bill-badge {
+    min-width: 76px;
+    height: 24px;
+    font-size: 11px;
+  }
+
+  .bill-card,
+  .bill-payment {
+    padding: var(--sp-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  /* 39:13: 15px semibold; divisor a 12px */
+  .bill-card__title {
+    font-size: 15px;
+  }
+
+  .bill-divider {
+    margin: 11px 0 var(--sp-3);
+  }
+
+  /* 39:15 a 39:17: nombre 13/500, ×n 13/400 #737373, linea 13/600; sin cabecera ni precio unitario */
+  .bill-table thead,
+  .bill-table__unit {
+    display: none;
+  }
+
+  .bill-table td {
+    height: 36px;
+    font-size: 13px;
+    border-bottom: none;
+  }
+
+  .bill-table__qty {
+    width: 110px;
+    padding-right: 0;
+    color: var(--text-muted);
+    text-align: left;
+  }
+
+  .bill-table__line {
+    width: 86px;
+  }
+
+  .bill-divider--totals {
+    margin-top: var(--sp-2);
+  }
+
+  /* 39:31 a 39:34: Subtotal 13/500 #737373 y 13/500; Total 18/700 #171717 y #dc2626, a lo ancho */
+  .bill-totals {
+    gap: var(--sp-3);
+  }
+
+  .bill-totals__row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .bill-totals__row dt {
+    text-align: left;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .bill-totals__row dd {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .bill-totals__row--total dt,
+  .bill-totals__row--total dd {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .bill-totals__row--total dt {
+    color: var(--n-900);
+  }
+
+  /* 39:38 a 39:45: cuatro opciones de 166x48 en fila, radio 10, #fafafa, 13/500, sin circulo */
+  .bill-methods {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+  }
+
+  .bill-method {
+    height: 48px;
+    padding: 0 13px;
+    background: var(--n-50);
+    border-radius: 10px;
+    font-size: 13px;
+  }
+
+  .bill-method__radio {
+    display: none;
+  }
+
+  /* 39:46 a 39:50: sin caja de fondo; campo de 260x40 y el cambio a su derecha */
+  .bill-cash {
+    grid-template-columns: 260px auto 1fr;
+    grid-template-areas:
+      'label label label'
+      'input change-label change';
+    column-gap: var(--sp-6);
+    row-gap: var(--sp-2);
+    align-items: center;
+    margin-top: 22px;
+    padding: 0;
+    background: none;
+  }
+
+  .bill-cash__label,
+  .bill-cash__change-label {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .bill-cash__input {
+    height: 40px;
+    font-size: 15px;
+  }
+
+  /* 39:55 y 39:57: botones fuera de las tarjetas, a lo ancho */
+  .bill-actions {
+    padding: var(--sp-1) 0 0;
+    background: none;
+    border: none;
+  }
+
+  .bill-btn-outline {
+    font-weight: 600;
+  }
+}
+
+/* ---------- Movil (43:2) ---------- */
+@media (width <= 640px) {
+  .bill-badge {
+    min-width: 68px;
+    height: 22px;
+    padding: 0 var(--sp-2);
+    font-size: 10px;
+  }
+
+  .bill-card,
+  .bill-payment {
+    padding: 14px;
+  }
+
+  .bill-card__title {
+    font-size: 14px;
+  }
+
+  .bill-divider {
+    margin: 9px 0 var(--sp-2);
+  }
+
+  /* 43:15 a 43:17: 12/500, ×n 11/400, linea 12/600, filas de 28 */
+  .bill-table td {
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .bill-table__qty {
+    width: 40px;
+    font-size: 11px;
+  }
+
+  .bill-table__line {
+    width: 70px;
+  }
+
+  /* 43:31: sin Subtotal; Total 16/700 */
+  .bill-totals__row--subtotal {
+    display: none;
+  }
+
+  .bill-totals__row--total dt,
+  .bill-totals__row--total dd {
+    font-size: 16px;
+  }
+
+  /* 43:36 a 43:43: cuadricula 2x2 de 160x40, 12px */
+  .bill-methods {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-2);
+  }
+
+  /* Alto minimo: los nombres reales pueden ser mas largos que los del Figma y bajar de linea */
+  .bill-method {
+    height: auto;
+    min-height: 40px;
+    padding: 6px 11px;
+    font-size: 12px;
+  }
+
+  /* 43:44 a 43:48: campo 160x34 radio 8 y el cambio a la derecha */
+  .bill-cash {
+    grid-template-columns: minmax(0, 160px) auto 1fr;
+    column-gap: var(--sp-3);
+    margin-top: var(--sp-3);
+  }
+
+  .bill-cash__label,
+  .bill-cash__change-label {
+    font-size: 12px;
+  }
+
+  .bill-cash__input {
+    height: 34px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+  }
+
+  .bill-cash__change {
+    font-size: 14px;
+  }
+
+  /* 43:49: 48 de alto, 15px; 43:51 dibuja 40 de alto: se sube a 44 por objetivo tactil */
+  .bill-btn-pay {
+    height: 48px;
+    font-size: 15px;
+  }
+
+  .bill-btn-outline {
+    border-radius: 10px;
+    font-size: 13px;
+  }
+}
+
+/* ---------- Impresion: solo la cuenta, sin menus (requerimiento: PDF basico del navegador) ---------- */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .bill-detail,
+  .bill-detail * {
+    visibility: visible;
+  }
+
+  .bill-detail {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    border: none;
+  }
+}

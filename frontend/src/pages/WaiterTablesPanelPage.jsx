@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listTableStatuses, openTable as openTableApi } from '../api/tablesStatus.js'
 import { useAuth } from '../auth/useAuth.js'
-import { useToast } from '../components/Toast.jsx'
 import { useTableStatusSocket } from '../hooks/useTableStatusSocket.js'
 import { WaiterPage } from '../layouts/WaiterLayout.jsx'
 import '../styles/waiter.tokens.css'
@@ -74,7 +73,7 @@ function StatCards({ tables }) {
 
 // Una sola fuente para "que accion toca segun el estado": la usan el boton de escritorio y
 // la fila completa en movil, donde el Figma (40:2) no dibuja boton y la fila es el objetivo.
-function tableAction(table, { onOpen, opening, onComingSoon, onViewDetail, onTakeOrder }) {
+function tableAction(table, { onOpen, opening, onCharge, onViewDetail, onTakeOrder }) {
   const mesa = `Mesa ${table.tableNumber}`
 
   if (table.status === 'libre') {
@@ -109,7 +108,7 @@ function tableAction(table, { onOpen, opening, onComingSoon, onViewDetail, onTak
       className: 'ts-btn--en-cobro',
       ariaLabel: `${mesa}, cobrar`,
       disabled: false,
-      run: () => onComingSoon('Cobrar disponible próximamente'),
+      run: () => onCharge(table),
     }
   }
   return null
@@ -121,7 +120,7 @@ function TableCard({
   isAdmin,
   onOpen,
   opening,
-  onComingSoon,
+  onCharge,
   onViewDetail,
   onTakeOrder,
 }) {
@@ -131,7 +130,7 @@ function TableCard({
   const action =
     isColleagues && !isAdmin
       ? null
-      : tableAction(table, { onOpen, opening, onComingSoon, onViewDetail, onTakeOrder })
+      : tableAction(table, { onOpen, opening, onCharge, onViewDetail, onTakeOrder })
 
   return (
     <article className={`ts-card ${config.className}`}>
@@ -188,7 +187,6 @@ function TableCard({
 
 export default function WaiterTablesPanelPage() {
   const { user } = useAuth()
-  const toast = useToast()
   const navigate = useNavigate()
   const [{ status, tables, error }, setData] = useState({ status: 'loading', tables: [], error: '' })
   const [openingId, setOpeningId] = useState(null)
@@ -237,8 +235,9 @@ export default function WaiterTablesPanelPage() {
     }
   }
 
-  const handleComingSoon = (msg) => {
-    toast.success(msg)
+  // GC-ORD-0006: la mesa en cobro abre su cuenta (GET /bill es idempotente con la mesa ya en cobro)
+  const handleCharge = (table) => {
+    navigate(`/mesero/mesas/${table.orderId}/cobro`)
   }
 
   const handleViewDetail = (table) => {
@@ -302,7 +301,7 @@ export default function WaiterTablesPanelPage() {
                   isAdmin={user?.role === 'ADMIN'}
                   onOpen={handleOpen}
                   opening={openingId === t.tableId}
-                  onComingSoon={handleComingSoon}
+                  onCharge={handleCharge}
                   onViewDetail={handleViewDetail}
                   onTakeOrder={handleTakeOrder}
                 />
