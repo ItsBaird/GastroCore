@@ -698,6 +698,8 @@ paths:
       description: |
         GC-ORD-0002. Verifica el turno activo contra Staff (`GET /internal/shifts/active/:userId`), crea la
         orden `ABIERTA` con `openedBy` y `waiterId` del mesero, y marca como atendidos los llamados pendientes.
+        La verificacion de turno tambien aplica al ADMIN. Emite `table:status_changed` (payload `TableStatus`)
+        a la sala `waiters`.
       x-roles: [WAITER, ADMIN]
       responses:
         '201':
@@ -1268,6 +1270,35 @@ paths:
                     name: { type: string }
                     price: { type: integer }
                     isAvailable: { type: boolean }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /internal/employees:
+    get:
+      tags: [Internal]
+      summary: Staff - nombre de los empleados
+      description: Orders lo consulta para mostrar en el panel quien atiende cada mesa. Un id sin perfil no aparece.
+      security:
+        - serviceToken: []
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          description: IDs de usuario separados por coma (maximo 100)
+          schema: { type: string }
+      responses:
+        '200':
+          description: Nombres
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [userId, fullName]
+                  properties:
+                    userId: { type: string, format: uuid }
+                    fullName: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
   /internal/tables/open:
     get:
@@ -1294,6 +1325,7 @@ paths:
                   tables:
                     type: array
                     items: { $ref: '#/components/schemas/DiningTable' }
+        '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
 
 components:
@@ -1589,6 +1621,10 @@ components:
         status: { $ref: '#/components/schemas/TableState' }
         orderId: { type: string, format: uuid, nullable: true }
         waiterId: { type: string, format: uuid, nullable: true }
+        waiterName:
+          type: string
+          nullable: true
+          description: Nombre de quien atiende, desde Staff. null si no tiene perfil o Staff no responde.
         itemsCount:
           type: integer
           minimum: 0
