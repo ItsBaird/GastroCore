@@ -1,10 +1,15 @@
 import { Check, Copy, Plus, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { createTable, listTables, updateTable } from '../api/tables.js'
+import { createTable, listTables, reassignTable, updateTable } from '../api/tables.js'
+import { listTableStatuses } from '../api/tablesStatus.js'
 import { useToast } from '../components/Toast.jsx'
+import { useTableStatusSocket } from '../hooks/useTableStatusSocket.js'
 import { AdminPage } from '../layouts/AdminLayout.jsx'
+import { ReassignTableModal } from './ReassignTableModal.jsx'
 import { TableFormModal } from './TableFormModal.jsx'
 import './TablesPage.css'
+
+const STATUS_LABEL = { libre: 'Libre', ocupada: 'Ocupada', en_cobro: 'En cobro' }
 
 function SkeletonCards() {
   return Array.from({ length: 6 }, (_, i) => (
@@ -14,10 +19,38 @@ function SkeletonCards() {
 
 export default function TablesPage() {
   const toast = useToast()
-  const [{ status, tables, error }, setData] = useState({ status: 'loading', tables: [], error: '' })
+  const [{ status, tables, error }, setData] = useState({
+    status: 'loading',
+    tables: [],
+    error: '',
+  })
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)
   const [copiedId, setCopiedId] = useState(null)
+  const [statuses, setStatuses] = useState({})
+  const [reassigning, setReassigning] = useState(null)
+
+  // El estado es informativo: si falla, las mesas se siguen pudiendo crear y editar
+  const fetchStatuses = useCallback(async () => {
+    try {
+      const list = await listTableStatuses()
+      return Object.fromEntries(list.map((s) => [s.tableId, s]))
+    } catch {
+      return {}
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    fetchStatuses().then((result) => active && setStatuses(result))
+    return () => {
+      active = false
+    }
+  }, [fetchStatuses])
+
+  useTableStatusSocket((updated) => {
+    setStatuses((current) => ({ ...current, [updated.tableId]: updated }))
+  })
 
   const fetchTables = useCallback(async () => {
     try {
@@ -42,7 +75,10 @@ export default function TablesPage() {
   }
 
   const replaceTable = (updated) =>
-    setData((d) => ({ ...d, tables: d.tables.map((t) => (t.tableId === updated.tableId ? updated : t)) }))
+    setData((d) => ({
+      ...d,
+      tables: d.tables.map((t) => (t.tableId === updated.tableId ? updated : t)),
+    }))
 
   const handleCreate = async (values) => {
     const created = await createTable(values)
@@ -59,6 +95,26 @@ export default function TablesPage() {
     replaceTable(updated)
     setEditing(null)
     toast.success('Cambios guardados')
+  }
+
+  const handleReassign = async (waiter) => {
+    try {
+      await reassignTable(reassigning.tableId, waiter.userId)
+    } catch (err) {
+      // Lo que se ve quedo viejo (se pago la mesa u otro ADMIN la movio): se actualiza detras del modal
+      if (err?.status === 409 || err?.status === 404) fetchStatuses().then(setStatuses)
+      throw err
+    }
+    setStatuses((current) => ({
+      ...current,
+      [reassigning.tableId]: {
+        ...current[reassigning.tableId],
+        waiterId: waiter.userId,
+        waiterName: waiter.name,
+      },
+    }))
+    setReassigning(null)
+    toast.success(`Mesa ${reassigning.tableNumber} reasignada a ${waiter.name}`)
   }
 
   const copyQrPath = async (table) => {
@@ -104,30 +160,60 @@ export default function TablesPage() {
             {status === 'loading' ? (
               <SkeletonCards />
             ) : (
-              tables.map((t) => (
-                <div key={t.tableId} className="table-card">
-                  <h3 className="table-card__number">Mesa {t.tableNumber}</h3>
-                  <div className="table-card__qr">
-                    <code className="table-card__qr-path">/m/{t.qrToken}</code>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      onClick={() => copyQrPath(t)}
-                      aria-label={`Copiar ruta QR de la mesa ${t.tableNumber}`}
-                    >
-                      {copiedId === t.tableId ? <Check size={16} /> : <Copy size={16} />}
-                    </button>
+              tables.map((t) => {
+                const tableStatus = statuses[t.tableId]
+                const isOpen = tableStatus && tableStatus.status !== 'libre'
+                return (
+                  <div key={t.tableId} className="table-card">
+                    <div className="table-card__header">
+                      <h3 className="table-card__number">Mesa {t.tableNumber}</h3>
+                      {tableStatus && (
+                        <span
+                          className={`table-card__pill table-card__pill--${tableStatus.status}`}
+                        >
+                          {STATUS_LABEL[tableStatus.status]}
+                        </span>
+                      )}
+                    </div>
+                    {isOpen && (
+                      <p className="table-card__waiter">
+                        Atiende: {tableStatus.waiterName ?? 'otro mesero'}
+                      </p>
+                    )}
+                    <div className="table-card__qr">
+                      <code className="table-card__qr-path">/m/{t.qrToken}</code>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={() => copyQrPath(t)}
+                        aria-label={`Copiar ruta QR de la mesa ${t.tableNumber}`}
+                      >
+                        {copiedId === t.tableId ? <Check size={16} /> : <Copy size={16} />}
+                      </button>
+                    </div>
+                    <div className="table-card__actions">
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => setEditing(t)}
+                        aria-label={`Editar mesa ${t.tableNumber}`}
+                      >
+                        Editar
+                      </button>
+                      {isOpen && (
+                        <button
+                          type="button"
+                          className="link-btn"
+                          onClick={() => setReassigning(t)}
+                          aria-label={`Reasignar mesa ${t.tableNumber}`}
+                        >
+                          Reasignar
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    className="link-btn"
-                    onClick={() => setEditing(t)}
-                    aria-label={`Editar mesa ${t.tableNumber}`}
-                  >
-                    Editar
-                  </button>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         )}
@@ -137,7 +223,21 @@ export default function TablesPage() {
         <TableFormModal mode="create" onSubmit={handleCreate} onClose={() => setCreating(false)} />
       )}
       {editing && (
-        <TableFormModal mode="edit" table={editing} onSubmit={handleEdit} onClose={() => setEditing(null)} />
+        <TableFormModal
+          mode="edit"
+          table={editing}
+          onSubmit={handleEdit}
+          onClose={() => setEditing(null)}
+        />
+      )}
+      {reassigning && (
+        <ReassignTableModal
+          tableNumber={reassigning.tableNumber}
+          currentWaiterId={statuses[reassigning.tableId]?.waiterId}
+          currentWaiterName={statuses[reassigning.tableId]?.waiterName}
+          onConfirm={handleReassign}
+          onClose={() => setReassigning(null)}
+        />
       )}
     </AdminPage>
   )
