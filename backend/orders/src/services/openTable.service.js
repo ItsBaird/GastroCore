@@ -1,3 +1,4 @@
+import { staffClient } from '../clients/staffClient.js';
 import { AppError } from '../errors/AppError.js';
 import { emitTableStatusChanged } from '../realtime/events.js';
 import {
@@ -5,6 +6,15 @@ import {
   findOpenOrderByTable,
   findTableById,
 } from '../repositories/openTable.repository.js';
+import { getTableStatus } from './tableStatus.service.js';
+
+function tableAlreadyOpen() {
+  return new AppError({
+    status: 409,
+    code: 'TABLE_ALREADY_OPEN',
+    message: 'La mesa ya tiene una orden abierta',
+  });
+}
 
 export async function openTable(tableId, userId) {
   const table = await findTableById(tableId);
@@ -17,28 +27,31 @@ export async function openTable(tableId, userId) {
   }
 
   const existing = await findOpenOrderByTable(tableId);
-  if (existing) {
+  if (existing) throw tableAlreadyOpen();
+
+  if (!(await staffClient.hasActiveShift(userId))) {
     throw new AppError({
       status: 409,
-      code: 'TABLE_ALREADY_OPEN',
-      message: 'La mesa ya tiene una orden abierta',
+      code: 'NO_ACTIVE_SHIFT',
+      message: 'Debes iniciar tu turno para abrir una mesa',
     });
   }
 
-  const order = await createOrder({
-    tableId,
-    openedBy: userId,
-    waiterId: userId,
-  });
+  let order;
+  try {
+    order = await createOrder({
+      tableId,
+      openedBy: userId,
+      waiterId: userId,
+    });
+  } catch (err) {
+    // Dos meseros a la vez: uix_orders_one_open_per_table deja pasar solo a uno
+    if (err?.code === 'P2002') throw tableAlreadyOpen();
+    throw err;
+  }
 
-  emitTableStatusChanged({
-    tableId: table.tableId,
-    tableNumber: table.tableNumber,
-    status: 'ocupada',
-    orderId: order.orderId,
-    waiterId: order.waiterId,
-    pendingCalls: [],
-  });
+  const tableStatus = await getTableStatus(tableId);
+  if (tableStatus) emitTableStatusChanged(tableStatus);
 
   return order;
 }

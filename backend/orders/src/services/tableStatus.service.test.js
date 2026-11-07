@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../repositories/tableStatus.repository.js');
+vi.mock('../clients/staffClient.js');
 
 const repo = await import('../repositories/tableStatus.repository.js');
+const { staffClient } = await import('../clients/staffClient.js');
 const { getTableStatus, listTableStatuses } = await import('./tableStatus.service.js');
 
 // El repositorio ya filtra los items cancelados, asi que rounds solo trae los activos.
@@ -37,6 +39,36 @@ function makeTable(overrides = {}) {
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  staffClient.getEmployeeNames.mockResolvedValue(new Map());
+});
+
+describe('nombre del mesero', () => {
+  it('agrega el nombre de quien atiende cada mesa, consultando cada mesero una vez', async () => {
+    repo.findAllTablesWithOpenOrdersAndPendingCalls.mockResolvedValue([
+      makeTable({ tableId: 'a', orders: [makeOrder({ waiterId: 'waiter-1' })] }),
+      makeTable({ tableId: 'b', orders: [makeOrder({ waiterId: 'waiter-1' })] }),
+      makeTable({ tableId: 'c' }),
+    ]);
+    staffClient.getEmployeeNames.mockResolvedValue(new Map([['waiter-1', 'Carlos Rojas']]));
+
+    const result = await listTableStatuses();
+
+    expect(staffClient.getEmployeeNames).toHaveBeenCalledWith(['waiter-1']);
+    expect(result[0].waiterName).toBe('Carlos Rojas');
+    expect(result[1].waiterName).toBe('Carlos Rojas');
+    expect(result[2]).not.toHaveProperty('waiterName');
+  });
+
+  it('un mesero sin perfil en Staff queda con waiterName null', async () => {
+    repo.findTableWithOpenOrderAndPendingCalls.mockResolvedValue(
+      makeTable({ orders: [makeOrder()] }),
+    );
+
+    const result = await getTableStatus('a');
+
+    expect(result.waiterName).toBeNull();
+    expect(result.waiterId).toBe('waiter-1');
+  });
 });
 
 describe('listTableStatuses', () => {

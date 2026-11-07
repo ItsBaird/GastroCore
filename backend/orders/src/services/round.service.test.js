@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../repositories/round.repository.js');
 vi.mock('../realtime/events.js');
 vi.mock('../clients/catalogClient.js');
+vi.mock('./tableStatus.service.js');
 
 const repo = await import('../repositories/round.repository.js');
 const events = await import('../realtime/events.js');
