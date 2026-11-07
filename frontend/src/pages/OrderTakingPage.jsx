@@ -1,4 +1,4 @@
-import { ArrowLeft, ImageOff, Minus, Plus, Search, Trash2 } from 'lucide-react'
+import { ArrowLeft, ImageOff, Minus, Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { getMenu } from '../api/menu.js'
@@ -143,11 +143,26 @@ export default function OrderTakingPage() {
   const [cart, setCart] = useState([])
   const [sending, setSending] = useState(false)
 
+  const [menuError, setMenuError] = useState('')
+
+  const fetchMenu = useCallback(
+    () =>
+      getMenu()
+        .then(setMenu)
+        .catch(() => setMenuError('No se pudo cargar el menú. Revisa la conexión e inténtalo de nuevo.'))
+        .finally(() => setLoading(false)),
+    [],
+  )
+
   useEffect(() => {
-    getMenu()
-      .then(setMenu)
-      .finally(() => setLoading(false))
-  }, [])
+    fetchMenu()
+  }, [fetchMenu])
+
+  const loadMenu = () => {
+    setLoading(true)
+    setMenuError('')
+    fetchMenu()
+  }
 
   const allProducts = useMemo(() => {
     return menu.flatMap((cat) =>
@@ -255,6 +270,13 @@ export default function OrderTakingPage() {
 
           {loading ? (
             <div className="ot-loading">Cargando menú…</div>
+          ) : menuError ? (
+            <div className="ot-empty" role="alert">
+              <p>{menuError}</p>
+              <button type="button" className="btn btn--ghost" onClick={loadMenu}>
+                <RefreshCw size={16} /> Reintentar
+              </button>
+            </div>
           ) : (
             <div className="ot-products">
               {filtered.length === 0 ? (
