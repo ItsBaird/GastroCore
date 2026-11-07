@@ -33,9 +33,12 @@ export function emitRoundCreated(kitchenRound) {
 // Cambio de estado de un item a las salas kitchen y waiter:{waiterId} (contrato, /items/{id}/status).
 // El contrato nombra el evento y las salas pero no esquematiza el payload: enviamos el Item del
 // contrato mas orderId y tableNumber para que cocina y el mesero puedan ubicarlo.
+// Una sola emision: un ADMIN asignado a la mesa esta en ambas salas y no debe recibirlo dos veces.
 export function emitItemStatusChanged({ item, orderId, tableNumber, waiterId }) {
   const io = getIo();
-  const payload = { ...item, orderId, tableNumber };
-  io.to(ROOM_KITCHEN).emit('item:status_changed', payload);
-  io.to(waiterRoom(waiterId)).emit('item:status_changed', payload);
+  io.to([ROOM_KITCHEN, waiterRoom(waiterId)]).emit('item:status_changed', {
+    ...item,
+    orderId,
+    tableNumber,
+  });
 }
