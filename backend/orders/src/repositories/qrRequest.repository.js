@@ -21,3 +21,21 @@ export async function createQrRequestWithItems({ orderId, items }) {
     },
   });
 }
+
+// Solicitudes pendientes de las ordenes sin cerrar, de la mas antigua a la mas reciente (orden de llegada).
+// Con `waiterId` solo las de las ordenes que ese mesero tiene asignadas; sin el, todas (ADMIN).
+// Una orden en cobro tambien cuenta: sus solicitudes pendientes siguen ahi hasta que el mesero las resuelva.
+// qr_request_items no tiene columna de orden: los items salen en el orden en que los devuelve la base.
+export async function findPendingQrRequests({ waiterId } = {}) {
+  return prisma.qrRequest.findMany({
+    where: {
+      status: 'pendiente',
+      order: { status: { not: 'CERRADA' }, ...(waiterId && { waiterId }) },
+    },
+    orderBy: { createdAt: 'asc' },
+    include: {
+      items: true,
+      order: { select: { table: { select: { tableNumber: true } } } },
+    },
+  });
+}
