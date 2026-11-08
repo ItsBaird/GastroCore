@@ -42,3 +42,10 @@ export function emitItemStatusChanged({ item, orderId, tableNumber, waiterId }) 
     tableNumber,
   });
 }
+
+// GC-ORD-0007: cambio el descuento de una orden en cobro. Va al mesero actual; solo avisa, la cuenta se
+// vuelve a pedir con GET /bill (payload OrderUpdatedEvent del contrato).
+export function emitOrderUpdated(payload, waiterId) {
+  const io = getIo();
+  io.to(waiterRoom(waiterId)).emit('order:updated', payload);
+}
