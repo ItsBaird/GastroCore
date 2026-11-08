@@ -10,6 +10,7 @@ import { itemRouter } from './routes/item.routes.js';
 import { kitchenRouter } from './routes/kitchen.routes.js';
 import { orderRouter } from './routes/order.routes.js';
 import { paymentMethodRouter } from './routes/paymentMethod.routes.js';
+import { qrRouter } from './routes/qr.routes.js';
 import { roundRouter } from './routes/round.routes.js';
 import { tableRouter } from './routes/table.routes.js';
 
@@ -28,6 +29,7 @@ router.get('/health', (req, res) => {
 // y se tragaria cualquier ruta montada despues.
 router.use('/tables', tableRouter);
 router.use('/payment-methods', paymentMethodRouter);
+router.use('/qr', qrRouter);
 router.use('/items', itemRouter);
 router.use('/kitchen', kitchenRouter);
 router.use('/', orderRouter);
