@@ -8,9 +8,12 @@ export const createRound = (orderId, items) =>
     body: { items },
   })
 
-// GC-ORD-0006. La cuenta la calcula el backend (R4): no se envia nada. Pasa la mesa a en_cobro y es
-// idempotente si ya lo estaba.
+// GC-ORD-0006. La cuenta la calcula el backend (R4): no se envia nada.
+// getBill solo lee; startBilling pasa la mesa a en_cobro (idempotente si ya lo estaba) y devuelve la cuenta.
 export const getBill = (orderId) => api(`/api/orders/${orderId}/bill`)
+
+export const startBilling = (orderId) =>
+  api(`/api/orders/${orderId}/start-billing`, { method: 'POST' })
 
 export const cancelBill = (orderId) =>
   api(`/api/orders/${orderId}/cancel-bill`, { method: 'POST' })

@@ -273,3 +273,18 @@ describe('BillPage — tiempo real', () => {
     expect(screen.getByText('Pizzeta Pepperoni')).toBeInTheDocument()
   })
 })
+
+describe('BillPage — mesa todavía abierta', () => {
+  it('GET /bill ya no la pasa a cobro: avisa y no ofrece cobrar ni cancelar', async () => {
+    const user = userEvent.setup()
+    ordersApi.getBill.mockResolvedValue({ ...BILL, status: 'ABIERTA' })
+    renderPage()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/todavía no está en cobro/)
+    expect(screen.queryByRole('button', { name: 'Cancelar Cobro' })).toBeNull()
+    expect(screen.queryByText(/Confirmar Pago/)).toBeNull()
+    await user.click(within(alert).getByRole('button', { name: /Volver al detalle/ }))
+    expect(await screen.findByText('Detalle de la orden')).toBeInTheDocument()
+  })
+})

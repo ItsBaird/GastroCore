@@ -473,15 +473,15 @@ describe('OrderDetailPage — Solicitar Cobro (GC-ORD-0006)', () => {
     expect(cobroButton()).toHaveAttribute('title', expect.stringMatching(/Entrega al menos un ítem/))
   })
 
-  it('con un ítem entregado pide la cuenta al backend y navega con ella', async () => {
+  it('con un ítem entregado solicita el cobro (POST) y navega con la cuenta que devuelve', async () => {
     const user = userEvent.setup()
     renderPage({ user: WAITER, items: [makeItem('i1', 'entregado'), makeItem('i2', 'pendiente')] })
     await screen.findByText('Producto i1')
-    ordersApi.getBill.mockResolvedValue({ orderId: ORDER_ID, tableNumber: 2, total: 20000 })
+    ordersApi.startBilling.mockResolvedValue({ orderId: ORDER_ID, tableNumber: 2, total: 20000 })
 
     await user.click(cobroButton())
 
-    expect(ordersApi.getBill).toHaveBeenCalledWith(ORDER_ID)
+    expect(ordersApi.startBilling).toHaveBeenCalledWith(ORDER_ID)
     expect(await screen.findByText('Pantalla de cobro, total 20000')).toBeInTheDocument()
   })
 
@@ -489,7 +489,7 @@ describe('OrderDetailPage — Solicitar Cobro (GC-ORD-0006)', () => {
     const user = userEvent.setup()
     renderPage({ user: WAITER, items: [makeItem('i1', 'entregado')] })
     await screen.findByText('Producto i1')
-    ordersApi.getBill.mockImplementation(() => new Promise(() => {}))
+    ordersApi.startBilling.mockImplementation(() => new Promise(() => {}))
 
     await user.click(cobroButton())
 
@@ -505,7 +505,7 @@ describe('OrderDetailPage — Solicitar Cobro (GC-ORD-0006)', () => {
     const user = userEvent.setup()
     renderPage({ user: WAITER, items: [makeItem('i1', 'entregado')] })
     await screen.findByText('Producto i1')
-    ordersApi.getBill.mockRejectedValue(new ApiError(status, code, 'mensaje del servidor'))
+    ordersApi.startBilling.mockRejectedValue(new ApiError(status, code, 'mensaje del servidor'))
 
     await user.click(cobroButton())
 
@@ -516,15 +516,16 @@ describe('OrderDetailPage — Solicitar Cobro (GC-ORD-0006)', () => {
     expect(cobroButton()).toBeEnabled()
   })
 
-  it('con la mesa ya en cobro el botón dice "Ver Cobro" y lleva a la cuenta', async () => {
+  it('con la mesa ya en cobro el botón dice "Ver Cobro" y solo navega, sin solicitar otra vez', async () => {
     const user = userEvent.setup()
     renderPage({ user: WAITER, items: [makeItem('i1', 'entregado')], status: 'EN_COBRO' })
     await screen.findByText('Producto i1')
-    ordersApi.getBill.mockResolvedValue({ orderId: ORDER_ID, tableNumber: 2, total: 10000 })
 
     await user.click(screen.getByRole('button', { name: 'Ver Cobro' }))
 
-    expect(await screen.findByText('Pantalla de cobro, total 10000')).toBeInTheDocument()
+    expect(await screen.findByText(/Pantalla de cobro/)).toBeInTheDocument()
+    expect(ordersApi.startBilling).not.toHaveBeenCalled()
+    expect(ordersApi.getBill).not.toHaveBeenCalled()
   })
 
   it('el resumen marca las filas que tablet y móvil ocultan (37:51, 41:45)', async () => {

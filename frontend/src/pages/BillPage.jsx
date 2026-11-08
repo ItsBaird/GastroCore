@@ -158,6 +158,21 @@ export default function BillPage() {
     )
   }
 
+  // GET /bill ya no pasa la mesa a cobro: si se llega aqui con la orden abierta, no se ofrece cobrar
+  if (bill.status !== 'EN_COBRO') {
+    return (
+      <WaiterPage title={title} showShiftBadge={false}>
+        <div className="bill-state" role="alert">
+          <TriangleAlert size={28} />
+          <p>Esta mesa todavía no está en cobro. Solicita el cobro desde el detalle.</p>
+          <button type="button" className="btn btn--ghost" onClick={backToDetail}>
+            <ArrowLeft size={16} /> Volver al detalle
+          </button>
+        </div>
+      </WaiterPage>
+    )
+  }
+
   return (
     <WaiterPage title={title} showShiftBadge={false}>
       <div className="bill-layout">
