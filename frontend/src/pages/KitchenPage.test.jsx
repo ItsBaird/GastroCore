@@ -369,3 +369,42 @@ describe('KitchenPage', () => {
     })
   })
 })
+
+describe('KitchenPage — turno del cocinero', () => {
+  const noShift = () =>
+    Object.assign(new Error('Debes iniciar tu turno para operar la cocina'), {
+      status: 409,
+      code: 'NO_ACTIVE_SHIFT',
+    })
+
+  it('sin turno activo avisa y lleva a Mi Turno, sin tablero ni error genérico', async () => {
+    listKitchenRounds.mockRejectedValue(noShift())
+    renderPage()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/Debes iniciar tu turno/)
+    expect(within(alert).getByRole('link', { name: 'Ir a Mi Turno' })).toHaveAttribute('href', '/mi-turno')
+    expect(screen.queryByText(/No se pudieron cargar/)).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Pendientes' })).toBeNull()
+  })
+
+  it('si el turno termina con la pantalla abierta, al mover un ítem pasa al aviso', async () => {
+    const user = userEvent.setup()
+    listKitchenRounds.mockResolvedValue([round('r1', 4, [item('i1', 'pendiente')])])
+    updateItemStatus.mockRejectedValue(noShift())
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: /Iniciar/ }))
+
+    expect(await screen.findByRole('link', { name: 'Ir a Mi Turno' })).toBeInTheDocument()
+    expect(screen.queryByText('Mesa 4')).toBeNull()
+  })
+
+  it('otros errores siguen mostrando el error genérico con Reintentar', async () => {
+    listKitchenRounds.mockRejectedValue(Object.assign(new Error('x'), { status: 503 }))
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/No se pudieron cargar/)
+    expect(screen.queryByRole('link', { name: 'Ir a Mi Turno' })).toBeNull()
+  })
+})

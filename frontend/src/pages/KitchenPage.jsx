@@ -134,11 +134,12 @@ export default function KitchenPage() {
   const [clockOffset, setClockOffset] = useState(0)
   const now = useNow(clockOffset)
 
+  // Sin turno activo (409 NO_ACTIVE_SHIFT) no es una falla de carga: el cocinero debe iniciar su turno.
   const fetchRounds = useCallback(async () => {
     try {
       return { status: 'ready', rounds: await listKitchenRounds() }
-    } catch {
-      return null
+    } catch (err) {
+      return err?.code === 'NO_ACTIVE_SHIFT' ? { status: 'no_shift', rounds: [] } : null
     }
   }, [])
 
@@ -184,6 +185,11 @@ export default function KitchenPage() {
       const updated = await updateItemStatus(item.itemId, nextStatus)
       setData((current) => ({ ...current, rounds: applyItemChange(current.rounds, updated) }))
     } catch (err) {
+      // El turno termino mientras la pantalla estaba abierta
+      if (err?.code === 'NO_ACTIVE_SHIFT') {
+        setData({ status: 'no_shift', rounds: [] })
+        return
+      }
       toast.error(err?.message || 'No se pudo actualizar el ítem')
       // Otro cocinero lo movio o el ADMIN lo anulo: lo que se ve quedo viejo
       if (err?.status === 409 || err?.status === 404) refresh()
@@ -275,7 +281,15 @@ export default function KitchenPage() {
         ))}
       </div>
 
-      {status === 'error' ? (
+      {status === 'no_shift' ? (
+        <div className="kds-state" role="alert">
+          <Clock size={28} aria-hidden="true" />
+          <p>Debes iniciar tu turno para operar la cocina.</p>
+          <Link className="btn btn--primary" to="/mi-turno">
+            Ir a Mi Turno
+          </Link>
+        </div>
+      ) : status === 'error' ? (
         <div className="kds-state" role="alert">
           <TriangleAlert size={28} aria-hidden="true" />
           <p>No se pudieron cargar los pedidos de cocina.</p>
