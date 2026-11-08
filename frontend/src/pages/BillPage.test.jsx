@@ -40,8 +40,8 @@ const METHODS = [
   { paymentMethodId: 'm2', name: 'Nequi', isCash: false, isActive: true },
 ]
 
-function renderPage({ state } = {}) {
-  const auth = { status: 'authenticated', user: WAITER, login: vi.fn(), logout: vi.fn() }
+function renderPage({ state, user = WAITER } = {}) {
+  const auth = { status: 'authenticated', user, login: vi.fn(), logout: vi.fn() }
   return render(
     <MemoryRouter initialEntries={[{ pathname: `/mesero/mesas/${ORDER_ID}/cobro`, state }]}>
       <AuthContext.Provider value={auth}>
@@ -160,7 +160,7 @@ describe('BillPage — cancelar cobro', () => {
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sí, cancelar cobro' }))
     // El evento de la propia cancelacion llega antes que la respuesta HTTP
     act(() =>
-      useRealtimeEvent.mock.calls.at(-1)[1]({ tableNumber: 4, status: 'ocupada', orderId: ORDER_ID, pendingCalls: [] }),
+      useRealtimeEvent.mock.calls.findLast((c) => c[0] === 'table:status_changed')[1]({ tableNumber: 4, status: 'ocupada', orderId: ORDER_ID, pendingCalls: [] }),
     )
     await act(async () => resolveCancel({ orderId: ORDER_ID, status: 'ABIERTA' }))
 
@@ -235,7 +235,7 @@ describe('BillPage — estados y errores', () => {
 })
 
 describe('BillPage — tiempo real', () => {
-  const handler = () => useRealtimeEvent.mock.calls.at(-1)[1]
+  const handler = () => useRealtimeEvent.mock.calls.findLast((c) => c[0] === 'table:status_changed')[1]
 
   it('se suscribe a table:status_changed y recarga al reconectar', async () => {
     renderPage()
@@ -244,7 +244,7 @@ describe('BillPage — tiempo real', () => {
     expect(useRealtimeEvent).toHaveBeenCalledWith('table:status_changed', expect.any(Function), {
       onReconnect: expect.any(Function),
     })
-    await act(() => useRealtimeEvent.mock.calls.at(-1)[2].onReconnect())
+    await act(() => useRealtimeEvent.mock.calls.findLast((c) => c[0] === 'table:status_changed')[2].onReconnect())
     expect(ordersApi.getBill).toHaveBeenCalledTimes(2)
   })
 
@@ -288,5 +288,159 @@ describe('BillPage — mesa todavía abierta', () => {
     expect(screen.queryByText(/Confirmar Pago/)).toBeNull()
     await user.click(within(alert).getByRole('button', { name: /Volver al detalle/ }))
     expect(await screen.findByText('Detalle de la orden')).toBeInTheDocument()
+  })
+})
+
+describe('BillPage — descuento (GC-ORD-0007)', () => {
+  const ADMIN = { userId: 'admin-1', email: 'admin@lapizzeta.com', role: 'ADMIN', permissions: [] }
+  const WAITER_WITH = { ...WAITER, permissions: ['discount:apply'] }
+  const discountButton = () => screen.queryByRole('button', { name: /descuento/i })
+  const amountInput = () => screen.getByLabelText('Monto del descuento')
+  const openModal = async (user, bill = BILL) => {
+    ordersApi.getBill.mockResolvedValue(bill)
+    const ui = userEvent.setup()
+    renderPage({ user })
+    await ui.click(await screen.findByRole('button', { name: /descuento/i }))
+    return ui
+  }
+
+  it('un mesero sin discount:apply no ve el botón', async () => {
+    renderPage({ user: { ...WAITER, permissions: [] } })
+    await screen.findByText('Pizzeta Pepperoni')
+
+    expect(discountButton()).toBeNull()
+  })
+
+  it('lo ven el ADMIN y el mesero con discount:apply', async () => {
+    const { unmount } = renderPage({ user: ADMIN })
+    expect(await screen.findByRole('button', { name: 'Aplicar descuento' })).toBeInTheDocument()
+    unmount()
+
+    renderPage({ user: WAITER_WITH })
+    expect(await screen.findByRole('button', { name: 'Aplicar descuento' })).toBeInTheDocument()
+  })
+
+  it('solo acepta dígitos y envía solo el monto (R4); muestra lo que devuelve el backend', async () => {
+    const ui = await openModal(ADMIN)
+    ordersApi.applyDiscount.mockResolvedValue({ ...BILL, discountAmount: 15000, total: 61001 })
+
+    await ui.type(amountInput(), '$15.000')
+    expect(amountInput()).toHaveValue('15000')
+    await ui.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+    expect(ordersApi.applyDiscount).toHaveBeenCalledWith(ORDER_ID, { discountAmount: 15000 })
+    expect(await screen.findByText('−$15.000')).toBeInTheDocument()
+    expect(screen.getByText('Confirmar Pago — $61.001')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(await screen.findByText(/Descuento de \$15\.000 aplicado/)).toBeInTheDocument()
+  })
+
+  it('envía el motivo recortado si lo hay', async () => {
+    const ui = await openModal(ADMIN)
+    ordersApi.applyDiscount.mockResolvedValue({ ...BILL, discountAmount: 1000, total: 75001 })
+
+    await ui.type(amountInput(), '1000')
+    await ui.type(screen.getByLabelText('Motivo (opcional)'), '  Cliente frecuente  ')
+    await ui.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+    expect(ordersApi.applyDiscount).toHaveBeenCalledWith(ORDER_ID, {
+      discountAmount: 1000,
+      reason: 'Cliente frecuente',
+    })
+  })
+
+  it('mayor que el subtotal: avisa en el campo sin enviar', async () => {
+    const ui = await openModal(ADMIN)
+
+    await ui.type(amountInput(), '80000')
+    await ui.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+    expect(screen.getByText(/No puede superar el subtotal \(\$76\.001\)/)).toBeInTheDocument()
+    expect(ordersApi.applyDiscount).not.toHaveBeenCalled()
+  })
+
+  it('un 400 del backend se muestra en el campo y el modal sigue abierto', async () => {
+    const ui = await openModal(ADMIN)
+    ordersApi.applyDiscount.mockRejectedValue(
+      new ApiError(400, 'VALIDATION_ERROR', 'El descuento no puede superar el subtotal de la cuenta'),
+    )
+
+    await ui.type(amountInput(), '500')
+    await ui.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+    expect(await screen.findByText(/no puede superar el subtotal de la cuenta/)).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('deshabilitado mientras envía: sin doble envío', async () => {
+    const ui = await openModal(ADMIN)
+    ordersApi.applyDiscount.mockImplementation(() => new Promise(() => {}))
+
+    await ui.type(amountInput(), '500')
+    await ui.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+    expect(screen.getByRole('button', { name: 'Aplicar' })).toBeDisabled()
+    await ui.click(screen.getByRole('button', { name: 'Aplicar' }))
+    expect(ordersApi.applyDiscount).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    [409, 'INVALID_TRANSITION', 'Solo se puede aplicar un descuento a una mesa en cobro'],
+    [403, 'FORBIDDEN', 'No tienes permiso para aplicar descuentos'],
+    [404, 'NOT_FOUND', 'La orden no existe'],
+  ])('%s: cierra, avisa y vuelve a pedir la cuenta', async (status, code, message) => {
+    const ui = await openModal(ADMIN)
+    ordersApi.applyDiscount.mockRejectedValue(new ApiError(status, code, message))
+
+    await ui.type(amountInput(), '500')
+    await ui.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+    expect(await screen.findByText(message, { selector: '.toast--error' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(ordersApi.getBill).toHaveBeenCalledTimes(2)
+  })
+
+  it('sin conexión: avisa dentro del modal y deja reintentar', async () => {
+    const ui = await openModal(ADMIN)
+    ordersApi.applyDiscount.mockRejectedValue(new ApiError(0, 'NETWORK_ERROR', 'x'))
+
+    await ui.type(amountInput(), '500')
+    await ui.click(screen.getByRole('button', { name: 'Aplicar' }))
+
+    expect(await within(screen.getByRole('dialog')).findByRole('alert')).toHaveTextContent(
+      /Sin conexión/,
+    )
+    expect(screen.getByRole('button', { name: 'Aplicar' })).toBeEnabled()
+  })
+
+  it('con descuento vigente: "Cambiar descuento", monto precargado y "Quitar descuento" envía 0', async () => {
+    const withDiscount = { ...BILL, discountAmount: 5000, total: 71001 }
+    const ui = await openModal(ADMIN, withDiscount)
+    ordersApi.applyDiscount.mockResolvedValue({ ...BILL })
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Cambiar descuento')
+    expect(amountInput()).toHaveValue('5000')
+    await ui.click(screen.getByRole('button', { name: 'Quitar descuento' }))
+
+    expect(ordersApi.applyDiscount).toHaveBeenCalledWith(ORDER_ID, { discountAmount: 0 })
+    expect(await screen.findByText('Descuento quitado')).toBeInTheDocument()
+    expect(screen.queryByText('Descuento:')).toBeNull()
+  })
+
+  it('order:updated de esta orden vuelve a pedir la cuenta; de otra orden se ignora', async () => {
+    renderPage()
+    await screen.findByText('Pizzeta Pepperoni')
+    const handler = useRealtimeEvent.mock.calls.findLast((c) => c[0] === 'order:updated')[1]
+    ordersApi.getBill.mockResolvedValue({ ...BILL, discountAmount: 1, total: 76000 })
+
+    await act(async () =>
+      handler({ orderId: 'otra', tableNumber: 9, status: 'EN_COBRO', discountAmount: 1 }),
+    )
+    expect(ordersApi.getBill).toHaveBeenCalledTimes(1)
+
+    await act(async () =>
+      handler({ orderId: ORDER_ID, tableNumber: 4, status: 'EN_COBRO', discountAmount: 1 }),
+    )
+    expect(await screen.findByText('Confirmar Pago — $76.000')).toBeInTheDocument()
   })
 })

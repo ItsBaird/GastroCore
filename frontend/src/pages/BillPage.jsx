@@ -1,8 +1,9 @@
-import { ArrowLeft, Printer, RefreshCw, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, Printer, RefreshCw, Tag, TriangleAlert } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { cancelBill, getBill } from '../api/orders.js'
 import { listPaymentMethods } from '../api/paymentMethods.js'
+import { useAuth } from '../auth/useAuth.js'
 import { ConfirmDialog } from '../components/ConfirmDialog.jsx'
 import { useToast } from '../components/Toast.jsx'
 import { useRealtimeEvent } from '../hooks/useRealtimeEvent.js'
@@ -10,6 +11,7 @@ import { WaiterPage } from '../layouts/WaiterLayout.jsx'
 import '../styles/waiter.tokens.css'
 import { formatCOP } from '../utils/formatCOP.js'
 import './billing.tokens.css'
+import { DiscountModal } from './DiscountModal.jsx'
 import './BillPage.css'
 
 // GC-ORD-0006. Vista de Cobro (Figma 35:2, 39:2, 43:2). Todo monto viene del backend (R4): aqui no se
@@ -29,6 +31,7 @@ export default function BillPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
   const initialBill = location.state?.bill?.orderId === orderId ? location.state.bill : null
 
   const [bill, setBill] = useState(initialBill)
@@ -37,6 +40,9 @@ export default function BillPage() {
   const [methods, setMethods] = useState([])
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [discounting, setDiscounting] = useState(false)
+  // Solo UX: la autoridad es el backend. Mismo criterio que la ruta (ADMIN o discount:apply).
+  const canDiscount = user?.role === 'ADMIN' || (user?.permissions ?? []).includes('discount:apply')
   // La cancelacion propia tambien vuelve como table:status_changed: no es "otro dispositivo"
   const cancelledHere = useRef(false)
 
@@ -99,6 +105,30 @@ export default function BillPage() {
     ),
     { onReconnect: fetchBill },
   )
+
+  // GC-ORD-0007: otra persona (p. ej. el ADMIN) cambio el descuento: se vuelve a pedir la cuenta
+  useRealtimeEvent(
+    'order:updated',
+    useCallback(
+      (payload) => {
+        if (payload?.orderId === orderId) fetchBill()
+      },
+      [orderId, fetchBill],
+    ),
+    { onReconnect: fetchBill },
+  )
+
+  const handleDiscountApplied = (nextBill, amount) => {
+    setBill(nextBill)
+    setDiscounting(false)
+    toast.success(amount > 0 ? `Descuento de ${formatCOP(amount)} aplicado` : 'Descuento quitado')
+  }
+
+  const handleDiscountStale = (err) => {
+    setDiscounting(false)
+    toast.error(err?.message || 'No se pudo aplicar el descuento')
+    fetchBill()
+  }
 
   const handleCancelBill = async () => {
     setCancelling(true)
@@ -233,6 +263,14 @@ export default function BillPage() {
               <dd>{formatCOP(bill.total)}</dd>
             </div>
           </dl>
+          {canDiscount && (
+            <div className="bill-discount-action">
+              <button type="button" className="bill-btn-outline" onClick={() => setDiscounting(true)}>
+                <Tag size={16} aria-hidden="true" />
+                {bill.discountAmount > 0 ? 'Cambiar descuento' : 'Aplicar descuento'}
+              </button>
+            </div>
+          )}
         </section>
 
         <section className="bill-card bill-payment" aria-labelledby="bill-payment-title">
@@ -286,6 +324,15 @@ export default function BillPage() {
           </button>
         </div>
       </div>
+
+      {discounting && (
+        <DiscountModal
+          bill={bill}
+          onApplied={handleDiscountApplied}
+          onStale={handleDiscountStale}
+          onClose={() => setDiscounting(false)}
+        />
+      )}
 
       {confirmingCancel && (
         <ConfirmDialog

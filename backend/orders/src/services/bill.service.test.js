@@ -226,6 +226,8 @@ describe('cancelBill', () => {
 
     const order = await cancelBill('order-1', WAITER);
 
+    expect(repo.moveOrderBackToOpen).toHaveBeenCalledWith('order-1', 'waiter-1');
+
     expect(order).toEqual({
       orderId: 'order-1',
       tableId: 'table-1',

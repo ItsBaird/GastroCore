@@ -660,3 +660,53 @@
     border: none;
   }
 }
+
+/* ---------- Descuento (GC-ORD-0007, propuesta sin Figma) ---------- */
+/* Boton con el estilo de "Imprimir Recibo" (35:83), alineado a la derecha bajo los totales */
+.bill-discount-action {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--sp-4);
+}
+
+.bill-discount-action .bill-btn-outline {
+  padding: 0 var(--sp-4);
+}
+
+.bill-discount-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.bill-discount-context {
+  margin: 0;
+  font-size: 14px;
+  color: var(--n-600);
+}
+
+.bill-discount-reason {
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+  line-height: 1.4;
+  padding: var(--sp-3);
+}
+
+/* "Quitar descuento" a la izquierda del pie, en el rojo de las acciones destructivas */
+.modal__footer .bill-discount-remove {
+  margin-right: auto;
+  color: var(--red-600);
+}
+
+@media (width <= 640px) {
+  .bill-discount-action .bill-btn-outline {
+    width: 100%;
+  }
+}
+
+@media print {
+  .bill-discount-action {
+    display: none;
+  }
+}

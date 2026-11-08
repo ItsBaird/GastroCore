@@ -27,7 +27,7 @@ function noDeliveredItems() {
 const hasDeliveredItem = (order) =>
   order.rounds.some((round) => round.items.some((item) => item.status === 'entregado'));
 
-async function loadOwnedOrder(orderId, user) {
+export async function loadOwnedOrder(orderId, user) {
   const order = await findOrderForBill(orderId);
   if (!order) throw orderNotFound();
   if (user.role === 'WAITER' && order.waiterId !== user.userId) {
@@ -36,7 +36,7 @@ async function loadOwnedOrder(orderId, user) {
   return order;
 }
 
-function toBill(order) {
+export function toBill(order) {
   const bill = computeBill(order);
   if (!assertBillPayable(bill)) {
     throw invalidTransition('El descuento supera el subtotal de la cuenta');
@@ -112,7 +112,7 @@ export async function cancelBill(orderId, user) {
     throw invalidTransition('Solo se puede cancelar el cobro de una mesa en cobro');
   }
 
-  const reopened = await moveOrderBackToOpen(orderId);
+  const reopened = await moveOrderBackToOpen(orderId, user.userId);
   if (!reopened) {
     // Otro dispositivo ya lo cancelo o se registro el pago en medio
     throw invalidTransition('La mesa ya no está en cobro');
