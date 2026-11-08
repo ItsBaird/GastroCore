@@ -49,10 +49,17 @@ function toBill(order) {
   };
 }
 
-// GC-ORD-0006. La cuenta es una vista calculada: no se persiste (el pago la recalcula).
-// Con la orden ABIERTA la pasa a EN_COBRO; con la orden ya EN_COBRO es idempotente: misma cuenta
-// recalculada, sin otra transicion ni otro evento.
+// GC-ORD-0006. GET /bill: solo lectura. La cuenta es una vista calculada (no se persiste: el pago la
+// recalcula) y se puede ver con la orden ABIERTA o EN_COBRO. No cambia estado ni emite eventos.
 export async function getBill(orderId, user) {
+  const order = await loadOwnedOrder(orderId, user);
+  if (order.status === 'CERRADA') throw invalidTransition('La orden ya está cerrada');
+  return toBill(order);
+}
+
+// POST /start-billing: solicita el cobro. Con la orden ABIERTA y algun item entregado la pasa a EN_COBRO;
+// con la orden ya EN_COBRO es idempotente: misma cuenta recalculada, sin otra transicion ni otro evento.
+export async function startBilling(orderId, user) {
   const order = await loadOwnedOrder(orderId, user);
   if (order.status === 'CERRADA') throw invalidTransition('La orden ya está cerrada');
   if (order.status === 'EN_COBRO') return toBill(order);

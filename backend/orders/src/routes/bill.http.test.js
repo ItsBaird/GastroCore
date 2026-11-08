@@ -1,10 +1,14 @@
 // GET /api/orders/:orderId/bill con la app real: autenticacion, roles y validacion (R4).
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cancelBill, getBill } from '../services/bill.service.js';
+import { cancelBill, getBill, startBilling } from '../services/bill.service.js';
 import { call, startApp, tokenFor } from '../test/helpers.js';
 
 vi.mock('../config/prisma.js', () => ({ prisma: {} }));
-vi.mock('../services/bill.service.js', () => ({ getBill: vi.fn(), cancelBill: vi.fn() }));
+vi.mock('../services/bill.service.js', () => ({
+  getBill: vi.fn(),
+  startBilling: vi.fn(),
+  cancelBill: vi.fn(),
+}));
 
 const ORDER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const WAITER_ID = '22222222-2222-4222-8222-222222222222';
@@ -92,5 +96,42 @@ describe('POST /api/orders/:orderId/cancel-bill', () => {
   it('un cuerpo con datos responde 400', async () => {
     expect((await post(tokenFor('WAITER'), { status: 'ABIERTA' })).status).toBe(400);
     expect(cancelBill).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/orders/:orderId/start-billing', () => {
+  const START = `/api/orders/${ORDER_ID}/start-billing`;
+  const post = (token, body) => call(app.base, 'POST', START, { token, body });
+
+  beforeEach(() => startBilling.mockResolvedValue(BILL));
+
+  it.each(['WAITER', 'ADMIN'])('%s sin cuerpo recibe 200 con la cuenta', async (role) => {
+    const res = await post(tokenFor(role, { userId: WAITER_ID }));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(BILL);
+    expect(startBilling).toHaveBeenCalledWith(
+      ORDER_ID,
+      expect.objectContaining({ userId: WAITER_ID, role }),
+    );
+    expect(getBill).not.toHaveBeenCalled();
+  });
+
+  it('sin token 401 y COOK 403', async () => {
+    expect((await post(undefined)).status).toBe(401);
+    expect((await post(tokenFor('COOK'))).status).toBe(403);
+    expect(startBilling).not.toHaveBeenCalled();
+  });
+
+  it('un cuerpo con datos responde 400 (R4)', async () => {
+    expect((await post(tokenFor('WAITER'), { total: 1 })).status).toBe(400);
+    expect(startBilling).not.toHaveBeenCalled();
+  });
+
+  it('GET /bill ya no solicita el cobro', async () => {
+    await call(app.base, 'GET', `/api/orders/${ORDER_ID}/bill`, { token: tokenFor('WAITER') });
+
+    expect(getBill).toHaveBeenCalledOnce();
+    expect(startBilling).not.toHaveBeenCalled();
   });
 });
