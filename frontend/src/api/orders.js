@@ -28,3 +28,11 @@ export const cancelItem = (itemId, reason) =>
     method: 'POST',
     body: { reason },
   })
+
+// GC-ORD-0007. R4: solo el monto (pesos enteros; 0 quita el descuento) y un motivo opcional. Devuelve la
+// cuenta recalculada por el backend.
+export const applyDiscount = (orderId, { discountAmount, reason }) =>
+  api(`/api/orders/${orderId}/discount`, {
+    method: 'POST',
+    body: { discountAmount, ...(reason && { reason }) },
+  })
