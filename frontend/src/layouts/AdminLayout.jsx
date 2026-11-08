@@ -1,5 +1,6 @@
 import {
   Clock,
+  ConciergeBell,
   CreditCard,
   DollarSign,
   IdCard,
@@ -22,6 +23,8 @@ import './AdminLayout.css'
 const NAV = [
   { label: 'Dashboard', icon: LayoutDashboard, mobile: true },
   { label: 'Mesas', icon: Table, to: '/admin/mesas', mobile: true },
+  // El ADMIN tambien atiende mesas (WAITER y ADMIN comparten /mesero): acceso directo al panel del mesero
+  { label: 'Vista Mesero', icon: ConciergeBell, to: '/mesero/mesas' },
   { label: 'Productos', icon: UtensilsCrossed, to: '/admin/productos' },
   { label: 'Categorías', icon: Tag, to: '/admin/categorias' },
   { label: 'Usuarios', icon: Users, to: '/admin/usuarios', mobile: true },
