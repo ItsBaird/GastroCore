@@ -961,6 +961,8 @@ paths:
         GC-ORD-0006. Sin cuerpo. Solo con la orden `EN_COBRO` y sin pago registrado: vuelve a `ABIERTA` (mesa
         `ocupada`) con una actualizacion condicional y se pueden agregar mas rondas. Tras el commit emite
         `table:status_changed` a la sala `waiters`. En otro estado responde `409 INVALID_TRANSITION`.
+        GC-ORD-0007: si la orden tenia descuento, se quita en la misma transaccion (auditoria `DISCOUNT_REMOVED`),
+        porque se autorizo contra el subtotal de ese cobro; el siguiente cobro necesita su propio descuento.
       x-roles: [WAITER, ADMIN]
       responses:
         '200':
@@ -978,17 +980,26 @@ paths:
       - $ref: '#/components/parameters/OrderId'
     post:
       tags: [Orders - Cobro]
-      summary: Aplicar un descuento (ADMIN, o WAITER con permiso discount:apply)
+      summary: Aplicar, cambiar o quitar el descuento de una orden en cobro
       description: |
-        GC-ORD-0007 (MVP). El ADMIN siempre puede aplicarlo. Un WAITER solo si su token trae el permiso
-        `discount:apply` y es el mesero asignado; si no, `403 FORBIDDEN`. Solo con la orden `EN_COBRO`; en otro
-        estado `409 INVALID_TRANSITION`. El monto, en pesos enteros, no puede superar el subtotal de la cuenta
-        calculado en el backend (`computeBill`); si lo supera, `409 DISCOUNT_EXCEEDS_SUBTOTAL`. Un descuento nuevo
-        reemplaza al anterior. Registra `discountAmount`, `discountAppliedBy` y `discountAppliedAt`, y en la misma
-        transaccion un registro de auditoria `DISCOUNT_APPLIED` con el monto, el anterior, el subtotal y el motivo.
-        La asignacion del permiso `discount:apply` a los usuarios no forma parte de este MVP.
+        GC-ORD-0007 (MVP).
+        Quien puede: el permiso `discount:apply` en el JWT. El ADMIN puede aunque su token no lo traiga (en el MVP
+        nadie tiene el permiso asignado). Un WAITER necesita el permiso y ser el mesero asignado de la orden; si no,
+        `403 FORBIDDEN`. La asignacion del permiso a usuarios no forma parte de este MVP.
+        Estado: solo con la orden `EN_COBRO`; en otro estado `409 INVALID_TRANSITION`.
+        Monto: pesos enteros entre 0 y el subtotal de la cuenta calculado en el backend (`computeBill`, snapshot R3,
+        sin items cancelados). Si supera el subtotal, `400 VALIDATION_ERROR` con `details.subtotal`. Igual al
+        subtotal se permite (cortesia total: el total queda en 0).
+        Correccion de un error: un monto nuevo reemplaza al anterior, y `0` quita el descuento (los tres campos
+        vuelven a 0/null). Repetir el monto vigente responde 200 sin cambios, sin auditoria ni evento.
+        Efectos: actualiza `discountAmount`, `discountAppliedBy` (quien llama) y `discountAppliedAt` con una
+        actualizacion condicional (`EN_COBRO`), y en la misma transaccion inserta en la auditoria
+        `DISCOUNT_APPLIED` (o `DISCOUNT_REMOVED` con 0) con el monto anterior y el nuevo, el subtotal, el total y el
+        motivo. Si la auditoria falla, el descuento se revierte. Tras el commit emite `order:updated` (payload
+        `OrderUpdatedEvent`) a la sala `waiter:{waiterId}` del mesero actual.
+        Responde la cuenta recalculada (`Bill`).
       x-roles: [WAITER, ADMIN]
-      x-permissions: ['discount:apply (solo WAITER; el ADMIN no lo necesita)']
+      x-permissions: ['discount:apply']
       requestBody:
         required: true
         content:
@@ -1000,27 +1011,23 @@ paths:
               properties:
                 discountAmount:
                   type: integer
-                  minimum: 1
-                  description: Pesos colombianos enteros
+                  minimum: 0
+                  description: Pesos colombianos enteros; 0 quita el descuento
                 reason:
                   type: string
                   maxLength: 255
                   description: Motivo opcional; queda en la auditoria
       responses:
         '200':
-          description: Orden con descuento
+          description: Cuenta recalculada con el descuento
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Order' }
+              schema: { $ref: '#/components/schemas/Bill' }
         '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409':
-          description: Orden no `EN_COBRO` (`INVALID_TRANSITION`) o monto mayor que el subtotal (`DISCOUNT_EXCEEDS_SUBTOTAL`)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
   /api/orders/{orderId}/pay:
     parameters:
       - $ref: '#/components/parameters/OrderId'
@@ -1483,7 +1490,7 @@ components:
               example: NOT_FOUND
               description: |
                 NOT_FOUND, VALIDATION_ERROR, UNAUTHENTICATED, FORBIDDEN, CONFLICT, EMAIL_ALREADY_EXISTS, ACCOUNT_LOCKED, INVALID_TRANSITION,
-                NO_ACTIVE_SHIFT, TABLE_ALREADY_OPEN, TABLE_NOT_OPEN, HAS_OPEN_TABLES, DAY_CLOSED, NO_DELIVERED_ITEMS, DISCOUNT_EXCEEDS_SUBTOTAL,
+                NO_ACTIVE_SHIFT, TABLE_ALREADY_OPEN, TABLE_NOT_OPEN, HAS_OPEN_TABLES, DAY_CLOSED, NO_DELIVERED_ITEMS,
                 RATE_LIMITED, DEPENDENCY_UNAVAILABLE, INTERNAL_ERROR
             message: { type: string, example: Recurso no encontrado }
             details:
@@ -1745,6 +1752,17 @@ components:
           properties:
             orderId: { type: string, format: uuid }
             tableNumber: { type: integer }
+    OrderUpdatedEvent:
+      description: |
+        Payload del evento Socket.io `order:updated` (GC-ORD-0007): cambio el descuento de una orden en cobro. Solo
+        avisa; la cuenta se vuelve a pedir con `GET /api/orders/{orderId}/bill`.
+      type: object
+      required: [orderId, tableNumber, status, discountAmount]
+      properties:
+        orderId: { type: string, format: uuid }
+        tableNumber: { type: integer }
+        status: { type: string, enum: [ABIERTA, EN_COBRO, CERRADA] }
+        discountAmount: { type: integer, minimum: 0 }
     Round:
       type: object
       required: [roundId, orderId, source, createdAt, items]
