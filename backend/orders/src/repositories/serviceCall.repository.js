@@ -10,7 +10,7 @@ export async function findTableByQrToken(qrToken) {
       tableNumber: true,
       orders: {
         where: { status: { not: 'CERRADA' } },
-        select: { waiterId: true },
+        select: { orderId: true, waiterId: true, status: true },
         take: 1,
       },
     },
