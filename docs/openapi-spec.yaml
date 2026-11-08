@@ -924,21 +924,43 @@ paths:
       - $ref: '#/components/parameters/OrderId'
     get:
       tags: [Orders - Cobro]
-      summary: Generar la cuenta (mesero asignado)
+      summary: Ver la cuenta (mesero asignado)
       description: |
-        GC-ORD-0006. Items no cancelados con los precios del snapshot, `lineTotal` por linea, subtotal, descuento y
-        total calculados en el backend (R4); la cuenta no se persiste. Con la orden `ABIERTA` y al menos un item
-        `entregado`, la orden pasa a `EN_COBRO` (mesa `en_cobro`) con una actualizacion condicional y, tras el
-        commit, emite `table:status_changed` (payload `TableStatus`) a la sala `waiters`. Es idempotente: con la
-        orden ya `EN_COBRO` devuelve la cuenta recalculada sin otra transicion ni otro evento. No acepta parametros
-        de consulta. Sin items entregados responde `409 NO_DELIVERED_ITEMS`; con la orden `CERRADA`,
-        `409 INVALID_TRANSITION`. Un mesero solo pide la cuenta de sus mesas (`403`).
-        Nota para revision: un GET con efecto de estado no es seguro ante prefetch; se propone separar
-        "ver cuenta" (GET) de "solicitar cobro" (POST) en una version futura.
+        GC-ORD-0006. Solo lectura: no cambia el estado de la orden ni emite eventos. Items no cancelados con los
+        precios del snapshot, `lineTotal` por linea, subtotal, descuento y total calculados en el backend (R4); la
+        cuenta no se persiste. Responde con la orden `ABIERTA` o `EN_COBRO`; con la orden `CERRADA`,
+        `409 INVALID_TRANSITION`. No acepta parametros de consulta. Un mesero solo ve la cuenta de sus mesas
+        (`403`). Para pasar la mesa a cobro se usa `POST /api/orders/{orderId}/start-billing`.
       x-roles: [WAITER, ADMIN]
       responses:
         '200':
           description: Cuenta
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Bill' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
+  /api/orders/{orderId}/start-billing:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders - Cobro]
+      summary: Solicitar el cobro (mesero asignado)
+      description: |
+        GC-ORD-0006. Sin cuerpo. Con la orden `ABIERTA` y al menos un item `entregado`, la pasa a `EN_COBRO` (mesa
+        `en_cobro`) con una actualizacion condicional y, tras el commit, emite `table:status_changed` (payload
+        `TableStatus`) a la sala `waiters`. Es idempotente: con la orden ya `EN_COBRO` responde 200 con la cuenta,
+        sin otra transicion ni otro evento; dos solicitudes simultaneas producen una sola transicion. Responde la
+        cuenta recalculada en el backend. Sin items entregados responde `409 NO_DELIVERED_ITEMS`; con la orden
+        `CERRADA`, `409 INVALID_TRANSITION`. Un mesero solo solicita el cobro de sus mesas (`403`).
+        Distinto de `POST /api/orders/qr/{token}/request-bill`, que es el aviso del cliente desde el QR.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Orden en cobro y su cuenta
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Bill' }
@@ -1796,7 +1818,7 @@ components:
       properties:
         orderId: { type: string, format: uuid }
         tableNumber: { type: integer }
-        status: { type: string, enum: [EN_COBRO], description: Estado de la orden tras generar la cuenta }
+        status: { type: string, enum: [ABIERTA, EN_COBRO], description: Estado actual de la orden (ABIERTA si aun no se solicito el cobro) }
         items:
           type: array
           description: Solo items no cancelados, en el orden de las rondas
