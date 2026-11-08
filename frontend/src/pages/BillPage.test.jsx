@@ -79,11 +79,13 @@ describe('BillPage — cuenta', () => {
     expect(screen.getAllByText('$76.001').length).toBeGreaterThanOrEqual(2)
   })
 
-  it('si la cuenta llega por la navegación no la vuelve a pedir', async () => {
+  it('la cuenta de la navegación se ve al instante y se refresca con el GET (puede estar vieja tras recargar)', async () => {
+    ordersApi.getBill.mockResolvedValue({ ...BILL, discountAmount: 1, total: 76000 })
     renderPage({ state: { bill: BILL } })
 
     expect(screen.getByText('Pizzeta Pepperoni')).toBeInTheDocument()
-    expect(ordersApi.getBill).not.toHaveBeenCalled()
+    expect(ordersApi.getBill).toHaveBeenCalledWith(ORDER_ID)
+    expect(await screen.findByText('Confirmar Pago — $76.000')).toBeInTheDocument()
   })
 
   it('sin descuento no muestra la fila; con descuento la muestra con el total del backend', async () => {

@@ -58,9 +58,11 @@ export default function BillPage() {
     [orderId],
   )
 
+  // La cuenta que llega de "Solicitar Cobro" se muestra al instante, pero siempre se refresca con el GET
+  // (solo lectura): el estado de la navegacion sobrevive a una recarga y podria estar viejo.
   useEffect(() => {
-    if (!initialBill) fetchBill()
-  }, [fetchBill, initialBill])
+    fetchBill()
+  }, [fetchBill])
 
   // Solo para dibujar los metodos reales del restaurante; la seleccion llega con GC-ORD-0008
   useEffect(() => {
