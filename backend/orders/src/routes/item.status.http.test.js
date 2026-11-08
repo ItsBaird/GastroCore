@@ -1,10 +1,12 @@
 // PUT /api/orders/items/:id/status con la app real: autenticacion, roles y validacion.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { staffClient } from '../clients/staffClient.js';
 import { updateItemStatus } from '../services/itemStatus.service.js';
 import { call, startApp, tokenFor } from '../test/helpers.js';
 
 vi.mock('../config/prisma.js', () => ({ prisma: {} }));
 vi.mock('../services/itemStatus.service.js', () => ({ updateItemStatus: vi.fn() }));
+vi.mock('../clients/staffClient.js', () => ({ staffClient: { hasActiveShift: vi.fn() } }));
 
 const ITEM_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const URL = `/api/orders/items/${ITEM_ID}/status`;
@@ -18,6 +20,7 @@ afterAll(() => app.close());
 beforeEach(() => {
   vi.resetAllMocks();
   updateItemStatus.mockResolvedValue({ itemId: ITEM_ID, status: 'en_preparacion' });
+  staffClient.hasActiveShift.mockResolvedValue(true);
 });
 
 const put = (body, token = tokenFor('COOK'), path = URL) =>
@@ -65,9 +68,42 @@ describe('PUT /api/orders/items/:id/status', () => {
   });
 
   it('id que no es UUID responde 400', async () => {
-    const res = await put({ status: 'listo' }, tokenFor('COOK'), '/api/orders/items/no-uuid/status');
+    const res = await put(
+      { status: 'listo' },
+      tokenFor('COOK'),
+      '/api/orders/items/no-uuid/status',
+    );
 
     expect(res.status).toBe(400);
     expect(updateItemStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe('PUT /api/orders/items/:id/status y el turno del COOK', () => {
+  const COOK_ID = '33333333-3333-4333-8333-333333333333';
+
+  it('COOK sin turno activo: 409 NO_ACTIVE_SHIFT antes de mirar el item', async () => {
+    staffClient.hasActiveShift.mockResolvedValue(false);
+    const res = await put({ status: 'en_preparacion' }, tokenFor('COOK', { userId: COOK_ID }));
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('NO_ACTIVE_SHIFT');
+    expect(staffClient.hasActiveShift).toHaveBeenCalledWith(COOK_ID);
+    expect(updateItemStatus).not.toHaveBeenCalled();
+  });
+
+  it('ADMIN no necesita turno', async () => {
+    staffClient.hasActiveShift.mockResolvedValue(false);
+    const res = await put({ status: 'en_preparacion' }, tokenFor('ADMIN'));
+
+    expect(res.status).toBe(200);
+    expect(staffClient.hasActiveShift).not.toHaveBeenCalled();
+  });
+
+  it('WAITER sigue recibiendo 403 sin consultar Staff', async () => {
+    const res = await put({ status: 'listo' }, tokenFor('WAITER'));
+
+    expect(res.status).toBe(403);
+    expect(staffClient.hasActiveShift).not.toHaveBeenCalled();
   });
 });

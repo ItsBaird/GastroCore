@@ -1,12 +1,15 @@
 // GET /api/orders/kitchen con la app real: roles, y que no lo capture GET /:orderId.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { staffClient } from '../clients/staffClient.js';
 import { findKitchenRounds } from '../repositories/kitchen.repository.js';
 import { call, startApp, tokenFor } from '../test/helpers.js';
 
 vi.mock('../config/prisma.js', () => ({ prisma: {} }));
 vi.mock('../repositories/kitchen.repository.js', () => ({ findKitchenRounds: vi.fn() }));
+vi.mock('../clients/staffClient.js', () => ({ staffClient: { hasActiveShift: vi.fn() } }));
 
 const URL = '/api/orders/kitchen';
+const COOK_ID = '33333333-3333-4333-8333-333333333333';
 const CREATED_AT = '2026-11-07T15:00:00.000Z';
 
 const dbRound = {
@@ -46,6 +49,7 @@ afterAll(() => app.close());
 beforeEach(() => {
   vi.resetAllMocks();
   findKitchenRounds.mockResolvedValue([dbRound]);
+  staffClient.hasActiveShift.mockResolvedValue(true);
 });
 
 describe('GET /api/orders/kitchen', () => {
@@ -93,6 +97,43 @@ describe('GET /api/orders/kitchen', () => {
     const res = await call(app.base, 'GET', URL, { token: tokenFor('WAITER') });
 
     expect(res.status).toBe(403);
+    expect(findKitchenRounds).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/orders/kitchen y el turno del COOK', () => {
+  it('COOK sin turno activo: 409 NO_ACTIVE_SHIFT y no se leen rondas', async () => {
+    staffClient.hasActiveShift.mockResolvedValue(false);
+    const res = await call(app.base, 'GET', URL, { token: tokenFor('COOK', { userId: COOK_ID }) });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('NO_ACTIVE_SHIFT');
+    expect(staffClient.hasActiveShift).toHaveBeenCalledWith(COOK_ID);
+    expect(findKitchenRounds).not.toHaveBeenCalled();
+  });
+
+  it('COOK con turno activo: 200', async () => {
+    const res = await call(app.base, 'GET', URL, { token: tokenFor('COOK', { userId: COOK_ID }) });
+
+    expect(res.status).toBe(200);
+  });
+
+  it('ADMIN no necesita turno y no se consulta Staff', async () => {
+    staffClient.hasActiveShift.mockResolvedValue(false);
+    const res = await call(app.base, 'GET', URL, { token: tokenFor('ADMIN') });
+
+    expect(res.status).toBe(200);
+    expect(staffClient.hasActiveShift).not.toHaveBeenCalled();
+  });
+
+  it('si Staff no responde: 503 y no se leen rondas', async () => {
+    const { AppError } = await import('../errors/AppError.js');
+    staffClient.hasActiveShift.mockRejectedValue(
+      new AppError({ status: 503, code: 'DEPENDENCY_UNAVAILABLE', message: 'Staff caido' }),
+    );
+    const res = await call(app.base, 'GET', URL, { token: tokenFor('COOK', { userId: COOK_ID }) });
+
+    expect(res.status).toBe(503);
     expect(findKitchenRounds).not.toHaveBeenCalled();
   });
 });
