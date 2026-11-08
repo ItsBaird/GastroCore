@@ -179,6 +179,15 @@
   color: var(--white);
 }
 
+/* Sin turno (propuesta sin Figma): el naranja de la pildora COCINA, legible sobre el fondo oscuro */
+.kds-state .btn--primary {
+  min-height: 44px;
+  background: var(--orange-500);
+  border-color: var(--orange-500);
+  color: var(--white);
+  text-decoration: none;
+}
+
 /* ---------- Filtros (solo tablet y mobile) ---------- */
 .kds-filters {
   display: none;

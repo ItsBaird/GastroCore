@@ -5,6 +5,7 @@ import {
   updateItemStatusController,
 } from '../controllers/item.controller.js';
 import { authenticate, requireRole } from '../middlewares/authenticate.js';
+import { requireCookShift } from '../middlewares/requireCookShift.js';
 import { validate } from '../middlewares/validate.js';
 import {
   cancelItemBodySchema,
@@ -36,6 +37,7 @@ itemRouter.put(
   '/:id/status',
   authenticate,
   requireRole('COOK', 'ADMIN'),
+  requireCookShift,
   validate({ params: itemIdParamsSchema, body: itemStatusBodySchema }),
   updateItemStatusController,
 );
