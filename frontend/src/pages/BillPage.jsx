@@ -58,9 +58,11 @@ export default function BillPage() {
     [orderId],
   )
 
+  // La cuenta que llega de "Solicitar Cobro" se muestra al instante, pero siempre se refresca con el GET
+  // (solo lectura): el estado de la navegacion sobrevive a una recarga y podria estar viejo.
   useEffect(() => {
-    if (!initialBill) fetchBill()
-  }, [fetchBill, initialBill])
+    fetchBill()
+  }, [fetchBill])
 
   // Solo para dibujar los metodos reales del restaurante; la seleccion llega con GC-ORD-0008
   useEffect(() => {
@@ -153,6 +155,21 @@ export default function BillPage() {
               <RefreshCw size={16} /> Reintentar
             </button>
           )}
+        </div>
+      </WaiterPage>
+    )
+  }
+
+  // GET /bill ya no pasa la mesa a cobro: si se llega aqui con la orden abierta, no se ofrece cobrar
+  if (bill.status !== 'EN_COBRO') {
+    return (
+      <WaiterPage title={title} showShiftBadge={false}>
+        <div className="bill-state" role="alert">
+          <TriangleAlert size={28} />
+          <p>Esta mesa todavía no está en cobro. Solicita el cobro desde el detalle.</p>
+          <button type="button" className="btn btn--ghost" onClick={backToDetail}>
+            <ArrowLeft size={16} /> Volver al detalle
+          </button>
         </div>
       </WaiterPage>
     )

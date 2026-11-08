@@ -11,7 +11,7 @@ vi.mock('./tableStatus.service.js', () => ({ getTableStatus: vi.fn() }));
 const repo = await import('../repositories/bill.repository.js');
 const events = await import('../realtime/events.js');
 const { getTableStatus } = await import('./tableStatus.service.js');
-const { cancelBill, getBill } = await import('./bill.service.js');
+const { cancelBill, getBill, startBilling } = await import('./bill.service.js');
 
 const WAITER = { userId: 'waiter-1', role: 'WAITER' };
 const OTHER = { userId: 'waiter-2', role: 'WAITER' };
@@ -53,12 +53,9 @@ beforeEach(() => {
   getTableStatus.mockResolvedValue(TABLE_STATUS);
 });
 
-describe('getBill: calculo y permisos', () => {
+describe('getBill: solo lectura', () => {
   it('devuelve la cuenta calculada en el backend, con mesa y estado', async () => {
-    repo.findOrderForBill
-      .mockResolvedValueOnce(makeOrder())
-      .mockResolvedValueOnce(makeOrder({ status: 'EN_COBRO' }));
-    repo.moveOrderToBilling.mockResolvedValue(true);
+    repo.findOrderForBill.mockResolvedValue(makeOrder({ status: 'EN_COBRO' }));
 
     const bill = await getBill('order-1', WAITER);
 
@@ -71,6 +68,24 @@ describe('getBill: calculo y permisos', () => {
       total: 115000,
     });
     expect(bill.items.map((i) => i.itemId)).toEqual(['a', 'b']);
+  });
+
+  it('con la orden ABIERTA devuelve la cuenta sin pasarla a cobro ni emitir', async () => {
+    repo.findOrderForBill.mockResolvedValue(makeOrder());
+
+    await expect(getBill('order-1', WAITER)).resolves.toMatchObject({
+      status: 'ABIERTA',
+      total: 115000,
+    });
+    expect(repo.moveOrderToBilling).not.toHaveBeenCalled();
+    expect(events.emitTableStatusChanged).not.toHaveBeenCalled();
+  });
+
+  it('sin items entregados tambien se puede ver (la regla es de solicitar el cobro)', async () => {
+    repo.findOrderForBill.mockResolvedValue(makeOrder({ items: [row('a', 'pendiente', 1000, 1)] }));
+
+    await expect(getBill('order-1', WAITER)).resolves.toMatchObject({ total: 1000 });
+    expect(repo.moveOrderToBilling).not.toHaveBeenCalled();
   });
 
   it('el ADMIN pide la cuenta de cualquier mesa', async () => {
@@ -113,7 +128,7 @@ describe('getBill: calculo y permisos', () => {
   });
 });
 
-describe('getBill: transicion a en_cobro', () => {
+describe('startBilling: transicion a en_cobro', () => {
   it('con la mesa ocupada y un item entregado pasa a EN_COBRO y emite tras escribir', async () => {
     repo.findOrderForBill
       .mockResolvedValueOnce(makeOrder())
@@ -123,7 +138,7 @@ describe('getBill: transicion a en_cobro', () => {
       return true;
     });
 
-    await getBill('order-1', WAITER);
+    await startBilling('order-1', WAITER);
 
     expect(repo.moveOrderToBilling).toHaveBeenCalledWith('order-1');
     expect(getTableStatus).toHaveBeenCalledWith('table-1');
@@ -136,7 +151,7 @@ describe('getBill: transicion a en_cobro', () => {
       makeOrder({ items: [row('a', 'listo', 1000, 1), row('b', 'pendiente', 1000, 1)] }),
     );
 
-    await expect(getBill('order-1', WAITER)).rejects.toMatchObject({
+    await expect(startBilling('order-1', WAITER)).rejects.toMatchObject({
       status: 409,
       code: 'NO_DELIVERED_ITEMS',
     });
@@ -150,7 +165,7 @@ describe('getBill: transicion a en_cobro', () => {
       .mockResolvedValueOnce(makeOrder({ status: 'EN_COBRO' }));
     repo.moveOrderToBilling.mockResolvedValue(true);
 
-    const bill = await getBill('order-1', WAITER);
+    const bill = await startBilling('order-1', WAITER);
 
     expect(bill.items.map((i) => i.status)).toEqual(['entregado', 'listo']);
   });
@@ -158,8 +173,8 @@ describe('getBill: transicion a en_cobro', () => {
   it('idempotente: con la orden ya EN_COBRO devuelve la cuenta sin transicion ni evento', async () => {
     repo.findOrderForBill.mockResolvedValue(makeOrder({ status: 'EN_COBRO' }));
 
-    const first = await getBill('order-1', WAITER);
-    const second = await getBill('order-1', WAITER);
+    const first = await startBilling('order-1', WAITER);
+    const second = await startBilling('order-1', WAITER);
 
     expect(second).toEqual(first);
     expect(repo.moveOrderToBilling).not.toHaveBeenCalled();
@@ -172,7 +187,7 @@ describe('getBill: transicion a en_cobro', () => {
       .mockResolvedValueOnce(makeOrder({ status: 'EN_COBRO' }));
     repo.moveOrderToBilling.mockResolvedValue(false);
 
-    await expect(getBill('order-1', WAITER)).resolves.toMatchObject({
+    await expect(startBilling('order-1', WAITER)).resolves.toMatchObject({
       status: 'EN_COBRO',
       total: 115000,
     });
@@ -185,7 +200,7 @@ describe('getBill: transicion a en_cobro', () => {
       .mockResolvedValueOnce(makeOrder({ status: 'CERRADA' }));
     repo.moveOrderToBilling.mockResolvedValue(false);
 
-    await expect(getBill('order-1', WAITER)).rejects.toMatchObject({
+    await expect(startBilling('order-1', WAITER)).rejects.toMatchObject({
       code: 'INVALID_TRANSITION',
     });
   });

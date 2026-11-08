@@ -1,7 +1,7 @@
 import { ArrowLeft, Ban, Clock, Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { cancelItem, deliverItem, getBill, getOrderDetail } from '../api/orders.js'
+import { cancelItem, deliverItem, getOrderDetail, startBilling } from '../api/orders.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useToast } from '../components/Toast.jsx'
 import { useRealtimeEvent } from '../hooks/useRealtimeEvent.js'
@@ -166,9 +166,14 @@ export default function OrderDetailPage() {
   const [requestingBill, setRequestingBill] = useState(false)
 
   const handleRequestBill = async () => {
+    // Ya en cobro: solo se va a la cuenta (la pantalla la lee con GET, sin otra transicion)
+    if (order.status === 'EN_COBRO') {
+      navigate(`/mesero/mesas/${orderId}/cobro`)
+      return
+    }
     setRequestingBill(true)
     try {
-      const bill = await getBill(orderId)
+      const bill = await startBilling(orderId)
       navigate(`/mesero/mesas/${orderId}/cobro`, { state: { bill } })
     } catch (err) {
       toast.error(

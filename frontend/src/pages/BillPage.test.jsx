@@ -79,11 +79,13 @@ describe('BillPage — cuenta', () => {
     expect(screen.getAllByText('$76.001').length).toBeGreaterThanOrEqual(2)
   })
 
-  it('si la cuenta llega por la navegación no la vuelve a pedir', async () => {
+  it('la cuenta de la navegación se ve al instante y se refresca con el GET (puede estar vieja tras recargar)', async () => {
+    ordersApi.getBill.mockResolvedValue({ ...BILL, discountAmount: 1, total: 76000 })
     renderPage({ state: { bill: BILL } })
 
     expect(screen.getByText('Pizzeta Pepperoni')).toBeInTheDocument()
-    expect(ordersApi.getBill).not.toHaveBeenCalled()
+    expect(ordersApi.getBill).toHaveBeenCalledWith(ORDER_ID)
+    expect(await screen.findByText('Confirmar Pago — $76.000')).toBeInTheDocument()
   })
 
   it('sin descuento no muestra la fila; con descuento la muestra con el total del backend', async () => {
@@ -271,5 +273,20 @@ describe('BillPage — tiempo real', () => {
     act(() => handler()({ tableNumber: 9, status: 'libre', pendingCalls: [] }))
 
     expect(screen.getByText('Pizzeta Pepperoni')).toBeInTheDocument()
+  })
+})
+
+describe('BillPage — mesa todavía abierta', () => {
+  it('GET /bill ya no la pasa a cobro: avisa y no ofrece cobrar ni cancelar', async () => {
+    const user = userEvent.setup()
+    ordersApi.getBill.mockResolvedValue({ ...BILL, status: 'ABIERTA' })
+    renderPage()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/todavía no está en cobro/)
+    expect(screen.queryByRole('button', { name: 'Cancelar Cobro' })).toBeNull()
+    expect(screen.queryByText(/Confirmar Pago/)).toBeNull()
+    await user.click(within(alert).getByRole('button', { name: /Volver al detalle/ }))
+    expect(await screen.findByText('Detalle de la orden')).toBeInTheDocument()
   })
 })

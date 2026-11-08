@@ -1,9 +1,13 @@
 import { Router } from 'express';
-import { cancelBillController, getBillController } from '../controllers/bill.controller.js';
+import {
+  cancelBillController,
+  getBillController,
+  startBillingController,
+} from '../controllers/bill.controller.js';
 import { getOrderDetailController } from '../controllers/orderDetail.controller.js';
 import { authenticate, requireRole } from '../middlewares/authenticate.js';
 import { validate } from '../middlewares/validate.js';
-import { billQuerySchema, cancelBillBodySchema } from '../schemas/bill.schema.js';
+import { billQuerySchema, emptyBodySchema } from '../schemas/bill.schema.js';
 import { orderIdParamsSchema } from '../schemas/round.schema.js';
 
 export const orderRouter = Router();
@@ -16,7 +20,7 @@ orderRouter.get(
   getOrderDetailController,
 );
 
-// GC-ORD-0006. Mesero asignado o ADMIN; la pertenencia la decide el servicio.
+// GC-ORD-0006. Ver la cuenta (solo lectura). Mesero asignado o ADMIN; la pertenencia la decide el servicio.
 orderRouter.get(
   '/:orderId/bill',
   authenticate,
@@ -25,11 +29,20 @@ orderRouter.get(
   getBillController,
 );
 
+// GC-ORD-0006. Solicitar el cobro: pasa la orden a EN_COBRO. Distinto de qr/{token}/request-bill.
+orderRouter.post(
+  '/:orderId/start-billing',
+  authenticate,
+  requireRole('WAITER', 'ADMIN'),
+  validate({ params: orderIdParamsSchema, body: emptyBodySchema }),
+  startBillingController,
+);
+
 // GC-ORD-0006. Cancelar el cobro: mesero asignado o ADMIN, sin cuerpo.
 orderRouter.post(
   '/:orderId/cancel-bill',
   authenticate,
   requireRole('WAITER', 'ADMIN'),
-  validate({ params: orderIdParamsSchema, body: cancelBillBodySchema }),
+  validate({ params: orderIdParamsSchema, body: emptyBodySchema }),
   cancelBillController,
 );
