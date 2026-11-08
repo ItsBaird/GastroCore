@@ -870,6 +870,8 @@ paths:
       description: |
         GC-ORD-0004. Rondas de ordenes no cerradas con items `pendiente`, `en_preparacion` o `listo`, la mas
         antigua primero. Cada ronda trae solo esos items: `entregado` y `cancelado` salen de cocina.
+        El COOK necesita turno activo en Staff (`GET /internal/shifts/active/:userId`); sin turno responde
+        `409 NO_ACTIVE_SHIFT`. El ADMIN no lo necesita y no se consulta Staff.
       x-roles: [COOK, ADMIN]
       responses:
         '200':
@@ -881,6 +883,12 @@ paths:
                 items: { $ref: '#/components/schemas/KitchenRound' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: COOK sin turno activo (`NO_ACTIVE_SHIFT`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
   /api/orders/items/{id}/status:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -892,7 +900,8 @@ paths:
         Emite `item:status_changed` (payload `ItemStatusChangedEvent`) a las salas `kitchen` y
         `waiter:{waiterId}` (el mesero actual de la orden), una sola vez por socket. Cualquier otra transicion
         entre estados reales, o una orden `CERRADA`, responde `409 INVALID_TRANSITION`; un estado que no existe
-        responde `400 VALIDATION_ERROR`.
+        responde `400 VALIDATION_ERROR`. El COOK necesita turno activo en Staff; sin turno responde
+        `409 NO_ACTIVE_SHIFT` antes de mirar el item. El ADMIN no lo necesita.
       x-roles: [COOK, ADMIN]
       requestBody:
         required: true
@@ -916,7 +925,12 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/InvalidTransition' }
+        '409':
+          description: Transicion no definida u orden cerrada (`INVALID_TRANSITION`), o COOK sin turno activo (`NO_ACTIVE_SHIFT`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
 
   # ───────────── Orders - Cobro (F08) ─────────────
   /api/orders/{orderId}/bill:
