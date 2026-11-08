@@ -102,6 +102,32 @@ describe('rutas de la aplicacion', () => {
         '/admin/usuarios',
       )
     })
+
+    it('entra a la vista del mesero con un clic desde su menú y vuelve con otro', async () => {
+      const ui = userEvent.setup()
+      renderApp('/admin/usuarios', as('ADMIN'))
+      await screen.findByRole('heading', { name: 'Gestión de Usuarios' })
+
+      const toWaiter = screen.getByRole('link', { name: /Vista Mesero/ })
+      expect(toWaiter).toHaveAttribute('href', '/mesero/mesas')
+      // Tambien en la barra movil, con etiqueta corta, en el lugar de Dashboard (que aun no existe)
+      expect(toWaiter).toHaveClass('nav-item--mobile')
+      expect(toWaiter).toHaveTextContent('Mesero')
+      expect(screen.getByRole('button', { name: /Dashboard/ })).not.toHaveClass('nav-item--mobile')
+      await ui.click(toWaiter)
+      expect(await screen.findByRole('heading', { name: 'Mis Mesas' })).toBeInTheDocument()
+
+      expect(document.querySelector('.role-badge')).toHaveTextContent('ADMIN')
+      expect(document.querySelector('.role-badge')).toHaveClass('role-badge--admin')
+
+      // Barra movil (clase nav-item--mobile): el ADMIN ve Admin y no los destinos que aun no existen
+      expect(screen.getByRole('link', { name: /Panel Admin/ })).toHaveClass('nav-item--mobile')
+      expect(screen.getByRole('button', { name: /Pedidos Activos/ })).not.toHaveClass('nav-item--mobile')
+      expect(screen.getByRole('button', { name: /Llamados/ })).not.toHaveClass('nav-item--mobile')
+
+      await ui.click(screen.getByRole('link', { name: /Panel Admin/ }))
+      expect(await screen.findByRole('heading', { name: 'Gestión de Usuarios' })).toBeInTheDocument()
+    })
   })
 
   describe('WAITER', () => {
@@ -120,6 +146,16 @@ describe('rutas de la aplicacion', () => {
     it('si ya inicio sesion, /login lo devuelve a su inicio', async () => {
       renderApp('/login', as('WAITER'))
       expect(await screen.findByRole('heading', { name: 'Mis Mesas' })).toBeInTheDocument()
+    })
+
+    it('no ve el acceso al panel de administración', async () => {
+      renderApp('/mesero/mesas', as('WAITER'))
+      await screen.findByRole('heading', { name: 'Mis Mesas' })
+      expect(screen.queryByRole('link', { name: /Panel Admin/ })).toBeNull()
+      expect(document.querySelector('.role-badge')).toHaveTextContent('MESERO')
+      expect(document.querySelector('.role-badge')).not.toHaveClass('role-badge--admin')
+      // Su barra movil no cambia: los destinos "Proximamente" siguen ahi
+      expect(screen.getByRole('button', { name: /Pedidos Activos/ })).toHaveClass('nav-item--mobile')
     })
 
     it('el boton de cerrar sesion llama al logout del contexto', async () => {

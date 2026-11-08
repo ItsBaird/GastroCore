@@ -1,5 +1,6 @@
 import {
   Clock,
+  ConciergeBell,
   CreditCard,
   DollarSign,
   IdCard,
@@ -20,8 +21,11 @@ import './AdminLayout.css'
 // Usuarios, Empleados, Turnos, Metodos de pago, Mesas, Productos y Categorias existen por ahora; el resto se activa cuando se construya cada modulo.
 // "mobile" marca los 4 destinos de la barra inferior (el diseno permite 4-5).
 const NAV = [
-  { label: 'Dashboard', icon: LayoutDashboard, mobile: true },
+  // Sin modulo todavia: fuera de la barra movil para dejar el lugar a Vista Mesero
+  { label: 'Dashboard', icon: LayoutDashboard },
   { label: 'Mesas', icon: Table, to: '/admin/mesas', mobile: true },
+  // El ADMIN tambien atiende mesas (WAITER y ADMIN comparten /mesero): acceso directo al panel del mesero
+  { label: 'Vista Mesero', short: 'Mesero', icon: ConciergeBell, to: '/mesero/mesas', mobile: true },
   { label: 'Productos', icon: UtensilsCrossed, to: '/admin/productos' },
   { label: 'Categorías', icon: Tag, to: '/admin/categorias' },
   { label: 'Usuarios', icon: Users, to: '/admin/usuarios', mobile: true },
@@ -37,7 +41,16 @@ function NavItem({ item }) {
   const content = (
     <>
       <Icon size={20} aria-hidden="true" />
-      <span className="nav-item__label">{item.label}</span>
+      <span className="nav-item__label">
+        {item.short ? (
+          <>
+            <span className="hide-sm">{item.label}</span>
+            <span className="show-sm">{item.short}</span>
+          </>
+        ) : (
+          item.label
+        )}
+      </span>
     </>
   )
 

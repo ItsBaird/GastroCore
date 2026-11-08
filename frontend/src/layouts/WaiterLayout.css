@@ -112,3 +112,12 @@
     font-size: 9px;
   }
 }
+
+/* La insignia del ADMIN en la vista del mesero: el morado del rol ADMIN (pill--admin) */
+.role-badge--admin {
+  background: color-mix(in srgb, var(--purple-600) 15%, transparent);
+}
+
+.role-badge--admin .role-badge__text {
+  color: var(--purple-600);
+}

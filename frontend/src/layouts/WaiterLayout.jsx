@@ -3,10 +3,12 @@ import {
   ClipboardList,
   LogOut,
   Pizza,
+  ShieldCheck,
   Table,
   User,
 } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { homePathFor } from '../auth/paths.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useActiveShift } from '../hooks/useActiveShift.js'
 import { initial } from '../utils/user.js'
@@ -24,7 +26,16 @@ function NavItem({ item }) {
   const content = (
     <>
       <Icon size={20} aria-hidden="true" />
-      <span className="nav-item__label">{item.label}</span>
+      <span className="nav-item__label">
+        {item.short ? (
+          <>
+            <span className="hide-sm">{item.label}</span>
+            <span className="show-sm">{item.short}</span>
+          </>
+        ) : (
+          item.label
+        )}
+      </span>
       {item.badge && <span className="nav-badge" aria-label="llamados pendientes">0</span>}
     </>
   )
@@ -54,8 +65,17 @@ function NavItem({ item }) {
   )
 }
 
+// El ADMIN entra a la vista del mesero desde su menu; este item lo devuelve a su panel
+const ADMIN_BACK = {
+  label: 'Panel Admin',
+  short: 'Admin',
+  icon: ShieldCheck,
+  to: homePathFor('ADMIN'),
+  mobile: true,
+}
+
 export function WaiterLayout() {
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = async () => {
@@ -70,13 +90,19 @@ export function WaiterLayout() {
           <Pizza size={28} className="brand__icon" aria-hidden="true" />
           <span className="brand__name">GastroCore</span>
         </div>
-        <div className="role-badge">
-          <span className="role-badge__text">MESERO</span>
+        {/* El ADMIN tambien usa esta vista: la insignia muestra su rol real */}
+        <div className={`role-badge${user?.role === 'ADMIN' ? ' role-badge--admin' : ''}`}>
+          <span className="role-badge__text">{user?.role === 'ADMIN' ? 'ADMIN' : 'MESERO'}</span>
         </div>
         <nav className="sidebar__nav" aria-label="Principal">
           {NAV.map((item) => (
-            <NavItem key={item.label} item={item} />
+            <NavItem
+              key={item.label}
+              // En movil el ADMIN no ve los destinos que aun no existen: deja sitio a "Admin" sin apretar la barra
+              item={user?.role === 'ADMIN' && !item.to ? { ...item, mobile: false } : item}
+            />
           ))}
+          {user?.role === 'ADMIN' && <NavItem item={ADMIN_BACK} />}
         </nav>
         <button type="button" className="nav-item nav-item--logout" onClick={handleLogout}>
           <LogOut size={20} aria-hidden="true" />
