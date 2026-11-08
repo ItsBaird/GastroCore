@@ -102,6 +102,20 @@ describe('rutas de la aplicacion', () => {
         '/admin/usuarios',
       )
     })
+
+    it('entra a la vista del mesero con un clic desde su menú y vuelve con otro', async () => {
+      const ui = userEvent.setup()
+      renderApp('/admin/usuarios', as('ADMIN'))
+      await screen.findByRole('heading', { name: 'Gestión de Usuarios' })
+
+      const toWaiter = screen.getByRole('link', { name: 'Vista Mesero' })
+      expect(toWaiter).toHaveAttribute('href', '/mesero/mesas')
+      await ui.click(toWaiter)
+      expect(await screen.findByRole('heading', { name: 'Mis Mesas' })).toBeInTheDocument()
+
+      await ui.click(screen.getByRole('link', { name: 'Panel Admin' }))
+      expect(await screen.findByRole('heading', { name: 'Gestión de Usuarios' })).toBeInTheDocument()
+    })
   })
 
   describe('WAITER', () => {
@@ -120,6 +134,12 @@ describe('rutas de la aplicacion', () => {
     it('si ya inicio sesion, /login lo devuelve a su inicio', async () => {
       renderApp('/login', as('WAITER'))
       expect(await screen.findByRole('heading', { name: 'Mis Mesas' })).toBeInTheDocument()
+    })
+
+    it('no ve el acceso al panel de administración', async () => {
+      renderApp('/mesero/mesas', as('WAITER'))
+      await screen.findByRole('heading', { name: 'Mis Mesas' })
+      expect(screen.queryByRole('link', { name: 'Panel Admin' })).toBeNull()
     })
 
     it('el boton de cerrar sesion llama al logout del contexto', async () => {

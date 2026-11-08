@@ -3,10 +3,12 @@ import {
   ClipboardList,
   LogOut,
   Pizza,
+  ShieldCheck,
   Table,
   User,
 } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { homePathFor } from '../auth/paths.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useActiveShift } from '../hooks/useActiveShift.js'
 import { initial } from '../utils/user.js'
@@ -54,8 +56,11 @@ function NavItem({ item }) {
   )
 }
 
+// El ADMIN entra a la vista del mesero desde su menu; este item lo devuelve a su panel
+const ADMIN_BACK = { label: 'Panel Admin', icon: ShieldCheck, to: homePathFor('ADMIN') }
+
 export function WaiterLayout() {
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = async () => {
@@ -77,6 +82,7 @@ export function WaiterLayout() {
           {NAV.map((item) => (
             <NavItem key={item.label} item={item} />
           ))}
+          {user?.role === 'ADMIN' && <NavItem item={ADMIN_BACK} />}
         </nav>
         <button type="button" className="nav-item nav-item--logout" onClick={handleLogout}>
           <LogOut size={20} aria-hidden="true" />
