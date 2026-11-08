@@ -1194,6 +1194,29 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
+  /api/orders/qr-requests:
+    get:
+      tags: [Orders - QR]
+      summary: Listar las solicitudes QR pendientes (respaldo del evento qr_request:created)
+      description: |
+        GC-QR-0003. Devuelve las solicitudes `pendiente` de ordenes no cerradas (incluye `EN_COBRO`), la mas
+        antigua primero, con el mismo formato que el payload de `qr_request:created` (`QrRequestWithTable`).
+        El mesero la consulta al abrir la pantalla y al reconectar el socket, para no perder solicitudes que
+        llegaron mientras no estaba conectado. WAITER ve solo las de sus mesas; ADMIN ve todas; COOK `403`.
+        No acepta parametros: cualquier query string responde `400`. Los items traen `productId`, sin nombre
+        (el nombre se resuelve con el catalogo) y su orden no esta garantizado.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Solicitudes pendientes (arreglo vacio si no hay)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/QrRequestWithTable' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/orders/qr-requests/{id}/confirm:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -1967,14 +1990,18 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/RoundItemInput' }
-    QrRequestCreatedEvent:
-      description: Payload del evento Socket.io `qr_request:created`.
+    QrRequestWithTable:
+      description: Solicitud QR con el numero de mesa. Lo devuelve `GET /api/orders/qr-requests` y es el payload del evento.
       allOf:
         - $ref: '#/components/schemas/QrRequest'
         - type: object
           required: [tableNumber]
           properties:
             tableNumber: { type: integer }
+    QrRequestCreatedEvent:
+      description: Payload del evento Socket.io `qr_request:created` (igual a un elemento de `GET /api/orders/qr-requests`).
+      allOf:
+        - $ref: '#/components/schemas/QrRequestWithTable'
     CashClosePreview:
       type: object
       required:
