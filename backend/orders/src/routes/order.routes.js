@@ -6,11 +6,13 @@ import {
   startBillingController,
 } from '../controllers/bill.controller.js';
 import { getOrderDetailController } from '../controllers/orderDetail.controller.js';
+import { registerPaymentController } from '../controllers/payment.controller.js';
 import { authenticate, requireRole } from '../middlewares/authenticate.js';
 import { requireDiscountPermission } from '../middlewares/requireDiscountPermission.js';
 import { validate } from '../middlewares/validate.js';
 import { billQuerySchema, emptyBodySchema } from '../schemas/bill.schema.js';
 import { discountBodySchema } from '../schemas/discount.schema.js';
+import { paymentBodySchema } from '../schemas/payment.schema.js';
 import { orderIdParamsSchema } from '../schemas/round.schema.js';
 
 export const orderRouter = Router();
@@ -58,4 +60,13 @@ orderRouter.post(
   requireDiscountPermission,
   validate({ params: orderIdParamsSchema, body: discountBodySchema }),
   applyDiscountController,
+);
+
+// GC-ORD-0008. Registrar el pago y cerrar la orden: mesero asignado o ADMIN; pertenencia en el servicio.
+orderRouter.post(
+  '/:orderId/pay',
+  authenticate,
+  requireRole('WAITER', 'ADMIN'),
+  validate({ params: orderIdParamsSchema, body: paymentBodySchema }),
+  registerPaymentController,
 );
