@@ -1071,9 +1071,26 @@ paths:
       tags: [Orders - Cobro]
       summary: Registrar el pago y cerrar la orden (mesero asignado)
       description: |
-        GC-ORD-0008. Con un metodo en efectivo (`isCash`) se envia `amountReceived` y el backend calcula
-        `changeGiven = amountReceived - total` (R4). Si el monto es insuficiente se rechaza (codigo propuesto
-        `INSUFFICIENT_AMOUNT`). La orden queda `CERRADA` y la mesa `libre`.
+        GC-ORD-0008. Cierra el ciclo de venta.
+        Quien: el mesero asignado (dueno actual de la orden) o el ADMIN; otro mesero `403 FORBIDDEN`. La venta
+        sigue atribuida a `openedBy`; quien cobra queda en `registeredBy`.
+        Estado: solo con la orden `EN_COBRO` (cuenta solicitada con `start-billing`); `ABIERTA` o `CERRADA` ->
+        `409 INVALID_TRANSITION`. Tampoco se cierra con items vivos sin entregar (`pendiente`, `en_preparacion`,
+        `listo`): `409 INVALID_TRANSITION` con `details.items` (los `cancelado` y `entregado` no bloquean).
+        Metodo: debe existir (`404 NOT_FOUND`) y estar activo (`409 PAYMENT_METHOD_INACTIVE`).
+        Monto (R4/R5): el total se recalcula en el backend con la misma funcion de la cuenta (snapshot R3, sin
+        cancelados, menos el descuento vigente). Con un metodo en efectivo (`isCash`) `amountReceived` es
+        obligatorio y debe ser `>= total`; si no alcanza, `400 INSUFFICIENT_AMOUNT` con `details.total` (el
+        total vigente). El backend calcula `changeGiven = amountReceived - total` (0 si es igual). Con un metodo
+        que no es efectivo, enviar `amountReceived` es `400 VALIDATION_ERROR`, y el pago guarda
+        `amountReceived` y `changeGiven` en null. Un total 0 (descuento igual al subtotal) se puede pagar.
+        Efectos, en una sola transaccion: la orden pasa de `EN_COBRO` a `CERRADA` con `closedAt` (actualizacion
+        condicional); se registra el pago con el snapshot de `subtotal`, `discountAmount`, `discountAppliedBy` y
+        `total`; y se audita `PAYMENT_REGISTERED` con mesa, nombre del metodo, total, descuento y cambio. Si algo
+        falla no queda nada. Un solo pago por orden: un reintento responde `409 INVALID_TRANSITION`. La mesa
+        queda `libre` porque ya no tiene orden abierta.
+        Tras el commit emite `table:status_changed` (mesa `libre`) a la sala `waiters` y `order:updated`
+        (`status: CERRADA`) a `waiter:{waiterId}` del mesero actual.
       x-roles: [WAITER, ADMIN]
       requestBody:
         required: true
@@ -1082,27 +1099,32 @@ paths:
             schema:
               type: object
               required: [paymentMethodId]
+              additionalProperties: false
               properties:
                 paymentMethodId: { type: string, format: uuid }
                 amountReceived:
                   type: integer
                   minimum: 0
-                  description: Solo para metodos en efectivo
+                  description: Pesos enteros. Obligatorio con efectivo; prohibido con otros metodos
       responses:
         '201':
-          description: Pago registrado
+          description: Pago registrado; la orden quedo `CERRADA`
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Payment' }
         '400':
-          description: Datos invalidos o monto insuficiente
+          description: Datos invalidos (`VALIDATION_ERROR`) o efectivo insuficiente (`INSUFFICIENT_AMOUNT`, con `details.total`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/InvalidTransition' }
+        '409':
+          description: Orden no `EN_COBRO`, ya pagada o con items sin entregar (`INVALID_TRANSITION`), o metodo inactivo (`PAYMENT_METHOD_INACTIVE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   # ───────────── Orders - QR (F09) ─────────────
   /api/orders/qr/{token}:
@@ -1526,7 +1548,7 @@ components:
               example: NOT_FOUND
               description: |
                 NOT_FOUND, VALIDATION_ERROR, UNAUTHENTICATED, FORBIDDEN, CONFLICT, EMAIL_ALREADY_EXISTS, ACCOUNT_LOCKED, INVALID_TRANSITION,
-                NO_ACTIVE_SHIFT, TABLE_ALREADY_OPEN, TABLE_NOT_OPEN, HAS_OPEN_TABLES, DAY_CLOSED, NO_DELIVERED_ITEMS,
+                NO_ACTIVE_SHIFT, TABLE_ALREADY_OPEN, TABLE_NOT_OPEN, HAS_OPEN_TABLES, DAY_CLOSED, NO_DELIVERED_ITEMS, INSUFFICIENT_AMOUNT, PAYMENT_METHOD_INACTIVE,
                 RATE_LIMITED, DEPENDENCY_UNAVAILABLE, INTERNAL_ERROR
             message: { type: string, example: Recurso no encontrado }
             details:
@@ -1790,8 +1812,9 @@ components:
             tableNumber: { type: integer }
     OrderUpdatedEvent:
       description: |
-        Payload del evento Socket.io `order:updated` (GC-ORD-0007): cambio el descuento de una orden en cobro. Solo
-        avisa; la cuenta se vuelve a pedir con `GET /api/orders/{orderId}/bill`.
+        Payload del evento Socket.io `order:updated`: cambio el descuento de una orden en cobro (GC-ORD-0007) o la
+        orden se pago y quedo `CERRADA` (GC-ORD-0008). Solo avisa; con la orden en cobro la cuenta se vuelve a pedir
+        con `GET /api/orders/{orderId}/bill`.
       type: object
       required: [orderId, tableNumber, status, discountAmount]
       properties:
