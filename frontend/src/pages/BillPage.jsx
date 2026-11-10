@@ -2,7 +2,6 @@ import { ArrowLeft, Printer, RefreshCw, Tag, TriangleAlert } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { cancelBill, getBill } from '../api/orders.js'
-import { listPaymentMethods } from '../api/paymentMethods.js'
 import { useAuth } from '../auth/useAuth.js'
 import { ConfirmDialog } from '../components/ConfirmDialog.jsx'
 import { useToast } from '../components/Toast.jsx'
@@ -11,12 +10,12 @@ import { WaiterPage } from '../layouts/WaiterLayout.jsx'
 import '../styles/waiter.tokens.css'
 import { formatCOP } from '../utils/formatCOP.js'
 import './billing.tokens.css'
+import { BillPayment } from './BillPayment.jsx'
 import { DiscountModal } from './DiscountModal.jsx'
 import './BillPage.css'
 
 // GC-ORD-0006. Vista de Cobro (Figma 35:2, 39:2, 43:2). Todo monto viene del backend (R4): aqui no se
-// suma ni se multiplica nada. El pago (metodo, monto recibido, cambio, Confirmar Pago) es de GC-ORD-0008:
-// se dibuja como en el Figma pero deshabilitado y rotulado "Proximamente", sin logica falsa.
+// suma ni se multiplica nada. GC-ORD-0008: la zona de pago (BillPayment) registra el pago y cierra la orden.
 
 function loadErrorMessage(err) {
   if (err?.status === 0) return 'Sin conexión con el servidor.'
@@ -37,7 +36,6 @@ export default function BillPage() {
   const [bill, setBill] = useState(initialBill)
   const [loading, setLoading] = useState(!initialBill)
   const [error, setError] = useState(null)
-  const [methods, setMethods] = useState([])
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [discounting, setDiscounting] = useState(false)
@@ -45,6 +43,9 @@ export default function BillPage() {
   const canDiscount = user?.role === 'ADMIN' || (user?.permissions ?? []).includes('discount:apply')
   // La cancelacion propia tambien vuelve como table:status_changed: no es "otro dispositivo"
   const cancelledHere = useRef(false)
+  // GC-ORD-0008: el pago propio tambien vuelve como table:status_changed (libre) y order:updated (CERRADA)
+  const paidHere = useRef(false)
+  const lastTotal = useRef(initialBill?.total ?? null)
 
   const backToDetail = useCallback(
     () => navigate(`/mesero/mesas/${orderId}`, { replace: true }),
@@ -56,12 +57,17 @@ export default function BillPage() {
     () =>
       getBill(orderId)
         .then((next) => {
+          // Un descuento en vivo cambio el total: se avisa para que el mesero no cobre el viejo
+          if (lastTotal.current !== null && next.total !== lastTotal.current) {
+            toast.success(`La cuenta cambió: nuevo total ${formatCOP(next.total)}`)
+          }
+          lastTotal.current = next.total
           setBill(next)
           setError(null)
         })
         .catch((err) => setError(err))
         .finally(() => setLoading(false)),
-    [orderId],
+    [orderId, toast],
   )
 
   // La cuenta que llega de "Solicitar Cobro" se muestra al instante, pero siempre se refresca con el GET
@@ -69,17 +75,6 @@ export default function BillPage() {
   useEffect(() => {
     fetchBill()
   }, [fetchBill])
-
-  // Solo para dibujar los metodos reales del restaurante; la seleccion llega con GC-ORD-0008
-  useEffect(() => {
-    let active = true
-    listPaymentMethods({ active: true })
-      .then((list) => active && setMethods(list))
-      .catch(() => {})
-    return () => {
-      active = false
-    }
-  }, [])
 
   const retry = () => {
     setLoading(true)
@@ -92,7 +87,8 @@ export default function BillPage() {
     'table:status_changed',
     useCallback(
       (status) => {
-        if (!bill || cancelledHere.current || status?.tableNumber !== bill.tableNumber) return
+        if (!bill || cancelledHere.current || paidHere.current) return
+        if (status?.tableNumber !== bill.tableNumber) return
         if (status.status === 'ocupada' && status.orderId === orderId) {
           toast.success('Se canceló el cobro de esta mesa desde otro dispositivo')
           backToDetail()
@@ -111,14 +107,22 @@ export default function BillPage() {
     'order:updated',
     useCallback(
       (payload) => {
-        if (payload?.orderId === orderId) fetchBill()
+        if (payload?.orderId !== orderId || paidHere.current) return
+        if (payload.status === 'CERRADA') {
+          // Otro dispositivo registro el pago
+          toast.success('La mesa ya se cerró')
+          navigate('/mesero/mesas', { replace: true })
+          return
+        }
+        fetchBill()
       },
-      [orderId, fetchBill],
+      [orderId, fetchBill, toast, navigate],
     ),
     { onReconnect: fetchBill },
   )
 
   const handleDiscountApplied = (nextBill, amount) => {
+    lastTotal.current = nextBill.total
     setBill(nextBill)
     setDiscounting(false)
     toast.success(amount > 0 ? `Descuento de ${formatCOP(amount)} aplicado` : 'Descuento quitado')
@@ -128,6 +132,21 @@ export default function BillPage() {
     setDiscounting(false)
     toast.error(err?.message || 'No se pudo aplicar el descuento')
     fetchBill()
+  }
+
+  // El cambio que se muestra es el que calculo el backend (changeGiven), no la estimacion de la pantalla
+  const handlePaid = (payment, method) => {
+    toast.success(
+      payment.changeGiven === null
+        ? `Pago registrado · ${formatCOP(payment.total)} con ${method.name}`
+        : `Pago registrado · Cambio ${formatCOP(payment.changeGiven)}`,
+    )
+    navigate('/mesero/mesas', { replace: true })
+  }
+
+  const handleAlreadyClosed = () => {
+    toast.success('Esta orden ya fue pagada')
+    navigate('/mesero/mesas', { replace: true })
   }
 
   const handleCancelBill = async () => {
@@ -273,45 +292,18 @@ export default function BillPage() {
           )}
         </section>
 
-        <section className="bill-card bill-payment" aria-labelledby="bill-payment-title">
-          <h2 id="bill-payment-title" className="bill-card__title">
-            Método de Pago <span className="bill-soon">Próximamente</span>
-          </h2>
-          <div className="bill-divider" />
-
-          <div className="bill-methods" role="radiogroup" aria-label="Método de pago" aria-disabled="true">
-            {methods.map((method) => (
-              <button
-                key={method.paymentMethodId}
-                type="button"
-                role="radio"
-                aria-checked="false"
-                className="bill-method"
-                disabled
-              >
-                <span className="bill-method__radio" aria-hidden="true" />
-                {method.name}
-              </button>
-            ))}
-          </div>
-
-          <div className="bill-cash">
-            <label className="bill-cash__label" htmlFor="bill-amount">
-              Monto recibido<span className="bill-only-desktop">:</span>
-            </label>
-            <div className="bill-cash__input">
-              <span aria-hidden="true">$</span>
-              <input id="bill-amount" type="text" inputMode="numeric" placeholder="—" disabled />
-            </div>
-            <span className="bill-cash__change-label">Cambio:</span>
-            <span className="bill-cash__change">—</span>
-          </div>
-        </section>
-
-        <div className="bill-actions">
-          <button type="button" className="bill-btn-pay" disabled title="Disponible próximamente">
-            Confirmar Pago — {formatCOP(bill.total)}
-          </button>
+        <BillPayment
+          bill={bill}
+          onPayStart={() => {
+            paidHere.current = true
+          }}
+          onPayFailed={() => {
+            paidHere.current = false
+          }}
+          onPaid={handlePaid}
+          onBillStale={fetchBill}
+          onAlreadyClosed={handleAlreadyClosed}
+        >
           <button type="button" className="bill-btn-outline bill-only-desktop" onClick={() => window.print()}>
             <Printer size={16} aria-hidden="true" /> Imprimir Recibo
           </button>
@@ -322,7 +314,7 @@ export default function BillPage() {
           >
             Cancelar Cobro
           </button>
-        </div>
+        </BillPayment>
       </div>
 
       {discounting && (

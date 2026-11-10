@@ -36,3 +36,11 @@ export const applyDiscount = (orderId, { discountAmount, reason }) =>
     method: 'POST',
     body: { discountAmount, ...(reason && { reason }) },
   })
+
+// GC-ORD-0008. R4: solo viajan el metodo y, con efectivo, lo que entrego el cliente (pesos enteros). El total,
+// el cambio y el cierre los decide el backend; devuelve el Payment (con changeGiven) y la orden queda CERRADA.
+export const registerPayment = (orderId, { paymentMethodId, amountReceived }) =>
+  api(`/api/orders/${orderId}/pay`, {
+    method: 'POST',
+    body: { paymentMethodId, ...(amountReceived !== undefined && { amountReceived }) },
+  })
