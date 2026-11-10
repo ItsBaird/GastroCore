@@ -9,9 +9,13 @@ const LIVE_ITEM_STATUSES = ['pendiente', 'en_preparacion', 'listo'];
 //   2. El pago, con el snapshot de la cuenta (subtotal, descuento, quien lo aplico, total, recibido, cambio).
 //   3. Las solicitudes QR que seguian pendientes se rechazan: la orden cerrada ya no puede recibir rondas y
 //      la mesa queda libre para el siguiente cliente (CHECK chk_qr_requests_resolution: resolved_by y _at).
-//   4. Auditoria PAYMENT_REGISTERED.
-// Devuelve { payment, rejectedQrRequests } o null si la orden ya no estaba como se leyo.
-export async function closeOrderWithPayment({ orderId, payment, userId, auditDetails }) {
+//   4. Los llamados pendientes de la mesa (call_waiter y request_bill) pasan a atendido por quien cobra: si no,
+//      el indice uix_service_calls_one_pending dejaria al siguiente cliente sin poder llamar
+//      (CHECK chk_service_calls_resolution: attended_by y _at).
+//   5. Auditoria PAYMENT_REGISTERED.
+// Contrato de /pay (docs/gc-ord-0008-pago-limpieza, aprobado por Oscar).
+// Devuelve { payment, rejectedQrRequests, attendedServiceCalls } o null si la orden ya no estaba como se leyo.
+export async function closeOrderWithPayment({ orderId, tableId, payment, userId, auditDetails }) {
   return prisma.$transaction(async (tx) => {
     const now = new Date();
     const closed = await tx.order.updateMany({
@@ -35,6 +39,11 @@ export async function closeOrderWithPayment({ orderId, payment, userId, auditDet
       data: { status: 'rechazada', resolvedBy: userId, resolvedAt: now },
     });
 
+    const attended = await tx.serviceCall.updateMany({
+      where: { tableId, status: 'pendiente' },
+      data: { status: 'atendido', attendedBy: userId, attendedAt: now },
+    });
+
     await tx.auditLog.create({
       data: {
         actionType: 'PAYMENT_REGISTERED',
@@ -45,10 +54,15 @@ export async function closeOrderWithPayment({ orderId, payment, userId, auditDet
           ...auditDetails,
           paymentId: created.paymentId,
           ...(rejected.count > 0 && { rejectedQrRequests: rejected.count }),
+          ...(attended.count > 0 && { attendedServiceCalls: attended.count }),
         },
       },
     });
 
-    return { payment: created, rejectedQrRequests: rejected.count };
+    return {
+      payment: created,
+      rejectedQrRequests: rejected.count,
+      attendedServiceCalls: attended.count,
+    };
   });
 }

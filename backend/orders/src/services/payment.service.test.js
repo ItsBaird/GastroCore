@@ -85,6 +85,7 @@ function echoPayment() {
       paidAt: new Date('2026-11-08T20:00:00Z'),
     },
     rejectedQrRequests: 0,
+    attendedServiceCalls: 0,
   }));
 }
 
@@ -119,6 +120,7 @@ describe('registerPayment: efectivo', () => {
     });
     expect(paymentRepo.closeOrderWithPayment).toHaveBeenCalledWith({
       orderId: 'order-1',
+      tableId: 'table-1',
       userId: 'waiter-1',
       payment: {
         paymentMethodId: 'm-cash',

@@ -6,6 +6,7 @@ const tx = {
   order: { updateMany: vi.fn() },
   payment: { create: vi.fn() },
   qrRequest: { updateMany: vi.fn() },
+  serviceCall: { updateMany: vi.fn() },
   auditLog: { create: vi.fn() },
 };
 const prisma = { $transaction: vi.fn((fn) => fn(tx)) };
@@ -24,6 +25,7 @@ const PAYMENT = {
 };
 const input = {
   orderId: 'o1',
+  tableId: 't1',
   userId: 'waiter-1',
   payment: PAYMENT,
   auditDetails: { tableNumber: 7, paymentMethod: 'Efectivo', total: 100000 },
@@ -35,6 +37,7 @@ beforeEach(() => {
   tx.order.updateMany.mockResolvedValue({ count: 1 });
   tx.payment.create.mockImplementation(async ({ data }) => ({ paymentId: 'pay-1', ...data }));
   tx.qrRequest.updateMany.mockResolvedValue({ count: 0 });
+  tx.serviceCall.updateMany.mockResolvedValue({ count: 0 });
   tx.auditLog.create.mockResolvedValue({});
 });
 
@@ -74,6 +77,7 @@ describe('closeOrderWithPayment', () => {
     expect(result).toEqual({
       payment: expect.objectContaining({ paymentId: 'pay-1' }),
       rejectedQrRequests: 0,
+      attendedServiceCalls: 0,
     });
   });
 
@@ -90,12 +94,29 @@ describe('closeOrderWithPayment', () => {
     expect(result.rejectedQrRequests).toBe(2);
   });
 
+  it('atiende los llamados pendientes de la mesa (los dos tipos) por quien cobra', async () => {
+    tx.serviceCall.updateMany.mockResolvedValue({ count: 2 });
+
+    const result = await closeOrderWithPayment(input);
+
+    // Filtro solo por mesa y estado: incluye call_waiter y request_bill
+    expect(tx.serviceCall.updateMany).toHaveBeenCalledWith({
+      where: { tableId: 't1', status: 'pendiente' },
+      data: { status: 'atendido', attendedBy: 'waiter-1', attendedAt: expect.any(Date) },
+    });
+    const closedAt = tx.order.updateMany.mock.calls[0][0].data.closedAt;
+    expect(tx.serviceCall.updateMany.mock.calls[0][0].data.attendedAt).toBe(closedAt);
+    expect(tx.auditLog.create.mock.calls[0][0].data.details.attendedServiceCalls).toBe(2);
+    expect(result.attendedServiceCalls).toBe(2);
+  });
+
   it('0 filas (otro cobro, cobro cancelado o descuento cambiado): null sin pago ni auditoria', async () => {
     tx.order.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(closeOrderWithPayment(input)).resolves.toBeNull();
     expect(tx.payment.create).not.toHaveBeenCalled();
     expect(tx.qrRequest.updateMany).not.toHaveBeenCalled();
+    expect(tx.serviceCall.updateMany).not.toHaveBeenCalled();
     expect(tx.auditLog.create).not.toHaveBeenCalled();
   });
 

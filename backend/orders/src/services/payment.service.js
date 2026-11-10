@@ -103,6 +103,7 @@ export async function registerPayment(orderId, { paymentMethodId, amountReceived
 
   const result = await closeOrderWithPayment({
     orderId,
+    tableId: order.tableId,
     userId: user.userId,
     payment: {
       paymentMethodId,
