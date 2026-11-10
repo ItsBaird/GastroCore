@@ -1,5 +1,6 @@
 import { AppError } from '../errors/AppError.js';
 import { emitWaiterCalled } from '../realtime/serviceCallEvents.js';
+import { toServiceCall } from '../mappers/serviceCall.mapper.js';
 import { createServiceCall } from '../repositories/serviceCall.repository.js';
 import { resolveQrTable, tableNotFound } from './qrTable.js';
 
@@ -10,19 +11,6 @@ const callAlreadyPending = () =>
     message: 'Ya hay un llamado pendiente para esta mesa',
     details: { type: 'call_waiter' },
   });
-
-// ServiceCall del contrato (sin campos internos)
-function toServiceCall(call) {
-  return {
-    serviceCallId: call.serviceCallId,
-    tableId: call.tableId,
-    type: call.type,
-    status: call.status,
-    createdAt: call.createdAt,
-    attendedAt: call.attendedAt ?? null,
-    attendedBy: call.attendedBy ?? null,
-  };
-}
 
 // GC-QR-0002. Endpoint publico (el cliente no inicia sesion): la unica credencial es el token del QR.
 // El duplicado pendiente lo impide el indice unico de la base; aqui solo se traduce el error. Asi dos
