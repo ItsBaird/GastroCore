@@ -1086,9 +1086,16 @@ paths:
         `amountReceived` y `changeGiven` en null. Un total 0 (descuento igual al subtotal) se puede pagar.
         Efectos, en una sola transaccion: la orden pasa de `EN_COBRO` a `CERRADA` con `closedAt` (actualizacion
         condicional); se registra el pago con el snapshot de `subtotal`, `discountAmount`, `discountAppliedBy` y
-        `total`; y se audita `PAYMENT_REGISTERED` con mesa, nombre del metodo, total, descuento y cambio. Si algo
-        falla no queda nada. Un solo pago por orden: un reintento responde `409 INVALID_TRANSITION`. La mesa
-        queda `libre` porque ya no tiene orden abierta.
+        `total`; las solicitudes QR `pendiente` de la orden pasan a `rechazada` con `resolvedBy` = quien cobra
+        (la orden cerrada ya no admite rondas; se rechazan al pagar y no al pasar a `EN_COBRO` para no perderlas
+        si se cancela el cobro); los llamados `pendiente` de la mesa (`call_waiter` y `request_bill`) pasan a
+        `atendido` con `attendedBy` = quien cobra (si no, el indice de un pendiente por tipo y mesa dejaria al
+        siguiente cliente sin poder llamar); y se audita `PAYMENT_REGISTERED` con mesa, nombre del metodo, total,
+        descuento, cambio y cuantas solicitudes y llamados se cerraron. Si algo falla no queda nada. Un solo pago
+        por orden: un reintento responde `409 INVALID_TRANSITION`. La mesa queda `libre` porque ya no tiene
+        orden abierta. No se emite un evento por cada solicitud o llamado cerrado: `table:status_changed` ya
+        lleva `pendingCalls` vacio, y la pantalla de solicitudes quita las de esa orden al recibir
+        `order:updated` con `status: CERRADA` (o recarga `GET /api/orders/qr-requests`).
         Tras el commit emite `table:status_changed` (mesa `libre`) a la sala `waiters` y `order:updated`
         (`status: CERRADA`) a `waiter:{waiterId}` del mesero actual.
       x-roles: [WAITER, ADMIN]
