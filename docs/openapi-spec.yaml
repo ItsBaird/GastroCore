@@ -1152,8 +1152,10 @@ paths:
       tags: [Orders - QR]
       summary: Llamar al mesero (publico)
       description: |
-        GC-QR-0002. Crea un `service_call` `call_waiter` y emite `waiter:called` a la sala `waiters` (mesa libre)
-        o a `waiter:{userId}` (mesa ocupada). Si ya hay uno pendiente del mismo tipo responde 409.
+        GC-QR-0002. Crea un `service_call` `call_waiter` y emite `waiter:called` (payload `WaiterCalledEvent`) a la
+        sala `waiters` (mesa libre) o solo a `waiter:{waiterId}` (mesa ocupada o en cobro, el mesero de su orden).
+        Si ya hay uno pendiente del mismo tipo para la mesa responde `409 CONFLICT`. Sin cuerpo: el cliente no
+        elige mesa ni tipo. Un token desconocido responde `404`.
       security: []
       responses:
         '201':
@@ -1937,6 +1939,14 @@ components:
         createdAt: { type: string, format: date-time }
         attendedAt: { type: string, format: date-time, nullable: true }
         attendedBy: { type: string, format: uuid, nullable: true }
+    WaiterCalledEvent:
+      description: Payload del evento Socket.io `waiter:called`.
+      allOf:
+        - $ref: '#/components/schemas/ServiceCall'
+        - type: object
+          required: [tableNumber]
+          properties:
+            tableNumber: { type: integer }
     QrTable:
       type: object
       required: [tableNumber, status, capabilities]
