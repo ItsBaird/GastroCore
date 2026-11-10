@@ -8,7 +8,7 @@ vi.mock('./tableStatus.service.js');
 const repo = await import('../repositories/round.repository.js');
 const events = await import('../realtime/events.js');
 const { catalogClient } = await import('../clients/catalogClient.js');
-const { createRound } = await import('./round.service.js');
+const { createRound, snapshotItems } = await import('./round.service.js');
 
 const ORDER_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const USER_ID = '11111111-2222-3333-4444-555555555555';
@@ -115,9 +115,15 @@ describe('createRound', () => {
       makeCatalogProducts([[PRODUCT_A, 'Pizza Margarita', 28000, true]]),
     );
     const roundResult = makeRoundResult([
-      { productId: PRODUCT_A, productName: 'Pizza Margarita', unitPrice: 28000, quantity: 2, note: 'sin sal' },
+      {
+        productId: PRODUCT_A,
+        productName: 'Pizza Margarita',
+        unitPrice: 28000,
+        quantity: 2,
+        note: 'sin sal',
+      },
     ]);
-    repo.createRoundWithItems.mockResolvedValue(roundResult);
+    repo.createRoundInOpenOrder.mockResolvedValue(roundResult);
 
     const result = await createRound(ORDER_ID, makeItems(), adminUser);
 
@@ -134,20 +140,20 @@ describe('createRound', () => {
       ]),
     );
     const roundResult = makeRoundResult([
-      { productId: PRODUCT_A, productName: 'Pizza Margarita', unitPrice: 28000, quantity: 2, note: 'sin sal' },
+      {
+        productId: PRODUCT_A,
+        productName: 'Pizza Margarita',
+        unitPrice: 28000,
+        quantity: 2,
+        note: 'sin sal',
+      },
     ]);
-    repo.createRoundWithItems.mockResolvedValue(roundResult);
+    repo.createRoundInOpenOrder.mockResolvedValue(roundResult);
 
-    const result = await createRound(
-      ORDER_ID,
-      makeItems([PRODUCT_A, PRODUCT_UNAVAIL]),
-      waiterUser,
-    );
+    const result = await createRound(ORDER_ID, makeItems([PRODUCT_A, PRODUCT_UNAVAIL]), waiterUser);
 
     expect(result.round.items).toHaveLength(1);
-    expect(result.unavailable).toEqual([
-      { productId: PRODUCT_UNAVAIL, name: 'Tiramisú' },
-    ]);
+    expect(result.unavailable).toEqual([{ productId: PRODUCT_UNAVAIL, name: 'Tiramisú' }]);
   });
 
   it('throws 409 when ALL items are unavailable', async () => {
@@ -168,9 +174,7 @@ describe('createRound', () => {
     repo.findOrderById.mockResolvedValue(makeOrder());
     catalogClient.getProductsByIds.mockResolvedValue([]);
 
-    await expect(
-      createRound(ORDER_ID, makeItems([PRODUCT_A]), waiterUser),
-    ).rejects.toMatchObject({
+    await expect(createRound(ORDER_ID, makeItems([PRODUCT_A]), waiterUser)).rejects.toMatchObject({
       status: 409,
       code: 'NO_AVAILABLE_ITEMS',
     });
@@ -183,9 +187,15 @@ describe('createRound', () => {
       makeCatalogProducts([[PRODUCT_A, 'Pizza Margarita', 28000, true]]),
     );
     const roundResult = makeRoundResult([
-      { productId: PRODUCT_A, productName: 'Pizza Margarita', unitPrice: 28000, quantity: 2, note: 'sin sal' },
+      {
+        productId: PRODUCT_A,
+        productName: 'Pizza Margarita',
+        unitPrice: 28000,
+        quantity: 2,
+        note: 'sin sal',
+      },
     ]);
-    repo.createRoundWithItems.mockResolvedValue(roundResult);
+    repo.createRoundInOpenOrder.mockResolvedValue(roundResult);
 
     await createRound(ORDER_ID, makeItems(), waiterUser);
 
@@ -214,15 +224,21 @@ describe('createRound', () => {
     catalogClient.getProductsByIds.mockResolvedValue(
       makeCatalogProducts([[PRODUCT_A, 'Pizza Margarita', 28000, true]]),
     );
-    repo.createRoundWithItems.mockResolvedValue(
+    repo.createRoundInOpenOrder.mockResolvedValue(
       makeRoundResult([
-        { productId: PRODUCT_A, productName: 'Pizza Margarita', unitPrice: 28000, quantity: 2, note: 'sin sal' },
+        {
+          productId: PRODUCT_A,
+          productName: 'Pizza Margarita',
+          unitPrice: 28000,
+          quantity: 2,
+          note: 'sin sal',
+        },
       ]),
     );
 
     await createRound(ORDER_ID, makeItems(), waiterUser);
 
-    expect(repo.createRoundWithItems).toHaveBeenCalledWith(
+    expect(repo.createRoundInOpenOrder).toHaveBeenCalledWith(
       expect.objectContaining({
         orderId: ORDER_ID,
         source: 'WAITER',
@@ -243,7 +259,7 @@ describe('createRound', () => {
     catalogClient.getProductsByIds.mockResolvedValue(
       makeCatalogProducts([[PRODUCT_A, 'Pizza Margarita', 28000, true]]),
     );
-    repo.createRoundWithItems.mockResolvedValue(
+    repo.createRoundInOpenOrder.mockResolvedValue(
       makeRoundResult([
         { productId: PRODUCT_A, productName: 'Pizza Margarita', unitPrice: 28000, quantity: 2 },
         { productId: PRODUCT_A, productName: 'Pizza Margarita', unitPrice: 28000, quantity: 1 },
@@ -265,9 +281,15 @@ describe('createRound', () => {
     catalogClient.getProductsByIds.mockResolvedValue(
       makeCatalogProducts([[PRODUCT_A, 'Pizza Margarita', 28000, true]]),
     );
-    repo.createRoundWithItems.mockResolvedValue(
+    repo.createRoundInOpenOrder.mockResolvedValue(
       makeRoundResult([
-        { productId: PRODUCT_A, productName: 'Pizza Margarita', unitPrice: 28000, quantity: 2, note: 'sin sal' },
+        {
+          productId: PRODUCT_A,
+          productName: 'Pizza Margarita',
+          unitPrice: 28000,
+          quantity: 2,
+          note: 'sin sal',
+        },
       ]),
     );
 
@@ -285,9 +307,15 @@ describe('createRound', () => {
     catalogClient.getProductsByIds.mockResolvedValue(
       makeCatalogProducts([[PRODUCT_A, 'Pizza Margarita', 28000, true]]),
     );
-    repo.createRoundWithItems.mockResolvedValue(
+    repo.createRoundInOpenOrder.mockResolvedValue(
       makeRoundResult([
-        { productId: PRODUCT_A, productName: 'Pizza Margarita', unitPrice: 28000, quantity: 2, note: 'sin sal' },
+        {
+          productId: PRODUCT_A,
+          productName: 'Pizza Margarita',
+          unitPrice: 28000,
+          quantity: 2,
+          note: 'sin sal',
+        },
       ]),
     );
 
@@ -305,7 +333,7 @@ describe('createRound', () => {
         [PRODUCT_B, 'Pizza Pepperoni', 32000, true],
       ]),
     );
-    repo.createRoundWithItems.mockResolvedValue(
+    repo.createRoundInOpenOrder.mockResolvedValue(
       makeRoundResult([
         { productId: PRODUCT_A, productName: 'Pizza Margarita', unitPrice: 28000, quantity: 1 },
         { productId: PRODUCT_B, productName: 'Pizza Pepperoni', unitPrice: 32000, quantity: 3 },
@@ -319,7 +347,7 @@ describe('createRound', () => {
     const result = await createRound(ORDER_ID, items, waiterUser);
 
     expect(result.round.items).toHaveLength(2);
-    expect(repo.createRoundWithItems).toHaveBeenCalledWith(
+    expect(repo.createRoundInOpenOrder).toHaveBeenCalledWith(
       expect.objectContaining({
         items: expect.arrayContaining([
           expect.objectContaining({ productName: 'Pizza Margarita', quantity: 1 }),
@@ -337,13 +365,77 @@ describe('createRound', () => {
       code: 'INVALID_TRANSITION',
     });
   });
+
+  it('carrera: la orden paso a cobro mientras se consultaba el catalogo -> 409 sin ronda ni eventos', async () => {
+    repo.findOrderById.mockResolvedValue(makeOrder());
+    catalogClient.getProductsByIds.mockResolvedValue(
+      makeCatalogProducts([[PRODUCT_A, 'Pizza Margarita', 28000, true]]),
+    );
+    // El candado vuelve a evaluar el estado y la orden ya no esta ABIERTA
+    repo.createRoundInOpenOrder.mockResolvedValue(null);
+
+    await expect(createRound(ORDER_ID, makeItems(), waiterUser)).rejects.toMatchObject({
+      status: 409,
+      code: 'INVALID_TRANSITION',
+      message: 'Solo se pueden agregar rondas a órdenes abiertas',
+    });
+    expect(events.emitRoundCreated).not.toHaveBeenCalled();
+    expect(events.emitTableStatusChanged).not.toHaveBeenCalled();
+  });
+});
+
+describe('snapshotItems (se reutiliza al confirmar una solicitud QR)', () => {
+  it('toma nombre y precio del catalogo y separa los agotados o inexistentes', async () => {
+    catalogClient.getProductsByIds.mockResolvedValue(
+      makeCatalogProducts([
+        [PRODUCT_A, 'Pizza Margarita', 28000, true],
+        [PRODUCT_B, 'Pizza Pepperoni', 32000, false],
+      ]),
+    );
+
+    const result = await snapshotItems([
+      { productId: PRODUCT_A, quantity: 2, note: 'sin sal' },
+      { productId: PRODUCT_A, quantity: 1 },
+      { productId: PRODUCT_B, quantity: 1 },
+      { productId: PRODUCT_UNAVAIL, quantity: 1 },
+    ]);
+
+    // Un solo viaje al catalogo, sin ids repetidos
+    expect(catalogClient.getProductsByIds).toHaveBeenCalledWith([
+      PRODUCT_A,
+      PRODUCT_B,
+      PRODUCT_UNAVAIL,
+    ]);
+    expect(result).toEqual({
+      available: [
+        {
+          productId: PRODUCT_A,
+          productName: 'Pizza Margarita',
+          unitPrice: 28000,
+          quantity: 2,
+          note: 'sin sal',
+        },
+        {
+          productId: PRODUCT_A,
+          productName: 'Pizza Margarita',
+          unitPrice: 28000,
+          quantity: 1,
+          note: undefined,
+        },
+      ],
+      unavailable: [
+        { productId: PRODUCT_B, name: 'Pizza Pepperoni' },
+        { productId: PRODUCT_UNAVAIL, name: 'Producto desconocido' },
+      ],
+    });
+  });
 });
 
 // GC-ORD-0005 Esc. 2: el cliente pide mas con la mesa ocupada y la ronda cae en la misma orden.
 describe('nueva ronda en la misma orden', () => {
   it('dos rondas usan el mismo orderId, no abren otra orden y cada una guarda su propio snapshot', async () => {
     repo.findOrderById.mockResolvedValue(makeOrder());
-    repo.createRoundWithItems.mockImplementation(async ({ items }) => makeRoundResult(items));
+    repo.createRoundInOpenOrder.mockImplementation(async ({ items }) => makeRoundResult(items));
     // Entre la primera y la segunda ronda Catalog sube el precio
     catalogClient.getProductsByIds
       .mockResolvedValueOnce(makeCatalogProducts([[PRODUCT_A, 'Pizza Margarita', 28000, true]]))
@@ -352,8 +444,8 @@ describe('nueva ronda en la misma orden', () => {
     const first = await createRound(ORDER_ID, makeItems(), waiterUser);
     const second = await createRound(ORDER_ID, makeItems(), waiterUser);
 
-    expect(repo.createRoundWithItems).toHaveBeenCalledTimes(2);
-    for (const [args] of repo.createRoundWithItems.mock.calls) {
+    expect(repo.createRoundInOpenOrder).toHaveBeenCalledTimes(2);
+    for (const [args] of repo.createRoundInOpenOrder.mock.calls) {
       expect(args.orderId).toBe(ORDER_ID);
     }
     // Que no exista una segunda orden en la base (indice uix_orders_one_open_per_table) lo prueba el E2E
