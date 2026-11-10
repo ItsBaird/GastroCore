@@ -1173,8 +1173,13 @@ paths:
       tags: [Orders - QR]
       summary: Enviar una solicitud de pedido (publico, mesa ocupada)
       description: |
-        GC-QR-0003. Crea una `qr_request` `pendiente` y emite `qr_request:created` a `waiter:{userId}`.
-        Con la mesa libre responde `409 TABLE_NOT_OPEN`. Hay un limite de items por solicitud.
+        GC-QR-0003. Crea una `qr_request` `pendiente` con sus items y emite `qr_request:created` (payload
+        `QrRequestCreatedEvent`) SOLO a `waiter:{waiterId}`, el mesero de la orden. El cliente envia productos,
+        cantidades y notas; nunca precios (R4): el snapshot de precios (R3) se toma cuando el mesero confirma.
+        Limites: 20 items por solicitud, 99 unidades por item y 3 solicitudes pendientes por orden.
+        Mesa libre: `409 TABLE_NOT_OPEN`. Mesa en cobro: `409 INVALID_TRANSITION`. Producto inexistente:
+        `400 VALIDATION_ERROR` (indica la linea). Producto agotado: `409 CONFLICT` con la lista en
+        `details.unavailable`, y se rechaza la solicitud completa. Un token desconocido responde `404`.
       security: []
       requestBody:
         required: true
@@ -1189,8 +1194,13 @@ paths:
               schema: { $ref: '#/components/schemas/QrRequest' }
         '400': { $ref: '#/components/responses/ValidationError' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        '409':
+          description: Mesa libre (`TABLE_NOT_OPEN`), mesa en cobro (`INVALID_TRANSITION`), 3 solicitudes pendientes o producto agotado (`CONFLICT`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
         '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
   /api/orders/qr/{token}/request-bill:
     parameters:
       - $ref: '#/components/parameters/QrToken'
@@ -1208,6 +1218,29 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
+  /api/orders/qr-requests:
+    get:
+      tags: [Orders - QR]
+      summary: Listar las solicitudes QR pendientes (respaldo del evento qr_request:created)
+      description: |
+        GC-QR-0003. Devuelve las solicitudes `pendiente` de ordenes no cerradas (incluye `EN_COBRO`), la mas
+        antigua primero, con el mismo formato que el payload de `qr_request:created` (`QrRequestWithTable`).
+        El mesero la consulta al abrir la pantalla y al reconectar el socket, para no perder solicitudes que
+        llegaron mientras no estaba conectado. WAITER ve solo las de sus mesas; ADMIN ve todas; COOK `403`.
+        No acepta parametros: cualquier query string responde `400`. Los items traen `productId`, sin nombre
+        (el nombre se resuelve con el catalogo) y su orden no esta garantizado.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Solicitudes pendientes (arreglo vacio si no hay)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/QrRequestWithTable' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/orders/qr-requests/{id}/confirm:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -1961,6 +1994,13 @@ components:
             callWaiter: { type: boolean }
             sendRequest: { type: boolean }
             requestBill: { type: boolean }
+    QrRequestItemInput:
+      description: Item de una solicitud QR. Igual que `RoundItemInput`, con un tope de unidades por linea.
+      allOf:
+        - $ref: '#/components/schemas/RoundItemInput'
+        - type: object
+          properties:
+            quantity: { type: integer, minimum: 1, maximum: 99 }
     QrRequestInput:
       type: object
       required: [items]
@@ -1969,7 +2009,7 @@ components:
           type: array
           minItems: 1
           maxItems: 20
-          items: { $ref: '#/components/schemas/RoundItemInput' }
+          items: { $ref: '#/components/schemas/QrRequestItemInput' }
     QrRequest:
       type: object
       required: [qrRequestId, orderId, status, createdAt]
@@ -1983,6 +2023,18 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/RoundItemInput' }
+    QrRequestWithTable:
+      description: Solicitud QR con el numero de mesa. Lo devuelve `GET /api/orders/qr-requests` y es el payload del evento.
+      allOf:
+        - $ref: '#/components/schemas/QrRequest'
+        - type: object
+          required: [tableNumber]
+          properties:
+            tableNumber: { type: integer }
+    QrRequestCreatedEvent:
+      description: Payload del evento Socket.io `qr_request:created` (igual a un elemento de `GET /api/orders/qr-requests`).
+      allOf:
+        - $ref: '#/components/schemas/QrRequestWithTable'
     CashClosePreview:
       type: object
       required:
