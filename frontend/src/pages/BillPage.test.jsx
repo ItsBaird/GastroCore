@@ -701,6 +701,21 @@ describe('BillPage — pago', () => {
     expect(screen.getByText('Panel de mesas')).toBeInTheDocument()
   })
 
+  it('tiempo real: el cierre desde otro dispositivo llega por los dos eventos y se avisa una sola vez', async () => {
+    renderPage()
+    await screen.findByText('Pizzeta Pepperoni')
+    const libre = useRealtimeEvent.mock.calls.findLast((c) => c[0] === 'table:status_changed')[1]
+    const cerrada = useRealtimeEvent.mock.calls.findLast((c) => c[0] === 'order:updated')[1]
+
+    await act(async () => {
+      libre({ tableNumber: 4, status: 'libre', pendingCalls: [] })
+      cerrada({ orderId: ORDER_ID, tableNumber: 4, status: 'CERRADA', discountAmount: 0 })
+    })
+
+    expect(await screen.findByText('Panel de mesas')).toBeInTheDocument()
+    expect(screen.getAllByText('La mesa ya se cerró')).toHaveLength(1)
+  })
+
   it('tiempo real: un descuento en vivo cambia el total y se avisa', async () => {
     renderPage()
     await screen.findByText('Confirmar Pago — $76.001')
