@@ -5,12 +5,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/errors.js'
 import * as ordersApi from '../api/orders.js'
 import * as paymentApi from '../api/paymentMethods.js'
+import * as qrApi from '../api/qrRequests.js'
 import { AuthContext } from '../auth/authContext.js'
 import { ToastProvider } from '../components/Toast.jsx'
 import BillPage from './BillPage.jsx'
 
 vi.mock('../api/orders.js')
 vi.mock('../api/paymentMethods.js')
+vi.mock('../api/qrRequests.js')
 vi.mock('../hooks/useRealtimeEvent.js', () => ({ useRealtimeEvent: vi.fn() }))
 vi.mock('../hooks/useActiveShift.js', () => ({ useActiveShift: vi.fn() }))
 
@@ -61,6 +63,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   ordersApi.getBill.mockResolvedValue(BILL)
   paymentApi.listPaymentMethods.mockResolvedValue(METHODS)
+  qrApi.listPendingQrRequests.mockResolvedValue([])
 })
 
 describe('BillPage — cuenta', () => {
@@ -100,18 +103,6 @@ describe('BillPage — cuenta', () => {
     expect(await screen.findByText('Descuento:')).toBeInTheDocument()
     expect(screen.getByText('−$6.001')).toBeInTheDocument()
     expect(screen.getByText('Confirmar Pago — $70.000')).toBeInTheDocument()
-  })
-
-  it('el pago queda dibujado pero deshabilitado y rotulado "Próximamente"', async () => {
-    renderPage()
-    await screen.findByText('Pizzeta Pepperoni')
-
-    expect(screen.getByText('Próximamente')).toBeInTheDocument()
-    expect(await screen.findByRole('radio', { name: 'Efectivo' })).toBeDisabled()
-    expect(screen.getByRole('radio', { name: 'Nequi' })).toBeDisabled()
-    expect(screen.getByLabelText(/Monto recibido/)).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Confirmar Pago — $76.001' })).toBeDisabled()
-    expect(paymentApi.listPaymentMethods).toHaveBeenCalledWith({ active: true })
   })
 
   it('"Imprimir Recibo" abre la impresión del navegador', async () => {
@@ -442,5 +433,289 @@ describe('BillPage — descuento (GC-ORD-0007)', () => {
       handler({ orderId: ORDER_ID, tableNumber: 4, status: 'EN_COBRO', discountAmount: 1 }),
     )
     expect(await screen.findByText('Confirmar Pago — $76.000')).toBeInTheDocument()
+  })
+})
+
+// GC-ORD-0008. Zona de pago: metodo, monto recibido, cambio estimado y Confirmar Pago
+describe('BillPage — pago', () => {
+  const PAYMENT = {
+    paymentId: 'p1',
+    orderId: ORDER_ID,
+    paymentMethodId: 'm1',
+    subtotal: 76001,
+    discountAmount: 0,
+    total: 76001,
+    amountReceived: 80000,
+    changeGiven: 3999,
+    registeredBy: 'user-1',
+    paidAt: '2026-11-10T20:00:00Z',
+  }
+
+  async function ready() {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('radio', { name: 'Efectivo' })
+    return user
+  }
+
+  const payButton = () => screen.getByRole('button', { name: 'Confirmar Pago — $76.001' })
+
+  it('lista los métodos activos sin elegir ninguno: sin campo de monto y Confirmar Pago deshabilitado', async () => {
+    await ready()
+
+    expect(paymentApi.listPaymentMethods).toHaveBeenCalledWith({ active: true })
+    expect(screen.queryByText('Próximamente')).toBeNull()
+    expect(screen.getByRole('radio', { name: 'Efectivo' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('radio', { name: 'Nequi' })).toBeEnabled()
+    expect(screen.queryByLabelText(/Monto recibido/)).toBeNull()
+    expect(payButton()).toBeDisabled()
+  })
+
+  it('efectivo: muestra el campo, solo admite enteros con formato COP y estima el cambio con el total del backend', async () => {
+    const user = await ready()
+    await user.click(screen.getByRole('radio', { name: 'Efectivo' }))
+
+    const radio = screen.getByRole('radio', { name: 'Efectivo' })
+    expect(radio).toHaveAttribute('aria-checked', 'true')
+    expect(radio).toHaveClass('bill-method--selected')
+    const input = screen.getByLabelText(/Monto recibido/)
+    expect(input).toHaveAttribute('inputmode', 'numeric')
+
+    await user.type(input, '8a0.000,5')
+    expect(input).toHaveValue('800.005')
+    await user.clear(input)
+    await user.type(input, '80000')
+    expect(input).toHaveValue('80.000')
+    // 80.000 - 76.001 (total del backend)
+    expect(screen.getByText('$3.999')).toBeInTheDocument()
+    expect(payButton()).toBeEnabled()
+  })
+
+  it('efectivo insuficiente: avisa cuánto falta y no deja confirmar', async () => {
+    const user = await ready()
+    await user.click(screen.getByRole('radio', { name: 'Efectivo' }))
+    await user.type(screen.getByLabelText(/Monto recibido/), '76000')
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Faltan $1 para el total.')
+    expect(screen.getByLabelText(/Monto recibido/)).toHaveAttribute('aria-invalid', 'true')
+    expect(payButton()).toBeDisabled()
+  })
+
+  it('sin efectivo: no hay campo de monto y se puede confirmar', async () => {
+    const user = await ready()
+    await user.click(screen.getByRole('radio', { name: 'Nequi' }))
+
+    expect(screen.queryByLabelText(/Monto recibido/)).toBeNull()
+    expect(payButton()).toBeEnabled()
+  })
+
+  it('Esc. 1: confirma, envía solo método y monto (R4) y muestra el cambio que calculó el backend', async () => {
+    ordersApi.registerPayment.mockResolvedValue({ ...PAYMENT, changeGiven: 4000 })
+    const user = await ready()
+    await user.click(screen.getByRole('radio', { name: 'Efectivo' }))
+    await user.type(screen.getByLabelText(/Monto recibido/), '80000')
+    await user.click(payButton())
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent(
+      'Mesa 4 · Efectivo · Total: $76.001 · Recibido: $80.000 · Cambio estimado: $3.999',
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Registrar pago' }))
+
+    expect(ordersApi.registerPayment).toHaveBeenCalledWith(ORDER_ID, {
+      paymentMethodId: 'm1',
+      amountReceived: 80000,
+    })
+    // El toast usa el changeGiven de la respuesta (4.000), no la estimacion de la pantalla (3.999)
+    expect(await screen.findByText('Pago registrado · Cambio $4.000')).toBeInTheDocument()
+    expect(screen.getByText('Panel de mesas')).toBeInTheDocument()
+  })
+
+  it('Esc. 2: sin efectivo no envía monto y avisa el total pagado y el método', async () => {
+    ordersApi.registerPayment.mockResolvedValue({
+      ...PAYMENT,
+      paymentMethodId: 'm2',
+      amountReceived: null,
+      changeGiven: null,
+    })
+    const user = await ready()
+    await user.click(screen.getByRole('radio', { name: 'Nequi' }))
+    await user.click(payButton())
+    await user.click(screen.getByRole('button', { name: 'Registrar pago' }))
+
+    expect(ordersApi.registerPayment).toHaveBeenCalledWith(ORDER_ID, { paymentMethodId: 'm2' })
+    expect(await screen.findByText('Pago registrado · $76.001 con Nequi')).toBeInTheDocument()
+    expect(screen.getByText('Panel de mesas')).toBeInTheDocument()
+  })
+
+  it('Esc. 3: el backend rechaza el monto (total cambió): error en el campo con el total vigente y se refresca la cuenta', async () => {
+    ordersApi.registerPayment.mockRejectedValue(
+      new ApiError(400, 'INSUFFICIENT_AMOUNT', 'El monto recibido no alcanza para el total', {
+        total: 81000,
+        amountReceived: 80000,
+      }),
+    )
+    const user = await ready()
+    await user.click(screen.getByRole('radio', { name: 'Efectivo' }))
+    await user.type(screen.getByLabelText(/Monto recibido/), '80000')
+    await user.click(payButton())
+    await user.click(screen.getByRole('button', { name: 'Registrar pago' }))
+
+    expect(
+      await screen.findByText('El monto no alcanza: el total vigente es $81.000.'),
+    ).toBeInTheDocument()
+    expect(ordersApi.getBill).toHaveBeenCalledTimes(2)
+    expect(screen.queryByText('Panel de mesas')).toBeNull()
+  })
+
+  it('sin doble envío: mientras se registra, el diálogo queda ocupado y se llama una sola vez', async () => {
+    let resolve
+    ordersApi.registerPayment.mockReturnValue(new Promise((r) => (resolve = r)))
+    const user = await ready()
+    await user.click(screen.getByRole('radio', { name: 'Nequi' }))
+    await user.click(payButton())
+    const confirm = screen.getByRole('button', { name: 'Registrar pago' })
+    await user.click(confirm)
+
+    expect(confirm).toBeDisabled()
+    await user.click(confirm)
+    expect(ordersApi.registerPayment).toHaveBeenCalledTimes(1)
+    await act(async () => resolve({ ...PAYMENT, changeGiven: null }))
+  })
+
+  it.each([
+    [
+      'método inactivo',
+      new ApiError(409, 'PAYMENT_METHOD_INACTIVE', 'El método de pago está inactivo'),
+      'Ese método de pago se desactivó. Elige otro.',
+    ],
+    [
+      'ítems sin entregar',
+      new ApiError(409, 'INVALID_TRANSITION', 'Hay ítems sin entregar', {
+        items: [{ itemId: 'b', productName: 'Agua', status: 'listo' }],
+      }),
+      'Hay ítems sin entregar: Agua. Entrégalos o anúlalos antes de cobrar.',
+    ],
+    [
+      'sin conexión',
+      new ApiError(0, 'NETWORK_ERROR', 'x'),
+      'Sin conexión: no se confirmó el pago. Intenta de nuevo.',
+    ],
+    [
+      'otro mesero (403)',
+      new ApiError(403, 'FORBIDDEN', 'No tienes asignada esta mesa'),
+      'No tienes asignada esta mesa',
+    ],
+  ])('%s: muestra el motivo y se queda en el cobro', async (_label, error, message) => {
+    ordersApi.registerPayment.mockRejectedValue(error)
+    const user = await ready()
+    await user.click(screen.getByRole('radio', { name: 'Nequi' }))
+    await user.click(payButton())
+    await user.click(screen.getByRole('button', { name: 'Registrar pago' }))
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
+    expect(screen.queryByText('Panel de mesas')).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('método inactivo: vuelve a cargar los métodos', async () => {
+    ordersApi.registerPayment.mockRejectedValue(
+      new ApiError(409, 'PAYMENT_METHOD_INACTIVE', 'El método de pago está inactivo'),
+    )
+    const user = await ready()
+    await user.click(screen.getByRole('radio', { name: 'Nequi' }))
+    paymentApi.listPaymentMethods.mockResolvedValue([METHODS[0]])
+    await user.click(payButton())
+    await user.click(screen.getByRole('button', { name: 'Registrar pago' }))
+
+    await screen.findByText('Ese método de pago se desactivó. Elige otro.')
+    expect(paymentApi.listPaymentMethods).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('radio', { name: 'Nequi' })).toBeNull()
+  })
+
+  it('ya pagada (doble clic en otro lado o red lenta): avisa y vuelve al panel', async () => {
+    ordersApi.registerPayment.mockRejectedValue(
+      new ApiError(409, 'INVALID_TRANSITION', 'La orden ya fue pagada'),
+    )
+    const user = await ready()
+    await user.click(screen.getByRole('radio', { name: 'Nequi' }))
+    await user.click(payButton())
+    await user.click(screen.getByRole('button', { name: 'Registrar pago' }))
+
+    expect(await screen.findByText('Esta orden ya fue pagada')).toBeInTheDocument()
+    expect(screen.getByText('Panel de mesas')).toBeInTheDocument()
+  })
+
+  it('sin métodos activos: lo dice y no deja cobrar', async () => {
+    paymentApi.listPaymentMethods.mockResolvedValue([])
+    renderPage()
+
+    expect(
+      await screen.findByText(
+        'No hay métodos de pago activos. Pide al administrador que active uno.',
+      ),
+    ).toBeInTheDocument()
+    expect(payButton()).toBeDisabled()
+  })
+
+  it('error al cargar los métodos: permite reintentar', async () => {
+    paymentApi.listPaymentMethods.mockRejectedValueOnce(new ApiError(0, 'NETWORK_ERROR', 'x'))
+    paymentApi.listPaymentMethods.mockResolvedValue(METHODS)
+    const user = userEvent.setup()
+    renderPage()
+
+    expect(await screen.findByText('No se pudieron cargar los métodos de pago.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Reintentar/ }))
+    expect(await screen.findByRole('radio', { name: 'Efectivo' })).toBeInTheDocument()
+  })
+
+  it('GC-128: avisa las solicitudes QR pendientes de esta orden que se rechazarán al pagar', async () => {
+    qrApi.listPendingQrRequests.mockResolvedValue([
+      { qrRequestId: 'q1', orderId: ORDER_ID },
+      { qrRequestId: 'q2', orderId: ORDER_ID },
+      { qrRequestId: 'q3', orderId: 'otra-orden' },
+    ])
+    renderPage()
+
+    expect(
+      await screen.findByText(
+        'Esta mesa tiene 2 solicitudes QR pendientes; se rechazarán al pagar.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('tiempo real: otro dispositivo cobró la orden (order:updated CERRADA) -> vuelve al panel', async () => {
+    renderPage()
+    await screen.findByText('Pizzeta Pepperoni')
+
+    await act(() =>
+      useRealtimeEvent.mock.calls.findLast((c) => c[0] === 'order:updated')[1]({
+        orderId: ORDER_ID,
+        tableNumber: 4,
+        status: 'CERRADA',
+        discountAmount: 0,
+      }),
+    )
+
+    expect(await screen.findByText('La mesa ya se cerró')).toBeInTheDocument()
+    expect(screen.getByText('Panel de mesas')).toBeInTheDocument()
+  })
+
+  it('tiempo real: un descuento en vivo cambia el total y se avisa', async () => {
+    renderPage()
+    await screen.findByText('Confirmar Pago — $76.001')
+    ordersApi.getBill.mockResolvedValue({ ...BILL, discountAmount: 6001, total: 70000 })
+
+    await act(() =>
+      useRealtimeEvent.mock.calls.findLast((c) => c[0] === 'order:updated')[1]({
+        orderId: ORDER_ID,
+        tableNumber: 4,
+        status: 'EN_COBRO',
+        discountAmount: 6001,
+      }),
+    )
+
+    expect(await screen.findByText('La cuenta cambió: nuevo total $70.000')).toBeInTheDocument()
+    expect(screen.getByText('Confirmar Pago — $70.000')).toBeInTheDocument()
   })
 })
