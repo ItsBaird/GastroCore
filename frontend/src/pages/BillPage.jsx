@@ -46,6 +46,9 @@ export default function BillPage() {
   // GC-ORD-0008: el pago propio tambien vuelve como table:status_changed (libre) y order:updated (CERRADA)
   const paidHere = useRef(false)
   const lastTotal = useRef(initialBill?.total ?? null)
+  // El cierre desde otro dispositivo llega dos veces (table:status_changed libre y order:updated CERRADA):
+  // se avisa y se navega una sola vez
+  const closedElsewhere = useRef(false)
 
   const backToDetail = useCallback(
     () => navigate(`/mesero/mesas/${orderId}`, { replace: true }),
@@ -76,6 +79,13 @@ export default function BillPage() {
     fetchBill()
   }, [fetchBill])
 
+  const leaveClosed = useCallback(() => {
+    if (closedElsewhere.current) return
+    closedElsewhere.current = true
+    toast.success('La mesa ya se cerró')
+    navigate('/mesero/mesas', { replace: true })
+  }, [toast, navigate])
+
   const retry = () => {
     setLoading(true)
     setError(null)
@@ -93,11 +103,10 @@ export default function BillPage() {
           toast.success('Se canceló el cobro de esta mesa desde otro dispositivo')
           backToDetail()
         } else if (status.status === 'libre') {
-          toast.success('La mesa ya se cerró')
-          navigate('/mesero/mesas', { replace: true })
+          leaveClosed()
         }
       },
-      [bill, orderId, toast, backToDetail, navigate],
+      [bill, orderId, toast, backToDetail, leaveClosed],
     ),
     { onReconnect: fetchBill },
   )
@@ -110,13 +119,12 @@ export default function BillPage() {
         if (payload?.orderId !== orderId || paidHere.current) return
         if (payload.status === 'CERRADA') {
           // Otro dispositivo registro el pago
-          toast.success('La mesa ya se cerró')
-          navigate('/mesero/mesas', { replace: true })
+          leaveClosed()
           return
         }
         fetchBill()
       },
-      [orderId, fetchBill, toast, navigate],
+      [orderId, fetchBill, leaveClosed],
     ),
     { onReconnect: fetchBill },
   )
