@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as qrApi from '../api/qr.js'
 import { QrApiError } from '../api/qr.js'
 import { ToastProvider } from '../components/Toast.jsx'
+import { NOTIFIED_MS } from '../hooks/useCallWaiter.js'
 import { POLL_MS } from '../hooks/useQrTable.js'
 import PublicMenuPage from './PublicMenuPage.jsx'
 
@@ -219,38 +220,110 @@ describe('PublicMenuPage: errores de la mesa', () => {
 })
 
 describe('PublicMenuPage: Llamar al mesero (GC-QR-0002)', () => {
-  it('llama con el token y confirma', async () => {
-    qrApi.callWaiter.mockResolvedValue({})
+  const callButton = () => screen.getByRole('button', { name: /Llamar al mesero|Mesero avisado|Avisando|Reintentar llamado/ })
+  const feedback = () => document.getElementById('qr-call-feedback')
+
+  it('reposo -> enviando (deshabilitado) -> avisado, con mensaje anunciado', async () => {
+    let resolve
+    qrApi.callWaiter.mockReturnValue(new Promise((r) => (resolve = r)))
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Pizza Margherita')
 
-    await user.click(screen.getByRole('button', { name: /Llamar al mesero/ }))
+    await user.click(callButton())
+    expect(callButton()).toHaveTextContent('Avisando…')
+    expect(callButton()).toBeDisabled()
+    await user.click(callButton())
+    expect(qrApi.callWaiter).toHaveBeenCalledTimes(1)
 
+    await act(async () => resolve({}))
+    expect(callButton()).toHaveTextContent('Mesero avisado')
+    expect(callButton()).toBeDisabled()
+    expect(feedback()).toHaveAttribute('aria-live', 'polite')
+    expect(feedback()).toHaveTextContent('Avisamos al mesero. En un momento se acercará.')
     expect(qrApi.callWaiter).toHaveBeenCalledWith(TOKEN)
-    expect(await screen.findByText('Listo, avisamos al mesero. En un momento te atiende.')).toBeInTheDocument()
   })
 
-  it('si ya había un llamado pendiente (409) dice que ya avisamos', async () => {
+  it('tras un minuto vuelve a reposo', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    qrApi.callWaiter.mockResolvedValue({})
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+    fireEvent.click(callButton())
+    await screen.findByText('Avisamos al mesero. En un momento se acercará.')
+
+    await act(() => vi.advanceTimersByTimeAsync(NOTIFIED_MS))
+
+    expect(callButton()).toHaveTextContent('Llamar al mesero')
+    expect(callButton()).toBeEnabled()
+  })
+
+  it('409 (ya había un llamado) es informativo, no un error', async () => {
     qrApi.callWaiter.mockRejectedValue(new QrApiError(409, 'CONFLICT', 'Ya hay un llamado pendiente para esta mesa'))
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Pizza Margherita')
 
-    await user.click(screen.getByRole('button', { name: /Llamar al mesero/ }))
+    await user.click(callButton())
 
-    expect(await screen.findByText('Ya avisamos al mesero. En un momento te atiende.')).toBeInTheDocument()
+    expect(await screen.findByText('Ya avisamos al mesero, no hace falta volver a llamar.')).toBeInTheDocument()
+    expect(feedback()).toHaveClass('qr-call-feedback--info')
+    expect(feedback()).not.toHaveClass('qr-call-feedback--warn')
+    expect(callButton()).toHaveTextContent('Mesero avisado')
   })
 
-  it('error de red: avisa que no se pudo', async () => {
-    qrApi.callWaiter.mockRejectedValue(new QrApiError(0, 'NETWORK_ERROR', 'Sin conexión'))
+  it('429: pide esperar y deja intentar de nuevo', async () => {
+    qrApi.callWaiter.mockRejectedValue(new QrApiError(429, 'RATE_LIMITED', 'Demasiadas solicitudes'))
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Pizza Margherita')
 
-    await user.click(screen.getByRole('button', { name: /Llamar al mesero/ }))
+    await user.click(callButton())
 
-    expect(await screen.findByText('No pudimos avisar al mesero. Intenta de nuevo.')).toBeInTheDocument()
+    expect(await screen.findByText('Espera unos segundos e intenta de nuevo.')).toBeInTheDocument()
+    expect(callButton()).toBeEnabled()
+  })
+
+  it('sin conexión: ofrece reintentar y el reintento avisa', async () => {
+    qrApi.callWaiter
+      .mockRejectedValueOnce(new QrApiError(0, 'NETWORK_ERROR', 'Sin conexión'))
+      .mockResolvedValue({})
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+
+    await user.click(callButton())
+    expect(await screen.findByRole('button', { name: /Reintentar llamado/ })).toBeEnabled()
+    expect(screen.getByText(/No pudimos avisar al mesero/)).toBeInTheDocument()
+
+    await user.click(callButton())
+    expect(await screen.findByText('Avisamos al mesero. En un momento se acercará.')).toBeInTheDocument()
+  })
+
+  it('404 al llamar (mesa eliminada): vuelve a consultar y muestra QR inválido', async () => {
+    qrApi.callWaiter.mockRejectedValue(new QrApiError(404, 'NOT_FOUND', 'Mesa no encontrada'))
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+    qrApi.getQrTable.mockRejectedValue(new QrApiError(404, 'NOT_FOUND', 'Mesa no encontrada'))
+
+    await user.click(callButton())
+
+    expect(await screen.findByRole('heading', { name: 'Este código QR no es válido' })).toBeInTheDocument()
+  })
+
+  it('también en la mesa ocupada y en cobro (lo decide capabilities.callWaiter)', async () => {
+    qrApi.getQrTable.mockResolvedValue(table('en_cobro'))
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+    expect(callButton()).toBeEnabled()
+  })
+
+  it('sin la capacidad no hay botón', async () => {
+    qrApi.getQrTable.mockResolvedValue({ ...table('libre'), capabilities: { ...caps.libre, callWaiter: false } })
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+    expect(screen.queryByRole('button', { name: /Llamar al mesero/ })).toBeNull()
   })
 })
 

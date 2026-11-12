@@ -1,4 +1,6 @@
 import {
+  BellRing,
+  CircleCheck,
   ClipboardList,
   ConciergeBell,
   LoaderCircle,
@@ -12,11 +14,11 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { callWaiter, getPublicMenu } from '../api/qr.js'
+import { getPublicMenu } from '../api/qr.js'
 import brandRing from '../assets/qr/brand-ring.svg'
 import sliceDot from '../assets/qr/slice-dot.svg'
 import slice from '../assets/qr/slice.svg'
-import { useToast } from '../components/Toast.jsx'
+import { useCallWaiter } from '../hooks/useCallWaiter.js'
 import { useQrTable } from '../hooks/useQrTable.js'
 import { formatCOP } from '../utils/formatCOP.js'
 import './PublicMenuPage.css'
@@ -32,6 +34,41 @@ const STATUS_MESSAGE = {
   libre: () => 'Aún no hay un mesero asignado a tu mesa. Puedes ver el menú y llamar a un mesero.',
   ocupada: (n) => `Estás en la mesa ${n}. Puedes pedir o llamar a tu mesero.`,
   en_cobro: () => 'Tu mesa está en proceso de pago. Puedes ver el menú o llamar al mesero.',
+}
+
+// GC-QR-0002. Lo que muestra el boton en cada estado de useCallWaiter. Un 409 (ya habia llamado) se dice
+// como informacion, no como error.
+const CALL_VIEW = {
+  idle: { label: 'Llamar al mesero', icon: ConciergeBell, disabled: false, message: '' },
+  sending: { label: 'Avisando…', icon: LoaderCircle, disabled: true, message: '' },
+  sent: {
+    label: 'Mesero avisado',
+    icon: CircleCheck,
+    disabled: true,
+    message: 'Avisamos al mesero. En un momento se acercará.',
+    tone: 'ok',
+  },
+  already: {
+    label: 'Mesero avisado',
+    icon: BellRing,
+    disabled: true,
+    message: 'Ya avisamos al mesero, no hace falta volver a llamar.',
+    tone: 'info',
+  },
+  limited: {
+    label: 'Llamar al mesero',
+    icon: ConciergeBell,
+    disabled: false,
+    message: 'Espera unos segundos e intenta de nuevo.',
+    tone: 'warn',
+  },
+  failed: {
+    label: 'Reintentar llamado',
+    icon: RefreshCw,
+    disabled: false,
+    message: 'No pudimos avisar al mesero. Revisa tu conexión e intenta de nuevo.',
+    tone: 'warn',
+  },
 }
 
 // Busqueda sin tildes ni mayusculas: "cesar" encuentra "César"
@@ -160,12 +197,10 @@ function errorText(err) {
 
 export default function PublicMenuPage() {
   const { qrToken } = useParams()
-  const toast = useToast()
   const qr = useQrTable(qrToken)
   const menu = usePublicMenu()
   const [query, setQuery] = useState('')
   const [categoryId, setCategoryId] = useState(null)
-  const [calling, setCalling] = useState(false)
   useNoReferrer()
 
   // Solo categorias con productos
@@ -187,27 +222,8 @@ export default function PublicMenuPage() {
       .filter((c) => c.products.length > 0)
   }, [categories, categoryId, query])
 
-  const handleCall = async () => {
-    setCalling(true)
-    try {
-      await callWaiter(qrToken)
-      toast.success('Listo, avisamos al mesero. En un momento te atiende.')
-    } catch (err) {
-      if (err?.status === 409 && err.code === 'CONFLICT') {
-        toast.success('Ya avisamos al mesero. En un momento te atiende.')
-      } else if (err?.status === 404) {
-        qr.retry()
-      } else {
-        toast.error(
-          err?.status === 429
-            ? 'Espera unos segundos antes de volver a llamar.'
-            : 'No pudimos avisar al mesero. Intenta de nuevo.',
-        )
-      }
-    } finally {
-      setCalling(false)
-    }
-  }
+  const waiterCall = useCallWaiter(qrToken, { onInvalid: qr.retry })
+  const callView = CALL_VIEW[waiterCall.state]
 
   if (qr.phase === 'invalid') return <InvalidQrPage />
 
@@ -337,21 +353,29 @@ export default function PublicMenuPage() {
       </main>
 
       <div className="qr-dock">
+        <p
+          id="qr-call-feedback"
+          className={`qr-shell qr-call-feedback${callView.message ? '' : ' sr-only'}${callView.tone ? ` qr-call-feedback--${callView.tone}` : ''}`}
+          aria-live="polite"
+        >
+          {callView.message}
+        </p>
         {caps && (caps.callWaiter || caps.requestBill) && (
           <div className="qr-shell qr-actions">
             {caps.callWaiter && (
               <button
                 type="button"
-                className="qr-btn-call"
-                onClick={handleCall}
-                disabled={calling}
+                className={`qr-btn-call qr-btn-call--${waiterCall.state}`}
+                onClick={waiterCall.call}
+                disabled={callView.disabled}
+                aria-describedby="qr-call-feedback"
               >
-                {calling ? (
-                  <LoaderCircle className="spin" size={18} aria-hidden="true" />
-                ) : (
-                  <ConciergeBell size={18} aria-hidden="true" />
-                )}
-                Llamar al mesero
+                <callView.icon
+                  size={18}
+                  className={waiterCall.state === 'sending' ? 'spin' : undefined}
+                  aria-hidden="true"
+                />
+                {callView.label}
               </button>
             )}
             {caps.requestBill && (
