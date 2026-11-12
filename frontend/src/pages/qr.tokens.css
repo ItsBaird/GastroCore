@@ -1,0 +1,7 @@
+/* GC-QR-0001. Valores del Figma 69:2 que tokens.css (protegido) no define. Propuesta para Oscar: moverlos alli. */
+:root {
+  /* 69:14 texto de chips sin seleccionar (mismo valor que billing.tokens.css) */
+  --n-600: #525252;
+  /* 69:23 tarjetas de producto: radio 26 (no es un pildora: la tarjeta mide 200 de alto) */
+  --qr-radius-card: 26px;
+}
