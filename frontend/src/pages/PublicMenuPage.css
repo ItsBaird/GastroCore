@@ -1,0 +1,571 @@
+/* GC-QR-0001. Vista publica del QR. Valores del Figma 69:2 (movil, 390 px); lo que el Figma no dibuja va
+   marcado como "propuesta". Mobile-first: este es el diseño base y en pantallas anchas solo se centra. */
+
+.qr-page {
+  min-height: 100dvh;
+  background: var(--n-50); /* 69:2 #fafafa */
+  color: var(--n-950);
+  /* Espacio para la barra fija: tabs 64 + separacion 8 + boton 52 + aire 16 + zona segura */
+  padding-bottom: calc(140px + env(safe-area-inset-bottom));
+}
+
+.qr-page--state {
+  display: grid;
+  place-items: center;
+  padding: var(--sp-6) var(--sp-4);
+}
+
+/* Contenedor: 16 de margen (69:9 x=16); en tablet y escritorio se centra (propuesta) */
+.qr-shell {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 var(--sp-4);
+}
+
+/* ---------- Cabecera 69:3: 56 de alto, blanca, borde inferior #e5e5e5 ---------- */
+.qr-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--white);
+  border-bottom: 1px solid var(--n-200);
+}
+
+.qr-header__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2); /* logo en 16, nombre en 44 */
+  height: 55px;
+}
+
+.qr-brand__logo {
+  flex: none;
+}
+
+/* 69:6: 16/700 #0a0a0a */
+.qr-brand__name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--n-950);
+}
+
+/* 69:7: 28 de alto, radio 14, #fef2f2; 12/600 #dc2626 con 16 a los lados */
+.qr-table-pill {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--sp-4);
+  border-radius: var(--radius-full);
+  background: var(--red-50);
+  color: var(--red-600);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ---------- Mensaje por estado (propuesta: el Figma no lo dibuja) ---------- */
+.qr-status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--n-600);
+}
+
+/* Acento sutil con los colores de estado del Figma del mesero */
+.qr-status__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: var(--radius-full);
+}
+
+.qr-status__dot--libre {
+  background: var(--green-600);
+}
+
+.qr-status__dot--ocupada {
+  background: var(--blue-600);
+}
+
+.qr-status__dot--en_cobro {
+  background: var(--orange-500);
+}
+
+.qr-main {
+  padding-top: 0;
+}
+
+/* ---------- Buscador 69:9: 44 de alto, pildora, borde #e5e5e5; 14/400, marcador #a3a3a3 ---------- */
+.qr-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  height: 44px;
+  margin-top: var(--sp-3);
+  padding: 0 var(--sp-4) 0 13px;
+  background: var(--white);
+  border: 1px solid var(--n-200);
+  border-radius: var(--radius-full);
+  color: var(--n-400);
+}
+
+.qr-search:focus-within {
+  border-color: var(--red-600);
+  box-shadow: 0 0 0 3px rgb(220 38 38 / 15%);
+}
+
+.qr-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: none;
+  font: inherit;
+  /* 16 para que iOS no haga zoom al enfocar; el marcador mantiene los 14 del Figma */
+  font-size: 16px;
+  color: var(--n-950);
+}
+
+.qr-search input::placeholder {
+  font-size: 14px;
+  color: var(--n-400);
+}
+
+.qr-search input:focus-visible {
+  outline: none;
+}
+
+/* ---------- Chips 69:13 a 69:22: 32 de alto, pildora, separados 8, desplazables ---------- */
+.qr-chips {
+  display: flex;
+  gap: var(--sp-2);
+  margin: var(--sp-3) calc(-1 * var(--sp-4)) 0;
+  padding: 0 var(--sp-4);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.qr-chips::-webkit-scrollbar {
+  display: none;
+}
+
+/* Sin seleccionar: blanco, borde #e5e5e5, 13/500 #525252, 11 + 1 de borde */
+.qr-chip {
+  flex: none;
+  height: 32px;
+  padding: 0 11px;
+  background: var(--white);
+  border: 1px solid var(--n-200);
+  border-radius: var(--radius-full);
+  color: var(--n-600);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* 69:15 seleccionado: #dc2626, sin borde, 13/600 blanco, 12 a los lados */
+.qr-chip--active {
+  padding: 0 var(--sp-3);
+  background: var(--red-600);
+  border-color: var(--red-600);
+  color: var(--white);
+  font-weight: 600;
+}
+
+/* ---------- Secciones (propuesta: un h2 por categoria; con un chip elegido solo para lectores) ---------- */
+.qr-section__title {
+  margin: var(--sp-5) 0 var(--sp-3);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--n-950);
+}
+
+.qr-main:has(.qr-chip--active:not(:first-child)) .qr-section__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.qr-main:has(.qr-chip--active:not(:first-child)) .qr-section:first-of-type .qr-grid {
+  margin-top: var(--sp-3);
+}
+
+/* ---------- Grilla 69:23: 2 columnas de 171 separadas 16 en 390; mas columnas si hay espacio ---------- */
+.qr-grid {
+  display: grid;
+  /* 2 columnas desde 320 (136 cada una); en 390 quedan las de 171 del Figma */
+  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+  gap: var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Tarjeta: blanca, radio 26, alto minimo 200 */
+.qr-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  overflow: hidden;
+  background: var(--white);
+  border-radius: var(--qr-radius-card);
+}
+
+/* 69:24: zona de foto de 96 sobre #fef2f2 */
+.qr-photo {
+  position: relative;
+  height: 96px;
+  background: var(--red-50);
+}
+
+.qr-photo__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qr-photo__placeholder {
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
+
+/* 69:25 a 69:27: porcion de 36 (triangulo de 31x27 desde arriba) con dos puntos de 4,5 */
+.qr-slice {
+  position: relative;
+  width: 36px;
+  height: 36px;
+}
+
+.qr-slice__body {
+  position: absolute;
+  top: 0;
+  left: 2.41px;
+  width: 31.18px;
+  height: 27px;
+}
+
+.qr-slice__dot {
+  position: absolute;
+  width: 4.5px;
+  height: 4.5px;
+}
+
+.qr-slice__dot--a {
+  left: 15px;
+  top: 15px;
+}
+
+.qr-slice__dot--b {
+  left: 10.5px;
+  top: 22.5px;
+}
+
+/* 69:30: 13/600 #0a0a0a a 12 del borde y 8 bajo la foto */
+.qr-card__name {
+  margin: var(--sp-2) var(--sp-3) 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: normal;
+  color: var(--n-950);
+  overflow-wrap: anywhere;
+}
+
+/* 69:31: 11/400 #737373, dos lineas (28) */
+.qr-card__desc {
+  display: -webkit-box;
+  margin: var(--sp-1) var(--sp-3) 0;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--n-500);
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 69:32 y 69:33: precio 15/700 y boton de 32 a 8 del borde inferior y derecho */
+.qr-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: auto;
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);
+  min-height: 48px;
+}
+
+.qr-card__price {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: normal; /* 18 de alto, como 69:32 */
+  color: var(--n-950);
+  white-space: nowrap;
+}
+
+/* 69:33: circulo de 32 #dc2626 con un "+" blanco. Toque ampliado a 44 sin cambiar lo que se ve */
+.qr-card__add {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--red-600);
+  color: var(--white);
+}
+
+.qr-card__add::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+.qr-card__add:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Carga (propuesta) */
+.qr-card--skeleton {
+  background: linear-gradient(var(--red-50) 0 96px, var(--white) 96px);
+  animation: qr-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes qr-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ---------- Barra inferior fija ---------- */
+.qr-dock {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.qr-dock > * {
+  pointer-events: auto;
+}
+
+/* 69:93: boton de 52 a lo ancho (358), pildora, 8 sobre las pestañas */
+.qr-actions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.qr-btn-call,
+.qr-btn-bill {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  height: 52px;
+  border-radius: var(--radius-full);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* 69:93: #dc2626, 15/600 blanco */
+.qr-btn-call {
+  border: none;
+  background: var(--red-600);
+  color: var(--white);
+  box-shadow: 0 4px 12px rgb(10 10 10 / 12%);
+}
+
+.qr-btn-call:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+/* "Pedir la cuenta" (propuesta: el Figma no lo dibuja): secundario, blanco con borde y texto #dc2626 */
+.qr-btn-bill {
+  position: relative;
+  border: 1px solid var(--red-600);
+  background: var(--white);
+  color: var(--red-600);
+}
+
+.qr-btn-bill:disabled {
+  border-color: var(--n-200);
+  color: var(--n-400);
+  cursor: not-allowed;
+}
+
+.qr-soon {
+  position: absolute;
+  top: -9px;
+  right: 14px;
+  padding: 1px var(--sp-2);
+  border-radius: var(--radius-full);
+  background: var(--n-100);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* 69:98: pestañas de 64, blancas, borde superior #e5e5e5 */
+.qr-tabs {
+  background: var(--white);
+  border-top: 1px solid var(--n-200);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* 69:104, 69:108, 69:117: cada pestaña empieza 120 despues de la anterior, la primera en 32 */
+.qr-tabs__row {
+  display: flex;
+  height: 63px;
+  padding-left: var(--sp-8);
+  padding-right: 0;
+}
+
+.qr-tab {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  width: 120px;
+  padding: 12px 0 0;
+  border: none;
+  background: none;
+  color: var(--n-400);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.qr-tab:last-child {
+  width: auto;
+}
+
+.qr-tab > svg {
+  flex: none;
+}
+
+/* La etiqueta queda alineada a la izquierda de su columna, como en el Figma */
+.qr-tab {
+  align-items: flex-start;
+}
+
+.qr-tab > * {
+  align-self: flex-start;
+}
+
+/* 69:104: activa 11/600 #dc2626 */
+.qr-tab--active {
+  color: var(--red-600);
+  font-weight: 600;
+}
+
+.qr-tab:disabled {
+  cursor: not-allowed;
+}
+
+/* ---------- Estados de pagina completa y en linea (propuesta) ---------- */
+.qr-full {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  max-width: 320px;
+  text-align: center;
+  color: var(--n-600);
+}
+
+.qr-full svg {
+  color: var(--red-600);
+}
+
+.qr-full__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--n-950);
+}
+
+.qr-full__text {
+  margin: 0;
+  font-size: 14px;
+}
+
+.qr-inline-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: var(--sp-8) 0;
+  font-size: 14px;
+  color: var(--n-600);
+  text-align: center;
+}
+
+.qr-inline-state p {
+  margin: 0;
+}
+
+.qr-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 44px;
+  padding: 0 var(--sp-5);
+  border: 1px solid var(--n-300);
+  border-radius: var(--radius-full);
+  background: var(--white);
+  color: var(--n-700);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* Foco visible en todo lo interactivo */
+.qr-chip:focus-visible,
+.qr-btn-call:focus-visible,
+.qr-btn-outline:focus-visible {
+  outline: 2px solid var(--n-950);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qr-card--skeleton {
+    animation: none;
+  }
+}
+
+/* Tablet y escritorio (propuesta: el Figma solo dibuja movil): las acciones no se estiran a todo el ancho */
+@media (width > 640px) {
+  .qr-actions {
+    max-width: 480px;
+  }
+}
+
+/* Los avisos (Toast, protegido) salen por defecto abajo y tapaban "Llamar al mesero": en la vista publica
+   se suben por encima de la barra fija (solo aqui; el componente no se modifica) */
+.qr-page ~ .toasts {
+  bottom: calc(140px + env(safe-area-inset-bottom));
+}

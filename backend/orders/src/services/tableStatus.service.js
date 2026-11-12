@@ -3,13 +3,7 @@ import {
   findAllTablesWithOpenOrdersAndPendingCalls,
   findTableWithOpenOrderAndPendingCalls,
 } from '../repositories/tableStatus.repository.js';
-
-function deriveStatus(orders) {
-  if (orders.length === 0) return 'libre';
-  const order = orders[0];
-  if (order.status === 'EN_COBRO') return 'en_cobro';
-  return 'ocupada';
-}
+import { deriveTableStatus } from './tableState.js';
 
 // itemsCount cuenta lineas de item no canceladas (no suma cantidades): es lo que distingue
 // una mesa abierta sin pedido ("Tomar Pedido") de una con pedido ("Ver Detalle").
@@ -18,7 +12,7 @@ function countActiveItems(order) {
 }
 
 function toTableStatus(table, names) {
-  const status = deriveStatus(table.orders);
+  const status = deriveTableStatus(table.orders);
   const order = table.orders[0] ?? null;
 
   const result = {
