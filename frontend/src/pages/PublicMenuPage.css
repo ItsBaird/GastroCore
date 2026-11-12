@@ -610,3 +610,34 @@
 .qr-btn-call--sending:disabled {
   opacity: 0.85;
 }
+
+/* GC-QR-0003: contador de "Mi Pedido" sobre el icono (propuesta: la pildora roja del Figma) */
+.qr-tab__icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.qr-tab__badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--red-600);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.qr-tab:not(:disabled) {
+  cursor: pointer;
+}
+
+.qr-tab:focus-visible {
+  outline: 2px solid var(--n-950);
+  outline-offset: 2px;
+}

@@ -1,0 +1,558 @@
+/* GC-QR-0003. Detalle de producto (Figma 70:2) y "Mi Pedido" (propuesta con los mismos tokens). */
+
+/* ---------- Detalle 70:2: pantalla completa blanca ---------- */
+.qr-detail {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  overflow-y: auto;
+  background: var(--white);
+  overscroll-behavior: contain;
+}
+
+/* 70:3: 280 de alto sobre #fef2f2 */
+.qr-detail__hero {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 280px;
+  background: var(--red-50);
+}
+
+.qr-detail__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 70:4 a 70:6: porcion de 64 con puntos de 8 */
+.qr-slice--lg {
+  width: 64px;
+  height: 64px;
+}
+
+.qr-slice--lg .qr-slice__body {
+  left: 4.29px;
+  width: 55.43px;
+  height: 48px;
+}
+
+.qr-slice--lg .qr-slice__dot {
+  width: 8px;
+  height: 8px;
+}
+
+.qr-slice--lg .qr-slice__dot--a {
+  left: 26.67px;
+  top: 26.67px;
+}
+
+.qr-slice--lg .qr-slice__dot--b {
+  left: 18.67px;
+  top: 40px;
+}
+
+/* 70:7: circulo blanco de 40 en 16/16 (toque de 44 con el margen invisible) */
+.qr-detail__back {
+  position: absolute;
+  top: var(--sp-4);
+  left: var(--sp-4);
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--white);
+  color: var(--n-950);
+  cursor: pointer;
+}
+
+.qr-detail__back::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+}
+
+.qr-detail__body {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-6) calc(var(--sp-6) + env(safe-area-inset-bottom));
+}
+
+/* 70:16 y 70:17: nombre 24/700 #0a0a0a y precio 24/700 #dc2626 */
+.qr-detail__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-4);
+}
+
+.qr-detail__name,
+.qr-detail__price {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: normal;
+}
+
+.qr-detail__name {
+  color: var(--n-950);
+  overflow-wrap: anywhere;
+}
+
+.qr-detail__price {
+  color: var(--red-600);
+  white-space: nowrap;
+}
+
+/* 70:18: 14/400 #737373 */
+.qr-detail__desc {
+  margin: 7px 0 0; /* 70:18: 7 bajo el nombre */
+  font-size: 14px;
+  line-height: normal;
+  color: var(--n-500);
+  overflow-wrap: anywhere;
+}
+
+/* 70:19, 70:33, 70:37: divisores #e5e5e5 */
+.qr-detail__rule {
+  height: 1px;
+  margin: var(--sp-4) 0;
+  border: none;
+  background: var(--n-200);
+}
+
+/* 70:20 a 70:26 */
+.qr-detail__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.qr-detail__meta-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--red-50);
+  color: var(--red-600);
+}
+
+.qr-detail__meta-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--n-400);
+}
+
+.qr-detail__meta-value {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--n-950);
+}
+
+/* 70:34 y 70:38: 13/600 #404040 */
+.qr-detail__label {
+  display: block;
+  margin-bottom: var(--sp-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n-700);
+}
+
+/* 70:35: #fafafa, borde #e5e5e5, radio 16, 72 de alto, texto 14 */
+.qr-detail__note {
+  display: block;
+  width: 100%;
+  height: 72px; /* 70:35 */
+  min-height: 72px;
+  padding: 15px;
+  line-height: normal;
+  border: 1px solid var(--n-200);
+  border-radius: var(--radius-lg);
+  background: var(--n-50);
+  font: inherit;
+  font-size: 16px; /* 16 evita el zoom de iOS; el marcador conserva los 14 del Figma */
+  color: var(--n-950);
+  resize: vertical;
+}
+
+.qr-detail__note::placeholder {
+  font-size: 14px;
+  color: var(--n-400);
+}
+
+.qr-detail__note:focus {
+  outline: none;
+  border-color: var(--red-600);
+  box-shadow: 0 0 0 3px rgb(220 38 38 / 15%);
+}
+
+.qr-detail__note--compact {
+  min-height: 56px;
+  padding: var(--sp-3);
+}
+
+/* Contador (propuesta) */
+.qr-detail__counter {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: 11px;
+  color: var(--n-400);
+  text-align: right;
+}
+
+.qr-detail__amount {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+/* 70:39: 128x44 #f5f5f5 radio 22; menos blanco de 40, mas #dc2626 de 40, valor 20/700 */
+.qr-stepper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 128px;
+  height: 44px;
+  padding: 2px;
+  border-radius: var(--radius-full);
+  background: var(--n-100);
+}
+
+.qr-stepper button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+
+.qr-stepper__minus {
+  background: var(--white);
+  color: var(--n-400);
+}
+
+.qr-stepper__plus {
+  background: var(--red-600);
+  color: var(--white);
+}
+
+.qr-stepper button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.qr-stepper__value {
+  min-width: 2ch;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--n-950);
+  text-align: center;
+}
+
+/* Version compacta para las lineas de "Mi Pedido" (los botones siguen midiendo 40) */
+.qr-stepper--sm {
+  width: 112px;
+}
+
+.qr-stepper--sm .qr-stepper__value {
+  font-size: 16px;
+}
+
+/* 70:46 y 70:47: total 12/500 #a3a3a3 y 22/700 #0a0a0a */
+.qr-detail__total {
+  text-align: right;
+}
+
+.qr-detail__total-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--n-400);
+}
+
+.qr-detail__total-value {
+  display: block;
+  line-height: normal;
+  margin-top: var(--sp-2);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--n-950);
+}
+
+/* 70:48: 52 de alto, pildora #dc2626, 16/600 blanco */
+.qr-detail__add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  width: 100%;
+  height: 52px;
+  margin-top: var(--sp-6);
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--red-600);
+  color: var(--white);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.qr-detail__add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 70:51: 12/400 #a3a3a3 centrado */
+.qr-detail__hint {
+  margin: var(--sp-3) 0 0;
+  font-size: 12px;
+  color: var(--n-400);
+  text-align: center;
+}
+
+/* ---------- "Mi Pedido" (propuesta): hoja inferior ---------- */
+.qr-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(10 10 10 / 45%);
+}
+
+.qr-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  max-height: 88dvh;
+  padding: var(--sp-5) var(--sp-4) calc(var(--sp-4) + env(safe-area-inset-bottom));
+  border-radius: var(--qr-radius-card) var(--qr-radius-card) 0 0;
+  background: var(--white);
+}
+
+.qr-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
+}
+
+.qr-sheet__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--n-950);
+}
+
+.qr-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--n-500);
+  cursor: pointer;
+}
+
+.qr-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.qr-lines {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.qr-line {
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--n-200);
+}
+
+.qr-line--problem {
+  padding-left: var(--sp-3);
+  border-left: 3px solid var(--red-600);
+}
+
+.qr-line__top {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.qr-line__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--n-950);
+  overflow-wrap: anywhere;
+}
+
+.qr-line__price {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--n-700);
+  white-space: nowrap;
+}
+
+.qr-line__note {
+  margin: var(--sp-1) 0 0;
+  font-size: 13px;
+  color: var(--n-500);
+  overflow-wrap: anywhere;
+}
+
+.qr-line__note-edit {
+  margin-top: var(--sp-2);
+}
+
+.qr-line__problem {
+  margin: var(--sp-2) 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--red-600);
+}
+
+.qr-line__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+
+.qr-line__actions .qr-icon-btn {
+  margin-left: auto;
+}
+
+.qr-link {
+  min-height: 44px;
+  padding: 0 var(--sp-2);
+  border: none;
+  background: none;
+  color: var(--red-600);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.qr-link:disabled {
+  opacity: 0.45;
+}
+
+.qr-sheet__foot {
+  padding-top: var(--sp-3);
+}
+
+.qr-sheet__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--n-700);
+}
+
+.qr-sheet__total strong {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--n-950);
+}
+
+.qr-sheet__fine {
+  margin: var(--sp-1) 0 0;
+  font-size: 12px;
+  color: var(--n-400);
+}
+
+.qr-sheet__error {
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  background: var(--red-50);
+  color: var(--red-700);
+  font-size: 13px;
+}
+
+.qr-sheet__foot .qr-detail__add {
+  margin-top: var(--sp-4);
+}
+
+.qr-sheet__empty,
+.qr-sheet__done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-6) var(--sp-2);
+  text-align: center;
+  color: var(--n-500);
+}
+
+.qr-sheet__done > svg {
+  color: var(--green-600);
+}
+
+.qr-sheet__text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--n-600);
+}
+
+.qr-sent {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.qr-sent li {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--n-200);
+  font-size: 14px;
+  color: var(--n-950);
+}
+
+/* Foco visible */
+.qr-detail__back:focus-visible,
+.qr-detail__add:focus-visible,
+.qr-stepper button:focus-visible,
+.qr-icon-btn:focus-visible,
+.qr-link:focus-visible {
+  outline: 2px solid var(--n-950);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .qr-sheet {
+    animation: qr-sheet-in 180ms ease-out;
+  }
+
+  @keyframes qr-sheet-in {
+    from {
+      transform: translateY(24px);
+      opacity: 0;
+    }
+  }
+}

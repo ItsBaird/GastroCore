@@ -14,15 +14,18 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getPublicMenu } from '../api/qr.js'
+import { getPublicMenu, sendOrderRequest } from '../api/qr.js'
 import brandRing from '../assets/qr/brand-ring.svg'
 import sliceDot from '../assets/qr/slice-dot.svg'
 import slice from '../assets/qr/slice.svg'
 import { useCallWaiter } from '../hooks/useCallWaiter.js'
+import { useOrderCart } from '../hooks/useOrderCart.js'
 import { useQrTable } from '../hooks/useQrTable.js'
 import { formatCOP } from '../utils/formatCOP.js'
 import './PublicMenuPage.css'
 import './qr.tokens.css'
+import { QrOrderSheet } from './QrOrderSheet.jsx'
+import { QrProductSheet } from './QrProductSheet.jsx'
 
 // GC-QR-0001. Vista publica del QR (Figma 69:2 "Cliente QR - Menu Publico", 390 px). Sin login: el estado
 // y las capacidades los decide el backend (GET /qr/:token) y el menu viene de Catalog. Lo que el Figma no
@@ -142,7 +145,7 @@ function ProductPhoto({ product, eager }) {
   )
 }
 
-function ProductCard({ product, canOrder, eager }) {
+function ProductCard({ product, canOrder, eager, onOpen }) {
   return (
     <li className="qr-card">
       <div className="qr-photo">
@@ -153,13 +156,12 @@ function ProductCard({ product, canOrder, eager }) {
       <div className="qr-card__foot">
         <span className="qr-card__price">{formatCOP(product.price)}</span>
         {canOrder && (
-          // Punto de entrada de la solicitud de pedido (GC-QR-0003): aun sin pantalla
+          // GC-QR-0003: abre el detalle (70:2) para elegir cantidad y nota
           <button
             type="button"
             className="qr-card__add"
-            disabled
-            aria-label={`Agregar ${product.name} (próximamente)`}
-            title="Próximamente"
+            onClick={() => onOpen(product)}
+            aria-label={`Agregar ${product.name}`}
           >
             <Plus size={16} aria-hidden="true" />
           </button>
@@ -223,6 +225,94 @@ export default function PublicMenuPage() {
   }, [categories, categoryId, query])
 
   const waiterCall = useCallWaiter(qrToken, { onInvalid: qr.retry })
+
+  // GC-QR-0003: detalle, carrito "Mi Pedido" y envio
+  const cart = useOrderCart()
+  const [detail, setDetail] = useState(null)
+  const [orderOpen, setOrderOpen] = useState(false)
+  const [orderPhase, setOrderPhase] = useState('editing') // editing | sending | sent
+  const [orderError, setOrderError] = useState('')
+  const [sentLines, setSentLines] = useState([])
+  const [failedByNetwork, setFailedByNetwork] = useState(false)
+
+  const openOrder = () => {
+    setOrderPhase('editing')
+    setOrderOpen(true)
+  }
+
+  let blockedReason = ''
+  if (qr.table && !qr.table.capabilities?.sendRequest) {
+    blockedReason =
+      qr.table.status === 'en_cobro'
+        ? 'Tu mesa ya está en proceso de pago; no se aceptan más pedidos.'
+        : 'Tu mesa no tiene un mesero asignado; llama a un mesero para hacer tu pedido.'
+  }
+
+  const handleSend = async () => {
+    const lines = cart.lines
+    setOrderPhase('sending')
+    setOrderError('')
+    try {
+      await sendOrderRequest(qrToken, lines)
+      setSentLines(lines)
+      cart.clear()
+      setFailedByNetwork(false)
+      setOrderPhase('sent')
+    } catch (err) {
+      setOrderPhase('editing')
+      const fields = err?.details?.fields
+      const unavailable = err?.details?.unavailable
+      if (err?.status === 400 && Array.isArray(fields)) {
+        // details.fields: [{ path: 'items.N.campo', message }] -> se marca la linea N que se envio
+        const problems = {}
+        for (const field of fields) {
+          const match = /^items\.(\d+)\.(\w+)/.exec(field.path ?? '')
+          const line = match && lines[Number(match[1])]
+          if (line) {
+            problems[line.key] =
+              match[2] === 'productId'
+                ? 'Este producto ya no está disponible. Quítalo para enviar.'
+                : field.message
+          }
+        }
+        cart.markProblems(problems)
+        if (Object.keys(problems).length === 0) setOrderError('Revisa tu pedido e intenta de nuevo.')
+      } else if (err?.status === 409 && Array.isArray(unavailable)) {
+        const ids = new Set(unavailable.map((u) => u.productId))
+        const problems = {}
+        for (const line of lines) {
+          if (ids.has(line.productId)) problems[line.key] = 'Se agotó. Quítalo para enviar el resto.'
+        }
+        cart.markProblems(problems)
+      } else if (err?.status === 409 && err.details?.pending) {
+        setOrderError(
+          'Ya tienes pedidos esperando que el mesero los revise. Espera un momento y vuelve a intentarlo.',
+        )
+      } else if (err?.status === 409) {
+        // TABLE_NOT_OPEN o INVALID_TRANSITION (en cobro): el estado cambio; se consulta de nuevo
+        setOrderError(
+          err.code === 'TABLE_NOT_OPEN'
+            ? 'Tu mesa no tiene un mesero asignado; llama a un mesero para hacer tu pedido.'
+            : 'Tu mesa ya está en proceso de pago; no se aceptan más pedidos.',
+        )
+        qr.retry()
+      } else if (err?.status === 404) {
+        setOrderOpen(false)
+        qr.retry()
+      } else if (err?.status === 429) {
+        setOrderError('Hay muchas solicitudes en este momento. Espera unos segundos e intenta de nuevo.')
+      } else {
+        // Sin clave de idempotencia el pedido pudo llegar: no se reintenta solo y se avisa
+        setOrderError(
+          failedByNetwork
+            ? 'Seguimos sin poder confirmar el envío. Llama al mesero para confirmar tu pedido.'
+            : 'No pudimos confirmar el envío. Si lo intentas de nuevo y el pedido ya había llegado, el mesero podría recibirlo dos veces.',
+        )
+        setFailedByNetwork(true)
+      }
+    }
+  }
+
   const callView = CALL_VIEW[waiterCall.state]
 
   if (qr.phase === 'invalid') return <InvalidQrPage />
@@ -345,6 +435,7 @@ export default function PublicMenuPage() {
                   product={p}
                   canOrder={Boolean(caps?.sendRequest)}
                   eager={eagerIds.has(p.productId)}
+                  onOpen={(product) => setDetail({ product, categoryName: c.name })}
                 />
               ))}
             </ul>
@@ -395,12 +486,25 @@ export default function PublicMenuPage() {
               <Utensils size={22} aria-hidden="true" />
               Menú
             </span>
-            {/* Mi Pedido y Estado son de GC-QR-0003: se ven como en el Figma, aun deshabilitados */}
-            <button type="button" className="qr-tab" disabled title="Próximamente">
-              <ShoppingCart size={22} aria-hidden="true" />
+            {/* Mi Pedido (GC-QR-0003): disponible con la mesa ocupada o si ya hay algo en el carrito */}
+            <button
+              type="button"
+              className="qr-tab"
+              disabled={!caps?.sendRequest && cart.lines.length === 0}
+              onClick={openOrder}
+            >
+              <span className="qr-tab__icon">
+                <ShoppingCart size={22} aria-hidden="true" />
+                {cart.units > 0 && (
+                  <span className="qr-tab__badge" aria-hidden="true">
+                    {cart.units}
+                  </span>
+                )}
+              </span>
               Mi Pedido
-              <span className="sr-only">(próximamente)</span>
+              {cart.units > 0 && <span className="sr-only">({cart.units} productos)</span>}
             </button>
+            {/* Estado (72:2) no tiene backend publico: queda deshabilitado */}
             <button type="button" className="qr-tab" disabled title="Próximamente">
               <ClipboardList size={22} aria-hidden="true" />
               Estado
@@ -409,6 +513,37 @@ export default function PublicMenuPage() {
           </div>
         </nav>
       </div>
+
+      {detail && (
+        <QrProductSheet
+          product={detail.product}
+          categoryName={detail.categoryName}
+          cartFull={cart.full}
+          alreadyInCart={cart.lines.some((l) => l.productId === detail.product.productId)}
+          onClose={() => setDetail(null)}
+          onAdd={(quantity, note) => {
+            cart.add(detail.product, quantity, note)
+            setDetail(null)
+          }}
+        />
+      )}
+
+      {orderOpen && (
+        <QrOrderSheet
+          cart={cart}
+          phase={orderPhase}
+          sentLines={sentLines}
+          error={orderError}
+          blockedReason={blockedReason}
+          onSend={handleSend}
+          onClose={() => setOrderOpen(false)}
+          onContinue={() => {
+            setOrderOpen(false)
+            setOrderPhase('editing')
+          }}
+        />
+      )}
     </div>
   )
 }
+
