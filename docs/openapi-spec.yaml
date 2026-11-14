@@ -1166,10 +1166,10 @@ paths:
       security: []
       responses:
         '201':
-          description: Llamado creado
+          description: Llamado creado. Respuesta publica (`PublicServiceCall`), sin `tableId` ni datos de atencion.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ServiceCall' }
+              schema: { $ref: '#/components/schemas/PublicServiceCall' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
@@ -2012,6 +2012,18 @@ components:
         createdAt: { type: string, format: date-time }
         attendedAt: { type: string, format: date-time, nullable: true }
         attendedBy: { type: string, format: uuid, nullable: true }
+    PublicServiceCall:
+      description: |
+        Respuesta del endpoint publico `POST /api/orders/qr/{token}/call`. Es un `ServiceCall` sin `tableId`
+        (id interno que el cliente no necesita) ni `attendedAt`/`attendedBy`, que en un llamado recien creado
+        siempre son null. `ServiceCall` no cambia: lo siguen usando el evento `waiter:called` y `pendingCalls`.
+      type: object
+      required: [serviceCallId, type, status, createdAt]
+      properties:
+        serviceCallId: { type: string, format: uuid }
+        type: { type: string, enum: [call_waiter, request_bill] }
+        status: { type: string, enum: [pendiente, atendido] }
+        createdAt: { type: string, format: date-time }
     WaiterCalledEvent:
       description: Payload del evento Socket.io `waiter:called`.
       allOf:
