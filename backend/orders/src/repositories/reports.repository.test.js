@@ -69,3 +69,12 @@ describe('findSoldItemsOfDay', () => {
     });
   });
 });
+
+describe('atribucion por mesero (GC-151)', () => {
+  it('de la orden solo pide openedBy: NO waiterId (cambia al reasignar la mesa) ni el que registro el pago', async () => {
+    await findPaymentsOfDay(RANGE);
+    const { select } = prisma.payment.findMany.mock.calls[0][0];
+    expect(Object.keys(select.order.select)).toEqual(['openedBy']);
+    expect(select).not.toHaveProperty('registeredBy');
+  });
+});
