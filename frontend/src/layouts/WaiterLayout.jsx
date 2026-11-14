@@ -11,18 +11,21 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { homePathFor } from '../auth/paths.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useActiveShift } from '../hooks/useActiveShift.js'
+import { useWaiterInbox, WaiterInboxProvider } from '../hooks/useWaiterInbox.jsx'
 import { initial } from '../utils/user.js'
 import './WaiterLayout.css'
 
 const NAV = [
   { label: 'Mis Mesas', icon: Table, to: '/mesero/mesas', mobile: true },
   { label: 'Pedidos Activos', icon: ClipboardList, mobile: true },
-  { label: 'Llamados', icon: Bell, mobile: true, badge: true },
+  // GC-QR-0002/0003: llamados y solicitudes del cliente desde el QR, con el conteo real
+  { label: 'Llamados', icon: Bell, to: '/mesero/llamados', mobile: true, badge: true },
   { label: 'Mi Turno', icon: User, to: '/mesero/turno', mobile: true },
 ]
 
 function NavItem({ item }) {
   const Icon = item.icon
+  const { count } = useWaiterInbox()
   const content = (
     <>
       <Icon size={20} aria-hidden="true" />
@@ -36,7 +39,11 @@ function NavItem({ item }) {
           item.label
         )}
       </span>
-      {item.badge && <span className="nav-badge" aria-label="llamados pendientes">0</span>}
+      {item.badge && count > 0 && (
+        <span className="nav-badge" aria-label={`${count} pendientes`}>
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
     </>
   )
 
@@ -84,6 +91,7 @@ export function WaiterLayout() {
   }
 
   return (
+    <WaiterInboxProvider>
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
@@ -116,6 +124,7 @@ export function WaiterLayout() {
         <Outlet />
       </main>
     </div>
+    </WaiterInboxProvider>
   )
 }
 
