@@ -23,3 +23,37 @@ export async function findTableByQrToken(qrToken) {
 export async function createServiceCall({ tableId, type }) {
   return prisma.serviceCall.create({ data: { tableId, type } });
 }
+
+// Llamado con la mesa y el mesero de su orden abierta (si la hay), para decidir quien puede atenderlo.
+export async function findServiceCallForAttend(serviceCallId) {
+  return prisma.serviceCall.findUnique({
+    where: { serviceCallId },
+    include: {
+      table: {
+        select: {
+          tableId: true,
+          orders: {
+            where: { status: { not: 'CERRADA' } },
+            select: { waiterId: true },
+            take: 1,
+          },
+        },
+      },
+    },
+  });
+}
+
+// Atencion atomica: solo cambia si el llamado sigue 'pendiente' (CHECK chk_service_calls_resolution exige
+// attended_by y attended_at al atender). Dos meseros, o un mesero y la apertura/pago de la mesa, no se
+// pisan: el segundo recibe null. Al dejar de estar pendiente, el indice uix_service_calls_one_pending
+// libera el cupo y el cliente puede volver a llamar.
+export async function markServiceCallAttended({ serviceCallId, attendedBy }) {
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.serviceCall.updateMany({
+      where: { serviceCallId, status: 'pendiente' },
+      data: { status: 'atendido', attendedBy, attendedAt: new Date() },
+    });
+    if (updated.count === 0) return null;
+    return tx.serviceCall.findUnique({ where: { serviceCallId } });
+  });
+}
