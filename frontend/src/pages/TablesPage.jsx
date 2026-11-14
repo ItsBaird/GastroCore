@@ -1,10 +1,11 @@
-import { Check, Copy, Plus, RefreshCw, TriangleAlert } from 'lucide-react'
+import { Check, Copy, Plus, QrCode, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { createTable, listTables, reassignTable, updateTable } from '../api/tables.js'
 import { listTableStatuses } from '../api/tablesStatus.js'
 import { useToast } from '../components/Toast.jsx'
 import { useTableStatusSocket } from '../hooks/useTableStatusSocket.js'
 import { AdminPage } from '../layouts/AdminLayout.jsx'
+import { QrPrintModal } from './QrPrintModal.jsx'
 import { ReassignTableModal } from './ReassignTableModal.jsx'
 import { TableFormModal } from './TableFormModal.jsx'
 import './TablesPage.css'
@@ -29,6 +30,8 @@ export default function TablesPage() {
   const [copiedId, setCopiedId] = useState(null)
   const [statuses, setStatuses] = useState({})
   const [reassigning, setReassigning] = useState(null)
+  // QR imprimible de la mesa (descargar PNG o imprimir)
+  const [printingQr, setPrintingQr] = useState(null)
 
   // El estado es informativo: si falla, las mesas se siguen pudiendo crear y editar
   const fetchStatuses = useCallback(async () => {
@@ -190,6 +193,15 @@ export default function TablesPage() {
                       >
                         {copiedId === t.tableId ? <Check size={16} /> : <Copy size={16} />}
                       </button>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={() => setPrintingQr(t)}
+                        aria-label={`Ver código QR de la mesa ${t.tableNumber}`}
+                        title="Ver e imprimir el código QR"
+                      >
+                        <QrCode size={16} />
+                      </button>
                     </div>
                     <div className="table-card__actions">
                       <button
@@ -222,6 +234,8 @@ export default function TablesPage() {
       {creating && (
         <TableFormModal mode="create" onSubmit={handleCreate} onClose={() => setCreating(false)} />
       )}
+      {printingQr && <QrPrintModal table={printingQr} onClose={() => setPrintingQr(null)} />}
+
       {editing && (
         <TableFormModal
           mode="edit"

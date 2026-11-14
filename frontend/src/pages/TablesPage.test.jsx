@@ -15,6 +15,7 @@ vi.mock('../api/tables.js')
 vi.mock('../api/tablesStatus.js')
 vi.mock('../api/activeWaiters.js')
 vi.mock('../hooks/useTableStatusSocket.js', () => ({ useTableStatusSocket: vi.fn() }))
+vi.mock('qrcode', () => ({ default: { toDataURL: vi.fn(async () => 'data:image/png;base64,QR'), toCanvas: vi.fn() } }))
 
 const ME = { userId: 'me', email: 'admin@lapizzeta.com', role: 'ADMIN', isActive: true }
 const TABLES = [
@@ -238,5 +239,23 @@ describe('TablesPage', () => {
     expect(await screen.findByText('No se pudo cargar la lista de mesas.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Reintentar/ }))
     expect(await screen.findByText('Mesa 1')).toBeInTheDocument()
+  })
+})
+
+describe('TablesPage: QR imprimible', () => {
+  it('el boton QR de cada mesa abre el codigo listo para descargar o imprimir', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Ver código QR de la mesa 1' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Código QR — Mesa 1' })
+    expect(await within(dialog).findByRole('img', { name: 'Código QR de la mesa 1' })).toBeInTheDocument()
+    expect(
+      within(dialog).getByText(`${window.location.origin}/m/abc123tokenvalue`),
+    ).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: /Descargar PNG/ })).toBeEnabled()
+    await user.click(within(dialog).getByRole('button', { name: 'Cerrar' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
