@@ -1289,6 +1289,39 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/InvalidTransition' }
+  /api/orders/service-calls/{id}/attend:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Orders - QR]
+      summary: Marcar un llamado como atendido (mesero)
+      description: |
+        GC-QR-0002 / GC-QR-0004. El mesero marca como `atendido` un llamado `pendiente` (`call_waiter` o
+        `request_bill`) sin esperar a que se abra o se pague la mesa. Sin esto, el indice de un solo pendiente
+        por tipo y mesa impide al cliente volver a llamar durante toda la visita.
+        Quien: el mesero asignado a la orden abierta de la mesa, o el ADMIN. Si la mesa esta libre (no hay
+        orden), cualquier WAITER puede (igual que `waiter:called` a la sala `waiters`, "cualquier mesero puede
+        atenderlo"). Otro mesero con la mesa ocupada o en cobro: `403 FORBIDDEN`; COOK: `403`.
+        Sin cuerpo. Es una actualizacion condicional (`status = 'pendiente'`): guarda `attendedBy` (quien lo
+        marca) y `attendedAt`. Un llamado ya `atendido` (por otro mesero, al abrir la mesa o al pagar) responde
+        `409 INVALID_TRANSITION`, sin cambios. Llamado inexistente: `404`.
+        Tras el commit emite `table:status_changed` (payload `TableStatus`, con `pendingCalls` ya sin ese
+        llamado) a la sala `waiters`, para que el panel de mesas lo quite; no hay otro evento. El cliente no
+        recibe aviso: el boton del QR deja de dar `409` la proxima vez que lo pulse.
+        No hay un listado aparte de llamados: los pendientes ya viajan en `pendingCalls` de
+        `GET /api/orders/tables/status` y del evento `table:status_changed`.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Llamado marcado como atendido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceCall' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
 
   # ───────────── Orders - Reportes (F10) ─────────────
   /api/orders/reports/cash-close:
