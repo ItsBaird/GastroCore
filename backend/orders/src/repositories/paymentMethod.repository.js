@@ -24,3 +24,9 @@ export async function findAllPaymentMethods({ active } = {}) {
     orderBy: { name: 'asc' },
   });
 }
+
+// Pagos registrados con este metodo. payments guarda solo payment_method_id (no el nombre ni si era efectivo),
+// asi que mientras haya pagos el nombre y el tipo del metodo son parte del historial y del cierre de caja.
+export async function countPaymentsByMethod(paymentMethodId) {
+  return prisma.payment.count({ where: { paymentMethodId } });
+}

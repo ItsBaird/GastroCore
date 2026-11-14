@@ -1,5 +1,6 @@
 import { AppError } from '../errors/AppError.js';
 import {
+  countPaymentsByMethod,
   createPaymentMethod,
   findAllPaymentMethods,
   findPaymentMethodById,
@@ -22,6 +23,15 @@ const nameTaken = () =>
     code: 'CONFLICT',
     message: 'Ya existe un metodo de pago con ese nombre',
     details: { field: 'name' },
+  });
+
+const lockedByPayments = (locked) =>
+  new AppError({
+    status: 409,
+    code: 'CONFLICT',
+    message:
+      'Este metodo ya tiene pagos registrados: no se puede cambiar su nombre ni si es efectivo. Desactivalo y crea uno nuevo',
+    details: { locked },
   });
 
 function isPrismaUniqueViolation(err) {
@@ -54,6 +64,10 @@ export async function createPaymentMethodService({ name, isCash, isActive }) {
 
 // Editar y desactivar son el mismo PUT. Desactivar no borra nada: el metodo deja de ofrecerse al
 // cobrar (GET ?active=true) pero los pagos y cierres historicos que lo referencian se conservan.
+// Con pagos registrados NO se puede cambiar `name` ni `isCash`: payments guarda solo el id del metodo, asi que
+// renombrarlo o cambiarle el tipo reescribiria el historial y el cierre de caja de dias anteriores. Lo que
+// no cambia (un PUT que repite el mismo nombre) se acepta; `isActive` siempre se puede cambiar. Para otro
+// nombre o tipo: crear un metodo nuevo y desactivar el viejo.
 export async function updatePaymentMethodService(id, changes) {
   const existing = await findPaymentMethodById(id);
   if (!existing) {
@@ -63,6 +77,11 @@ export async function updatePaymentMethodService(id, changes) {
       message: 'Metodo de pago no encontrado',
     });
   }
+
+  const locked = [];
+  if (changes.name !== existing.name) locked.push('name');
+  if (changes.isCash !== undefined && changes.isCash !== existing.isCash) locked.push('isCash');
+  if (locked.length > 0 && (await countPaymentsByMethod(id)) > 0) throw lockedByPayments(locked);
 
   await assertNameFree(changes.name, id);
   try {
