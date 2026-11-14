@@ -1345,7 +1345,18 @@ paths:
     get:
       tags: [Orders - Reportes]
       summary: Vista previa del cierre de caja (ADMIN)
-      description: GC-RPT-0001. Ingresos por mesero atribuidos a `openedBy`.
+      description: |
+        GC-RPT-0001. Solo lectura: sirve tambien para un dia ya cerrado o futuro. Considera las ordenes `CERRADA`
+        cuyo cierre (`closedAt`) cae en el dia pedido, que es el dia del restaurante: de 00:00 a 24:00 en hora de
+        Colombia (UTC-5, sin horario de verano), no el dia UTC del servidor. `date` es obligatoria (AAAA-MM-DD, un
+        dia real del calendario); cualquier otro parametro responde `400`.
+        `totalSales` suma lo cobrado despues del descuento (`payments.total`). `tablesServed` cuenta las cuentas
+        cerradas del dia (una mesa atendida dos veces cuenta dos) y `averageTicket` es `totalSales` entre
+        `tablesServed`, redondeado al entero mas cercano (0 sin ordenes).
+        `paymentBreakdown` agrupa por metodo (solo los que tuvieron pagos), de mayor a menor monto; en efectivo
+        suma el total de la cuenta, no lo recibido. `topProducts` trae como mucho 5 platos por unidades vendidas
+        (items no cancelados; desempate por ingreso y luego por nombre), con el nombre del snapshot mas reciente.
+        `waiterBreakdown` atribuye lo cobrado al mesero que abrio la mesa (`openedBy`), de mayor a menor monto.
       x-roles: [ADMIN]
       parameters:
         - name: date
