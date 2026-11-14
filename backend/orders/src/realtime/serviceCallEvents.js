@@ -11,3 +11,13 @@ export function emitWaiterCalled({ serviceCall, tableNumber, waiterId }) {
   const room = waiterId ? waiterRoom(waiterId) : ROOM_WAITERS;
   io.to(room).emit('waiter:called', { ...serviceCall, tableNumber });
 }
+
+// GC-QR-0004 (GC-147): un cliente pide la cuenta desde el QR. Solo se emite con la mesa ocupada, asi que siempre hay
+// mesero asignado: el aviso va unicamente a su sala `waiter:{waiterId}`, nunca a todos. El payload tiene la misma
+// forma que waiter:called (el ServiceCall del contrato mas el numero de mesa) para que la pantalla del mesero
+// reutilice su manejador (BillRequestedEvent).
+export function emitBillRequested({ serviceCall, tableNumber, waiterId }) {
+  if (!waiterId) throw new Error('bill:requested necesita el mesero asignado');
+  const io = getIo();
+  io.to(waiterRoom(waiterId)).emit('bill:requested', { ...serviceCall, tableNumber });
+}
