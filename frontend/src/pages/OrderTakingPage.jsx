@@ -3,7 +3,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { getMenu } from '../api/menu.js'
 import { createRound } from '../api/orders.js'
+import { confirmQrRequest, listPendingQrRequests } from '../api/qrRequests.js'
 import { useToast } from '../components/Toast.jsx'
+import { useWaiterInbox } from '../hooks/useWaiterInbox.jsx'
 import { WaiterPage } from '../layouts/WaiterLayout.jsx'
 import { formatCOP } from '../utils/formatCOP.js'
 import './OrderTakingPage.css'
@@ -128,13 +130,43 @@ function CartItem({ item, onQuantity, onRemove, onNote }) {
   )
 }
 
+// GC-QR-0003. Con /mesero/solicitudes/:qrRequestId/ajustar la misma pantalla sirve para que el mesero ajuste
+// una solicitud QR antes de confirmarla: el carrito arranca con lo que pidio el cliente y "Confirmar" llama
+// a PUT /qr-requests/:id/confirm en vez de crear una ronda. Los precios los toma el backend (R3/R4).
+function requestToCart(request, products) {
+  const byId = new Map(products.map((p) => [p.productId, p]))
+  const lines = []
+  for (const item of request.items) {
+    const product = byId.get(item.productId)
+    const existing = lines.find((l) => l.productId === item.productId)
+    if (existing) {
+      // El carrito agrupa por producto: las notas de lineas repetidas se juntan
+      existing.quantity += item.quantity
+      existing.note = [existing.note, item.note].filter(Boolean).join(' · ')
+    } else {
+      lines.push({
+        productId: item.productId,
+        name: product?.name ?? 'Producto no disponible',
+        price: product?.price ?? 0,
+        quantity: item.quantity,
+        note: item.note ?? '',
+      })
+    }
+  }
+  return lines
+}
+
 export default function OrderTakingPage() {
-  const { orderId } = useParams()
+  const { orderId, qrRequestId } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
   const toast = useToast()
+  const inbox = useWaiterInbox()
+  const adjusting = Boolean(qrRequestId)
+  const [request, setRequest] = useState(location.state?.request ?? null)
+  const [requestGone, setRequestGone] = useState(false)
 
-  const tableNumber = location.state?.tableNumber || '—'
+  const tableNumber = request?.tableNumber ?? location.state?.tableNumber ?? '—'
 
   const [menu, setMenu] = useState([])
   const [loading, setLoading] = useState(true)
@@ -157,6 +189,30 @@ export default function OrderTakingPage() {
   useEffect(() => {
     fetchMenu()
   }, [fetchMenu])
+
+  // Al recargar la pagina no hay estado de navegacion: se busca la solicitud entre las pendientes
+  useEffect(() => {
+    if (!adjusting || request) return
+    let active = true
+    listPendingQrRequests()
+      .then((list) => {
+        if (!active) return
+        const found = list.find((r) => r.qrRequestId === qrRequestId)
+        if (found) setRequest(found)
+        else setRequestGone(true)
+      })
+      .catch(() => active && setRequestGone(true))
+    return () => {
+      active = false
+    }
+  }, [adjusting, request, qrRequestId])
+
+  // El carrito arranca con lo que pidio el cliente cuando ya hay menu (nombres y precios de referencia)
+  const [seeded, setSeeded] = useState(false)
+  if (adjusting && request && !seeded && !loading) {
+    setSeeded(true)
+    setCart(requestToCart(request, menu.flatMap((c) => c.products)))
+  }
 
   const loadMenu = () => {
     setLoading(true)
@@ -222,6 +278,19 @@ export default function OrderTakingPage() {
         quantity: i.quantity,
         ...(i.note ? { note: i.note } : {}),
       }))
+      if (adjusting) {
+        const result = await confirmQrRequest(qrRequestId, items)
+        const missing = result.unavailable?.map((u) => u.name).join(', ')
+        toast.success(
+          missing
+            ? `Solicitud de la mesa ${tableNumber} confirmada. No disponibles: ${missing}`
+            : `Solicitud de la mesa ${tableNumber} confirmada y enviada a cocina`,
+        )
+        // La bandeja vive en el layout: se quita aqui para que al volver ya no aparezca
+        inbox.removeRequest(qrRequestId)
+        navigate('/mesero/llamados', { replace: true })
+        return
+      }
       const result = await createRound(orderId, items)
       if (result.unavailable?.length) {
         const names = result.unavailable.map((u) => u.name).join(', ')
@@ -231,7 +300,12 @@ export default function OrderTakingPage() {
       }
       navigate(`/mesero/mesas/${orderId}`, { replace: true })
     } catch (err) {
-      toast.success(err?.message || 'Error al enviar el pedido')
+      toast.error(err?.message || 'Error al enviar el pedido')
+      // La solicitud ya se resolvio en otro dispositivo, ya no es de esta mesa o la mesa dejo de estar abierta
+      if (adjusting && [403, 404, 409].includes(err?.status) && err?.code !== 'NO_AVAILABLE_ITEMS') {
+        inbox.reload()
+        navigate('/mesero/llamados', { replace: true })
+      }
     } finally {
       setSending(false)
     }
@@ -249,11 +323,19 @@ export default function OrderTakingPage() {
           >
             <ArrowLeft size={20} />
           </button>
-          Toma de Pedido — Mesa {tableNumber}
+          {adjusting ? `Ajustar solicitud — Mesa ${tableNumber}` : `Toma de Pedido — Mesa ${tableNumber}`}
         </span>
       }
     >
-      <div className="ot-layout">
+      {requestGone && (
+        <div className="ot-empty" role="alert">
+          <p>Esta solicitud ya no está pendiente (se confirmó, se rechazó o la mesa cambió).</p>
+          <button type="button" className="btn btn--ghost" onClick={() => navigate('/mesero/llamados')}>
+            Volver a Llamados
+          </button>
+        </div>
+      )}
+      <div className="ot-layout" hidden={requestGone}>
         <div className="ot-catalog">
           <div className="ot-search">
             <Search size={18} className="ot-search__icon" />
@@ -329,7 +411,7 @@ export default function OrderTakingPage() {
               disabled={cart.length === 0 || sending}
               onClick={handleConfirm}
             >
-              {sending ? 'Enviando…' : 'Confirmar Pedido'}
+              {sending ? 'Enviando…' : adjusting ? 'Confirmar solicitud' : 'Confirmar Pedido'}
             </button>
           </div>
         </aside>
@@ -347,7 +429,7 @@ export default function OrderTakingPage() {
               disabled={sending}
               onClick={handleConfirm}
             >
-              {sending ? 'Enviando…' : 'Enviar Pedido'}
+              {sending ? 'Enviando…' : adjusting ? 'Confirmar' : 'Enviar Pedido'}
             </button>
           </div>
         )}
