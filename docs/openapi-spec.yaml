@@ -1214,16 +1214,27 @@ paths:
     post:
       tags: [Orders - QR]
       summary: Pedir la cuenta (publico, mesa ocupada)
-      description: GC-QR-0004. Crea un `service_call` `request_bill` y emite `bill:requested` al mesero asignado.
+      description: |
+        GC-QR-0004. Crea un `service_call` `request_bill` `pendiente` y emite `bill:requested` (payload
+        `BillRequestedEvent`) SOLO a `waiter:{waiterId}`, el mesero de la orden. Sin cuerpo: el cliente no elige
+        mesa ni tipo. Solo con la mesa `ocupada` (`capabilities.requestBill` de `GET /api/orders/qr/{token}`).
+        Mesa libre: `409 TABLE_NOT_OPEN`. Mesa en cobro: `409 INVALID_TRANSITION`. Si ya hay una peticion
+        pendiente para la mesa: `409 CONFLICT` con `details.type = request_bill` (un pendiente por tipo y mesa,
+        independiente de un llamado `call_waiter`). Un token desconocido responde `404`. El mesero la cierra con
+        `PUT /api/orders/service-calls/{id}/attend`, y se cierra sola al abrir la mesa o al pagar.
       security: []
       responses:
         '201':
-          description: Llamado creado
+          description: Peticion creada. Respuesta publica (`PublicServiceCall`), sin `tableId` ni datos de atencion.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ServiceCall' }
+              schema: { $ref: '#/components/schemas/PublicServiceCall' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        '409':
+          description: Mesa libre (`TABLE_NOT_OPEN`), mesa en cobro (`INVALID_TRANSITION`) o ya hay una peticion pendiente (`CONFLICT`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
         '429': { $ref: '#/components/responses/RateLimited' }
   /api/orders/qr-requests:
     get:
@@ -2026,6 +2037,17 @@ components:
         createdAt: { type: string, format: date-time }
     WaiterCalledEvent:
       description: Payload del evento Socket.io `waiter:called`.
+      allOf:
+        - $ref: '#/components/schemas/ServiceCall'
+        - type: object
+          required: [tableNumber]
+          properties:
+            tableNumber: { type: integer }
+    BillRequestedEvent:
+      description: |
+        Payload del evento Socket.io `bill:requested` (GC-QR-0004): el cliente de una mesa ocupada pide la cuenta.
+        Misma forma que `WaiterCalledEvent` (el `ServiceCall` con `type` `request_bill`, mas el numero de mesa), para
+        que la pantalla del mesero reutilice el mismo manejador.
       allOf:
         - $ref: '#/components/schemas/ServiceCall'
         - type: object
