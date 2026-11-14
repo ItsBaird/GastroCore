@@ -1,4 +1,3 @@
-import { catalogClient } from '../clients/catalogClient.js';
 import { AppError } from '../errors/AppError.js';
 import { mapKitchenRound, mapRound } from '../mappers/item.mapper.js';
 import { emitRoundCreated, emitTableStatusChanged } from '../realtime/events.js';
@@ -7,6 +6,7 @@ import {
   findQrRequestForResolution,
   markQrRequestRejected,
 } from '../repositories/qrRequest.repository.js';
+import { snapshotItems } from './round.service.js';
 import { getTableStatus } from './tableStatus.service.js';
 
 const notFound = () =>
@@ -58,38 +58,6 @@ async function loadPendingRequest(qrRequestId, user) {
   }
   if (request.status !== 'pendiente') throw alreadyResolved();
   return request;
-}
-
-// ───────────────────────────────────────────────────────────────────────────────────────────────
-// DUPLICACION CONOCIDA (opcion A): esta funcion repite la parte de `createRound` (round.service.js, de
-// Orders-B) que consulta el catalogo y toma el snapshot de nombre y precio (R3). Esta aislada a proposito:
-// cuando `createRound` acepte `source` y `qrRequestId`, se reemplaza por una llamada a el y se borra esto.
-// ───────────────────────────────────────────────────────────────────────────────────────────────
-async function snapshotItems(items) {
-  const productIds = [...new Set(items.map((item) => item.productId))];
-  const products = await catalogClient.getProductsByIds(productIds);
-  const byId = new Map(products.map((product) => [product.productId, product]));
-
-  const available = [];
-  const unavailable = [];
-  for (const item of items) {
-    const product = byId.get(item.productId);
-    if (!product || !product.isAvailable) {
-      unavailable.push({
-        productId: item.productId,
-        name: product?.name || 'Producto desconocido',
-      });
-    } else {
-      available.push({
-        productId: item.productId,
-        productName: product.name,
-        unitPrice: product.price,
-        quantity: item.quantity,
-        note: item.note,
-      });
-    }
-  }
-  return { available, unavailable };
 }
 
 // GC-141. El mesero asignado (o el ADMIN) confirma una solicitud pendiente: se crea una ronda con origen QR
