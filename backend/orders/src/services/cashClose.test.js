@@ -206,3 +206,62 @@ describe('un dia completo', () => {
     });
   });
 });
+
+describe('GC-151: la venta se atribuye al mesero que ABRIO la mesa (opened_by)', () => {
+  const W3 = '00000000-0000-4000-8000-0000000000b3';
+  // Lo que podria llegar si el repositorio trajera mas columnas: debe ignorarse todo menos opened_by
+  const withOthers = (total, { openedBy, waiterId, registeredBy }) => ({
+    total,
+    paymentMethodId: M_CASH,
+    registeredBy,
+    order: { openedBy, waiterId },
+  });
+
+  it('una mesa reasignada a otro mesero sigue siendo venta de quien la abrio', () => {
+    // W1 abrio la mesa; un administrador la reasigno a W2 (cambia waiter_id, no opened_by); W2 cobro
+    const out = build([withOthers(50000, { openedBy: W1, waiterId: W2, registeredBy: W2 })]);
+    expect(out.waiterBreakdown).toEqual([{ waiterId: W1, totalAmount: 50000 }]);
+  });
+
+  it('quien registra el pago (un tercero, o el ADMIN) no recibe la venta', () => {
+    const out = build([withOthers(30000, { openedBy: W1, waiterId: W1, registeredBy: W3 })]);
+    expect(out.waiterBreakdown).toEqual([{ waiterId: W1, totalAmount: 30000 }]);
+    expect(out.waiterBreakdown.map((w) => w.waiterId)).not.toContain(W3);
+  });
+
+  it('suma varias mesas del mismo mesero aunque algunas se hayan reasignado y otras no', () => {
+    const out = build([
+      withOthers(20000, { openedBy: W1, waiterId: W1, registeredBy: W1 }),
+      withOthers(10000, { openedBy: W1, waiterId: W2, registeredBy: W2 }),
+      withOthers(5000, { openedBy: W2, waiterId: W1, registeredBy: W1 }),
+    ]);
+    expect(out.waiterBreakdown).toEqual([
+      { waiterId: W1, totalAmount: 30000 },
+      { waiterId: W2, totalAmount: 5000 },
+    ]);
+  });
+
+  it('si el ADMIN abrio la mesa, la venta es del ADMIN (sale en el desglose como cualquier otro)', () => {
+    const ADMIN = '00000000-0000-4000-8000-0000000000ad';
+    const out = build([pay(12000, M_CASH, ADMIN), pay(8000, M_CARD, W1)]);
+    expect(out.waiterBreakdown).toEqual([
+      { waiterId: ADMIN, totalAmount: 12000 },
+      { waiterId: W1, totalAmount: 8000 },
+    ]);
+  });
+
+  it('cada venta se atribuye a UN solo mesero: la suma del desglose es exactamente el total de ventas', () => {
+    const payments = [
+      withOthers(1111, { openedBy: W1, waiterId: W2, registeredBy: W3 }),
+      withOthers(2222, { openedBy: W2, waiterId: W3, registeredBy: W1 }),
+      withOthers(3333, { openedBy: W3, waiterId: W1, registeredBy: W2 }),
+    ];
+    const out = build(payments);
+    expect(out.waiterBreakdown.reduce((s, w) => s + w.totalAmount, 0)).toBe(out.totalSales);
+    expect(out.waiterBreakdown).toHaveLength(3);
+  });
+
+  it('un dia sin ordenes no tiene desglose por mesero', () => {
+    expect(build().waiterBreakdown).toEqual([]);
+  });
+});
