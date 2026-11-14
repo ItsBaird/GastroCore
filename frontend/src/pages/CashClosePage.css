@@ -1,0 +1,218 @@
+/* Vista previa del cierre de caja (GC-152). Design System: tarjetas planas de 24px con borde de 1px, sin sombras;
+   tablas con lineas y numeros alineados a la derecha; los KPI son tipografia, no mosaicos; el rojo solo en marcas
+   pequenas. Reutiliza .btn, .field y .catalog-state. */
+
+.cc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+}
+
+.cc-date {
+  min-width: 200px;
+}
+
+/* ---------- Rejilla: resumen a la izquierda, top y meseros a la derecha ---------- */
+.cc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: var(--sp-6);
+  align-items: start;
+}
+
+.cc-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  min-width: 0;
+}
+
+.cc-card {
+  padding: var(--sp-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+.cc-card__title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.cc-card__sub {
+  margin-top: var(--sp-1);
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.cc-card__empty {
+  margin-top: var(--sp-4);
+  color: var(--text-muted);
+}
+
+.cc-card--skeleton {
+  height: 170px;
+  background: linear-gradient(90deg, var(--n-100) 25%, var(--n-50) 50%, var(--n-100) 75%);
+  background-size: 200% 100%;
+  animation: cc-shimmer 1.4s ease-in-out infinite;
+}
+
+.cc-card--tall {
+  height: 420px;
+}
+
+@keyframes cc-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ---------- Total de ventas: el dato principal es texto grande ---------- */
+.cc-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-4);
+  margin-top: var(--sp-5);
+  padding: var(--sp-4) 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.cc-total__label {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cc-total__value {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.cc-section {
+  margin-top: var(--sp-6);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ---------- Tablas ---------- */
+.cc-table {
+  width: 100%;
+  margin-top: var(--sp-2);
+  border-collapse: collapse;
+}
+
+.cc-table th {
+  padding: var(--sp-3) var(--sp-2) var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.cc-table td {
+  padding: var(--sp-3) var(--sp-2);
+  border-bottom: 1px solid var(--n-100);
+  vertical-align: middle;
+}
+
+.cc-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.cc-table .cc-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cc-strong {
+  font-weight: 700;
+}
+
+.cc-rank-col {
+  width: 48px;
+}
+
+.cc-rank {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  background: var(--n-100);
+  border-radius: var(--radius-full);
+  color: var(--n-700);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ---------- Estadisticas: lista de datos con la cifra a la derecha ---------- */
+.cc-stats {
+  margin-top: var(--sp-2);
+}
+
+.cc-stats__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-2);
+  border-bottom: 1px solid var(--n-100);
+}
+
+.cc-stats__row:last-child {
+  border-bottom: 0;
+}
+
+.cc-stats__row dd {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Sin ordenes ---------- */
+.cc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.cc-empty svg {
+  color: var(--n-400);
+}
+
+.cc-empty__title {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* ---------- Tablet y movil: una sola columna ---------- */
+@media (max-width: 900px) {
+  .cc-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .cc-card {
+    padding: var(--sp-5);
+  }
+
+  .cc-total__value {
+    font-size: 28px;
+  }
+
+  .cc-date {
+    min-width: 0;
+  }
+}

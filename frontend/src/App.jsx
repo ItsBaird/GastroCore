@@ -4,6 +4,7 @@ import { homePathFor } from './auth/paths.js'
 import { useAuth } from './auth/useAuth.js'
 import BillPage from './pages/BillPage.jsx'
 import CallsInboxPage from './pages/CallsInboxPage.jsx'
+import CashClosePage from './pages/CashClosePage.jsx'
 import { AdminLayout } from './layouts/AdminLayout.jsx'
 import { WaiterLayout } from './layouts/WaiterLayout.jsx'
 import CategoriesPage from './pages/CategoriesPage.jsx'
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="mesas" element={<TablesPage />} />
           <Route path="productos" element={<ProductsPage />} />
           <Route path="categorias" element={<CategoriesPage />} />
+          <Route path="cierre-caja" element={<CashClosePage />} />
         </Route>
       </Route>
 
