@@ -62,15 +62,14 @@ describe('llamado con la mesa libre', () => {
   it('es publico: crea el service_call "call_waiter" sin token de sesion -> 201', async () => {
     const res = await call(app.base, 'POST', URL());
     expect(res.status).toBe(201);
+    // PublicServiceCall: sin tableId ni datos de atencion
     expect(res.body).toEqual({
       serviceCallId: '55555555-5555-4555-8555-555555555555',
-      tableId: TABLE_ID,
       type: 'call_waiter',
       status: 'pendiente',
       createdAt: '2026-11-08T15:00:00.000Z',
-      attendedAt: null,
-      attendedBy: null,
     });
+    expect(res.body).not.toHaveProperty('tableId');
     expect(findTableByQrToken).toHaveBeenCalledWith(TOKEN);
     expect(createServiceCall).toHaveBeenCalledWith({ tableId: TABLE_ID, type: 'call_waiter' });
   });

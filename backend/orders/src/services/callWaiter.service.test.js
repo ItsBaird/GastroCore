@@ -41,15 +41,21 @@ describe('callWaiter', () => {
       tableId: TABLE.tableId,
       type: 'call_waiter',
     });
-    expect(Object.keys(out).sort()).toEqual([
-      'attendedAt',
-      'attendedBy',
-      'createdAt',
-      'serviceCallId',
-      'status',
-      'tableId',
-      'type',
-    ]);
+    // PublicServiceCall: sin tableId (id interno) ni datos de atencion
+    expect(Object.keys(out).sort()).toEqual(['createdAt', 'serviceCallId', 'status', 'type']);
+  });
+
+  it('el evento waiter:called sigue llevando el llamado completo (con tableId) aunque la respuesta sea publica', async () => {
+    await callWaiter('t');
+    expect(emitWaiterCalled).toHaveBeenCalledWith({
+      serviceCall: expect.objectContaining({
+        tableId: TABLE.tableId,
+        attendedAt: null,
+        attendedBy: null,
+      }),
+      tableNumber: 7,
+      waiterId: null,
+    });
   });
 
   it('mesa libre: avisa sin mesero concreto (sala waiters) y con el numero de mesa', async () => {

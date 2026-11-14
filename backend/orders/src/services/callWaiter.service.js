@@ -1,6 +1,6 @@
 import { AppError } from '../errors/AppError.js';
 import { emitWaiterCalled } from '../realtime/serviceCallEvents.js';
-import { toServiceCall } from '../mappers/serviceCall.mapper.js';
+import { toPublicServiceCall, toServiceCall } from '../mappers/serviceCall.mapper.js';
 import { createServiceCall } from '../repositories/serviceCall.repository.js';
 import { resolveQrTable, tableNotFound } from './qrTable.js';
 
@@ -40,5 +40,6 @@ export async function callWaiter(qrToken) {
     console.error('No se pudo emitir waiter:called', err);
   }
 
-  return serviceCall;
+  // El cliente recibe la version publica; el evento de arriba lleva el llamado completo (con tableId).
+  return toPublicServiceCall(call);
 }
