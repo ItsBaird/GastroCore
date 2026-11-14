@@ -24,6 +24,7 @@
   --n-950: #0a0a0a;
   --n-850: #222222;
   --n-700: #404040;
+  --n-600: #525252;
   --n-500: #737373;
   --n-400: #a3a3a3;
   --n-300: #d4d4d4;
@@ -56,6 +57,7 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
+  --radius-2xl: 26px;
   --radius-full: 9999px;
 
   /* Tipografia */
