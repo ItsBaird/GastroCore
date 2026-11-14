@@ -32,7 +32,7 @@ const NAV = [
   { label: 'Empleados', icon: IdCard, to: '/admin/empleados' },
   { label: 'Turnos', icon: Clock, to: '/admin/turnos', mobile: true },
   { label: 'Ventas', icon: DollarSign },
-  { label: 'Cierre de Caja', icon: Wallet },
+  { label: 'Cierre de Caja', icon: Wallet, to: '/admin/cierre-caja' },
   { label: 'Métodos Pago', icon: CreditCard, to: '/admin/metodos-pago' },
 ]
 
