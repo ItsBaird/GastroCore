@@ -20,7 +20,16 @@ export function QrProductSheet({ product, categoryName, cartFull, alreadyInCart,
   const blocked = cartFull && !alreadyInCart
 
   return (
-    <div ref={ref} className="qr-detail" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+    <div
+      ref={ref}
+      className="qr-detail"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      onClick={(event) => event.target === event.currentTarget && onClose()}
+    >
+      {/* En movil el panel ocupa toda la pantalla (Figma 70:2); en pantallas anchas es un panel centrado */}
+      <div className="qr-detail__panel">
       {/* 70:3: zona de 280 sobre #fef2f2 con la foto (o la porcion del Figma) */}
       <div className="qr-detail__hero">
         {product.photoUrl && !photoFailed ? (
@@ -83,7 +92,9 @@ export function QrProductSheet({ product, categoryName, cartFull, alreadyInCart,
         </span>
         <hr className="qr-detail__rule" />
 
-        {/* 70:38 a 70:47: cantidad y total */}
+        {/* 70:38 a 70:51: cantidad, total y boton. Fijos al pie del panel para que "Agregar" siempre se vea,
+            aunque la pantalla sea baja o la descripcion larga */}
+        <div className="qr-detail__footer">
         <div className="qr-detail__amount">
           <div>
             <span className="qr-detail__label" id={`${noteId}-qty`}>
@@ -134,6 +145,8 @@ export function QrProductSheet({ product, categoryName, cartFull, alreadyInCart,
             ? `Tu pedido ya tiene ${MAX_LINES} productos distintos: envíalo antes de agregar otro.`
             : 'Lo envías desde «Mi Pedido»; el mesero lo confirma.'}
         </p>
+        </div>
+      </div>
       </div>
     </div>
   )

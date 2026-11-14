@@ -5,9 +5,18 @@
   position: fixed;
   inset: 0;
   z-index: 20;
-  overflow-y: auto;
+  display: flex;
+  justify-content: center;
   background: var(--white);
+}
+
+/* El panel es el que se desplaza: asi el pie con "Agregar" puede quedar fijo abajo */
+.qr-detail__panel {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
   overscroll-behavior: contain;
+  background: var(--white);
 }
 
 /* 70:3: 280 de alto sobre #fef2f2 */
@@ -77,7 +86,20 @@
 .qr-detail__body {
   max-width: 760px;
   margin: 0 auto;
-  padding: var(--sp-6) var(--sp-6) calc(var(--sp-6) + env(safe-area-inset-bottom));
+  padding: var(--sp-6) var(--sp-6) 0;
+}
+
+/* Pie fijo: cantidad, total, boton y nota siempre a la vista (en movil, si todo cabe, no cambia nada) */
+.qr-detail__footer {
+  position: sticky;
+  bottom: 0;
+  margin: 0 calc(-1 * var(--sp-6));
+  padding: var(--sp-2) var(--sp-6) calc(var(--sp-4) + env(safe-area-inset-bottom));
+  background: var(--white);
+}
+
+.qr-detail__footer .qr-detail__add {
+  margin-top: var(--sp-4);
 }
 
 /* 70:16 y 70:17: nombre 24/700 #0a0a0a y precio 24/700 #dc2626 */
@@ -554,5 +576,30 @@
       transform: translateY(24px);
       opacity: 0;
     }
+  }
+}
+
+/* Pantallas anchas (propuesta: el Figma solo dibuja movil). El detalle es un panel centrado sobre el menu,
+   como "Mi Pedido", y no una foto a todo el ancho; un clic fuera lo cierra. */
+@media (width > 640px) {
+  .qr-detail {
+    align-items: center;
+    padding: var(--sp-6);
+    background: rgb(10 10 10 / 45%);
+  }
+
+  .qr-detail__panel {
+    max-width: 520px;
+    height: auto;
+    max-height: calc(100dvh - 2 * var(--sp-6));
+    border-radius: var(--qr-radius-card);
+  }
+
+  .qr-detail__hero {
+    height: 220px;
+  }
+
+  .qr-detail__footer {
+    box-shadow: 0 -10px 16px -14px rgb(10 10 10 / 35%);
   }
 }

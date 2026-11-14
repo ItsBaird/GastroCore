@@ -1,5 +1,6 @@
 import {
   BellRing,
+  ChevronRight,
   CircleCheck,
   ClipboardList,
   ConciergeBell,
@@ -18,6 +19,7 @@ import { getPublicMenu, sendOrderRequest } from '../api/qr.js'
 import brandRing from '../assets/qr/brand-ring.svg'
 import sliceDot from '../assets/qr/slice-dot.svg'
 import slice from '../assets/qr/slice.svg'
+import { useToast } from '../components/Toast.jsx'
 import { useCallWaiter } from '../hooks/useCallWaiter.js'
 import { useOrderCart } from '../hooks/useOrderCart.js'
 import { useQrTable } from '../hooks/useQrTable.js'
@@ -228,6 +230,7 @@ export default function PublicMenuPage() {
 
   // GC-QR-0003: detalle, carrito "Mi Pedido" y envio
   const cart = useOrderCart()
+  const toast = useToast()
   const [detail, setDetail] = useState(null)
   const [orderOpen, setOrderOpen] = useState(false)
   const [orderPhase, setOrderPhase] = useState('editing') // editing | sending | sent
@@ -340,7 +343,7 @@ export default function PublicMenuPage() {
   const eagerIds = new Set(visible.flatMap((c) => c.products).slice(0, 2).map((p) => p.productId))
 
   return (
-    <div className="qr-page">
+    <div className={`qr-page${cart.units > 0 ? ' qr-page--cart' : ''}`}>
       <header className="qr-header">
         <div className="qr-shell qr-header__row">
           <img className="qr-brand__logo" src={brandRing} alt="" width="20" height="20" />
@@ -444,6 +447,22 @@ export default function PublicMenuPage() {
       </main>
 
       <div className="qr-dock">
+        {/* GC-QR-0003: en cuanto hay productos, el siguiente paso queda a la vista (propuesta sin Figma) */}
+        {cart.units > 0 && (
+          <div className="qr-shell">
+            <button type="button" className="qr-cartbar" onClick={openOrder}>
+              <span className="qr-cartbar__count">
+                <ShoppingCart size={18} aria-hidden="true" />
+                {cart.units} {cart.units === 1 ? 'producto' : 'productos'}
+                <span className="qr-cartbar__total">· {formatCOP(cart.referenceTotal)}</span>
+              </span>
+              <span className="qr-cartbar__cta">
+                Ver mi pedido y enviar
+                <ChevronRight size={18} aria-hidden="true" />
+              </span>
+            </button>
+          </div>
+        )}
         <p
           id="qr-call-feedback"
           className={`qr-shell qr-call-feedback${callView.message ? '' : ' sr-only'}${callView.tone ? ` qr-call-feedback--${callView.tone}` : ''}`}
@@ -524,6 +543,7 @@ export default function PublicMenuPage() {
           onAdd={(quantity, note) => {
             cart.add(detail.product, quantity, note)
             setDetail(null)
+            toast.success(`Agregado a tu pedido: ${quantity} × ${detail.product.name}`)
           }}
         />
       )}

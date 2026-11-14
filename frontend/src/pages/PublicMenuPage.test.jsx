@@ -594,3 +594,41 @@ describe('PublicMenuPage: pedido del cliente (GC-QR-0003)', () => {
     expect(document.querySelector('img[src="x"]')).toBeNull()
   })
 })
+
+// Arreglo: el siguiente paso del pedido debe verse sin buscarlo
+describe('PublicMenuPage: el pedido se ve y se envía sin buscarlo', () => {
+  beforeEach(() => {
+    qrApi.getQrTable.mockResolvedValue(table('ocupada'))
+  })
+
+  it('el botón "Agregar a mi pedido" vive en el pie fijo del detalle', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Agregar Agua' }))
+
+    const add = within(screen.getByRole('dialog', { name: 'Agua' })).getByRole('button', {
+      name: /Agregar a mi pedido/,
+    })
+    expect(add.closest('.qr-detail__footer')).not.toBeNull()
+  })
+
+  it('al agregar avisa y aparece la barra "Ver mi pedido y enviar" con conteo y total referencial', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    expect(screen.queryByRole('button', { name: /Ver mi pedido y enviar/ })).toBeNull()
+
+    await user.click(await screen.findByRole('button', { name: 'Agregar Agua' }))
+    const dialog = screen.getByRole('dialog', { name: 'Agua' })
+    await user.click(within(dialog).getByRole('button', { name: 'Agregar uno' }))
+    await user.click(within(dialog).getByRole('button', { name: /Agregar a mi pedido/ }))
+
+    expect(await screen.findByText('Agregado a tu pedido: 2 × Agua')).toBeInTheDocument()
+    const bar = screen.getByRole('button', { name: /Ver mi pedido y enviar/ })
+    expect(bar).toHaveTextContent('2 productos')
+    expect(bar).toHaveTextContent('$4.000')
+
+    await user.click(bar)
+    expect(screen.getByRole('dialog', { name: 'Mi Pedido' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Enviar al mesero/ })).toBeEnabled()
+  })
+})
