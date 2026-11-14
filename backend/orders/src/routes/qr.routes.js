@@ -1,5 +1,9 @@
 import { Router } from 'express';
-import { callWaiterController, requestOrderController } from '../controllers/qr.controller.js';
+import {
+  callWaiterController,
+  requestBillController,
+  requestOrderController,
+} from '../controllers/qr.controller.js';
 import { getQrTableController } from '../controllers/qrTable.controller.js';
 import { validate } from '../middlewares/validate.js';
 import { qrRequestBodySchema } from '../schemas/qrRequest.schema.js';
@@ -15,3 +19,6 @@ qrRouter.get('/:token', getQrTableController);
 
 // GC-QR-0003. Publico: el cliente envia productos, cantidades y notas; el servidor decide todo lo demas.
 qrRouter.post('/:token/request', validate({ body: qrRequestBodySchema }), requestOrderController);
+
+// GC-QR-0004. Publico: el cliente con la mesa ocupada pide la cuenta; sin cuerpo (no elige mesa ni tipo).
+qrRouter.post('/:token/request-bill', requestBillController);

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('./events.js', () => ({ getIo: vi.fn() }));
 
 const { getIo } = await import('./events.js');
-const { emitWaiterCalled } = await import('./serviceCallEvents.js');
+const { emitBillRequested, emitWaiterCalled } = await import('./serviceCallEvents.js');
 
 const SERVICE_CALL = {
   serviceCallId: '11111111-2222-4333-8444-555555555555',
@@ -60,5 +60,33 @@ describe('emitWaiterCalled', () => {
     expect(() =>
       emitWaiterCalled({ serviceCall: SERVICE_CALL, tableNumber: 1, waiterId: null }),
     ).toThrow(/Socket.io/);
+  });
+});
+
+describe('emitBillRequested', () => {
+  const BILL = { ...SERVICE_CALL, type: 'request_bill' };
+
+  it('emite bill:requested SOLO a la sala waiter:{id} del mesero asignado', () => {
+    emitBillRequested({ serviceCall: BILL, tableNumber: 4, waiterId: 'mesero-9' });
+    expect(io.to).toHaveBeenCalledOnce();
+    expect(io.to).toHaveBeenCalledWith('waiter:mesero-9');
+    expect(io.to).not.toHaveBeenCalledWith('waiters');
+    expect(io.emit).toHaveBeenCalledWith('bill:requested', { ...BILL, tableNumber: 4 });
+  });
+
+  it('sin mesero asignado no emite a nadie y avisa con un error (el servicio lo captura)', () => {
+    expect(() => emitBillRequested({ serviceCall: BILL, tableNumber: 4, waiterId: null })).toThrow(
+      /mesero asignado/,
+    );
+    expect(io.to).not.toHaveBeenCalled();
+  });
+
+  it('si Socket.io no esta inicializado el error sale', () => {
+    getIo.mockImplementation(() => {
+      throw new Error('Socket.io no inicializado');
+    });
+    expect(() => emitBillRequested({ serviceCall: BILL, tableNumber: 1, waiterId: 'm' })).toThrow(
+      /Socket.io/,
+    );
   });
 });
