@@ -123,7 +123,9 @@ describe('rutas de la aplicacion', () => {
       // Barra movil (clase nav-item--mobile): el ADMIN ve Admin y no los destinos que aun no existen
       expect(screen.getByRole('link', { name: /Panel Admin/ })).toHaveClass('nav-item--mobile')
       expect(screen.getByRole('button', { name: /Pedidos Activos/ })).not.toHaveClass('nav-item--mobile')
-      expect(screen.getByRole('button', { name: /Llamados/ })).not.toHaveClass('nav-item--mobile')
+      // GC-QR-0002/0003: "Llamados" ya existe (bandeja del mesero) y tambien va en la barra movil
+      expect(screen.getByRole('link', { name: /Llamados/ })).toHaveAttribute('href', '/mesero/llamados')
+      expect(screen.getByRole('link', { name: /Llamados/ })).toHaveClass('nav-item--mobile')
 
       await ui.click(screen.getByRole('link', { name: /Panel Admin/ }))
       expect(await screen.findByRole('heading', { name: 'Gestión de Usuarios' })).toBeInTheDocument()

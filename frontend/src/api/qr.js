@@ -8,15 +8,16 @@
 const TIMEOUT_MS = 60_000
 
 export class QrApiError extends Error {
-  constructor(status, code, message) {
+  constructor(status, code, message, details = {}) {
     super(message)
     this.name = 'QrApiError'
     this.status = status // 0 = sin conexion o tiempo agotado
     this.code = code
+    this.details = details // p. ej. { fields: [{ path, message }] }, { unavailable }, { pending }
   }
 }
 
-async function request(path, { method = 'GET', signal } = {}) {
+async function request(path, { method = 'GET', signal, body } = {}) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   const abort = () => controller.abort()
@@ -28,7 +29,11 @@ async function request(path, { method = 'GET', signal } = {}) {
         method,
         credentials: 'omit',
         cache: 'no-store',
-        headers: { Accept: 'application/json' },
+        headers: {
+          Accept: 'application/json',
+          ...(body !== undefined && { 'Content-Type': 'application/json' }),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
       })
     } catch (err) {
@@ -36,20 +41,21 @@ async function request(path, { method = 'GET', signal } = {}) {
       throw new QrApiError(0, 'NETWORK_ERROR', 'Sin conexión')
     }
     const text = await res.text()
-    let body = null
+    let data = null
     try {
-      body = text ? JSON.parse(text) : null
+      data = text ? JSON.parse(text) : null
     } catch {
       // cuerpo no JSON (p. ej. una pagina de error del proxy)
     }
     if (!res.ok) {
       throw new QrApiError(
         res.status,
-        body?.error?.code ?? 'UNKNOWN',
-        body?.error?.message ?? 'Error inesperado',
+        data?.error?.code ?? 'UNKNOWN',
+        data?.error?.message ?? 'Error inesperado',
+        data?.error?.details ?? {},
       )
     }
-    return body
+    return data
   } finally {
     clearTimeout(timer)
     signal?.removeEventListener('abort', abort)
@@ -66,3 +72,17 @@ export const getPublicMenu = (options) => request('/api/catalog/public/menu', op
 
 // GC-QR-0002 (backend de Oscar). Sin cuerpo: el cliente no elige mesa ni tipo
 export const callWaiter = (qrToken) => request(`${tokenPath(qrToken)}/call`, { method: 'POST' })
+
+// GC-QR-0003 (backend de Oscar). R4: por item solo productId, quantity y note; nunca precios ni totales.
+// Se arma aqui con una lista blanca de campos para que nada mas viaje aunque el carrito tenga mas datos.
+export const sendOrderRequest = (qrToken, items) =>
+  request(`${tokenPath(qrToken)}/request`, {
+    method: 'POST',
+    body: {
+      items: items.map(({ productId, quantity, note }) => ({
+        productId,
+        quantity,
+        ...(note?.trim() && { note: note.trim() }),
+      })),
+    },
+  })

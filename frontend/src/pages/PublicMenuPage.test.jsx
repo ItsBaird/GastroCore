@@ -1,16 +1,17 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as qrApi from '../api/qr.js'
 import { QrApiError } from '../api/qr.js'
 import { ToastProvider } from '../components/Toast.jsx'
+import { NOTIFIED_MS } from '../hooks/useCallWaiter.js'
 import { POLL_MS } from '../hooks/useQrTable.js'
 import PublicMenuPage from './PublicMenuPage.jsx'
 
 vi.mock('../api/qr.js', async (importOriginal) => {
   const real = await importOriginal()
-  return { ...real, getQrTable: vi.fn(), getPublicMenu: vi.fn(), callWaiter: vi.fn() }
+  return { ...real, getQrTable: vi.fn(), getPublicMenu: vi.fn(), callWaiter: vi.fn(), sendOrderRequest: vi.fn() }
 })
 
 const TOKEN = 'tok_ABC123'
@@ -83,8 +84,7 @@ describe('PublicMenuPage: acciones según el estado de la mesa (las decide el ba
     const bill = screen.getByRole('button', { name: /Pedir la cuenta/ })
     expect(bill).toBeDisabled()
     expect(bill).toHaveTextContent('Próximamente')
-    const add = screen.getByRole('button', { name: 'Agregar Pizza Margherita (próximamente)' })
-    expect(add).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Agregar Pizza Margherita' })).toBeEnabled()
   })
 
   it('Esc. 3 mesa en cobro: menú y "Llamar al mesero"; sin pedidos nuevos ni cuenta', async () => {
@@ -219,38 +219,110 @@ describe('PublicMenuPage: errores de la mesa', () => {
 })
 
 describe('PublicMenuPage: Llamar al mesero (GC-QR-0002)', () => {
-  it('llama con el token y confirma', async () => {
-    qrApi.callWaiter.mockResolvedValue({})
+  const callButton = () => screen.getByRole('button', { name: /Llamar al mesero|Mesero avisado|Avisando|Reintentar llamado/ })
+  const feedback = () => document.getElementById('qr-call-feedback')
+
+  it('reposo -> enviando (deshabilitado) -> avisado, con mensaje anunciado', async () => {
+    let resolve
+    qrApi.callWaiter.mockReturnValue(new Promise((r) => (resolve = r)))
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Pizza Margherita')
 
-    await user.click(screen.getByRole('button', { name: /Llamar al mesero/ }))
+    await user.click(callButton())
+    expect(callButton()).toHaveTextContent('Avisando…')
+    expect(callButton()).toBeDisabled()
+    await user.click(callButton())
+    expect(qrApi.callWaiter).toHaveBeenCalledTimes(1)
 
+    await act(async () => resolve({}))
+    expect(callButton()).toHaveTextContent('Mesero avisado')
+    expect(callButton()).toBeDisabled()
+    expect(feedback()).toHaveAttribute('aria-live', 'polite')
+    expect(feedback()).toHaveTextContent('Avisamos al mesero. En un momento se acercará.')
     expect(qrApi.callWaiter).toHaveBeenCalledWith(TOKEN)
-    expect(await screen.findByText('Listo, avisamos al mesero. En un momento te atiende.')).toBeInTheDocument()
   })
 
-  it('si ya había un llamado pendiente (409) dice que ya avisamos', async () => {
+  it('tras un minuto vuelve a reposo', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    qrApi.callWaiter.mockResolvedValue({})
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+    fireEvent.click(callButton())
+    await screen.findByText('Avisamos al mesero. En un momento se acercará.')
+
+    await act(() => vi.advanceTimersByTimeAsync(NOTIFIED_MS))
+
+    expect(callButton()).toHaveTextContent('Llamar al mesero')
+    expect(callButton()).toBeEnabled()
+  })
+
+  it('409 (ya había un llamado) es informativo, no un error', async () => {
     qrApi.callWaiter.mockRejectedValue(new QrApiError(409, 'CONFLICT', 'Ya hay un llamado pendiente para esta mesa'))
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Pizza Margherita')
 
-    await user.click(screen.getByRole('button', { name: /Llamar al mesero/ }))
+    await user.click(callButton())
 
-    expect(await screen.findByText('Ya avisamos al mesero. En un momento te atiende.')).toBeInTheDocument()
+    expect(await screen.findByText('Ya avisamos al mesero, no hace falta volver a llamar.')).toBeInTheDocument()
+    expect(feedback()).toHaveClass('qr-call-feedback--info')
+    expect(feedback()).not.toHaveClass('qr-call-feedback--warn')
+    expect(callButton()).toHaveTextContent('Mesero avisado')
   })
 
-  it('error de red: avisa que no se pudo', async () => {
-    qrApi.callWaiter.mockRejectedValue(new QrApiError(0, 'NETWORK_ERROR', 'Sin conexión'))
+  it('429: pide esperar y deja intentar de nuevo', async () => {
+    qrApi.callWaiter.mockRejectedValue(new QrApiError(429, 'RATE_LIMITED', 'Demasiadas solicitudes'))
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Pizza Margherita')
 
-    await user.click(screen.getByRole('button', { name: /Llamar al mesero/ }))
+    await user.click(callButton())
 
-    expect(await screen.findByText('No pudimos avisar al mesero. Intenta de nuevo.')).toBeInTheDocument()
+    expect(await screen.findByText('Espera unos segundos e intenta de nuevo.')).toBeInTheDocument()
+    expect(callButton()).toBeEnabled()
+  })
+
+  it('sin conexión: ofrece reintentar y el reintento avisa', async () => {
+    qrApi.callWaiter
+      .mockRejectedValueOnce(new QrApiError(0, 'NETWORK_ERROR', 'Sin conexión'))
+      .mockResolvedValue({})
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+
+    await user.click(callButton())
+    expect(await screen.findByRole('button', { name: /Reintentar llamado/ })).toBeEnabled()
+    expect(screen.getByText(/No pudimos avisar al mesero/)).toBeInTheDocument()
+
+    await user.click(callButton())
+    expect(await screen.findByText('Avisamos al mesero. En un momento se acercará.')).toBeInTheDocument()
+  })
+
+  it('404 al llamar (mesa eliminada): vuelve a consultar y muestra QR inválido', async () => {
+    qrApi.callWaiter.mockRejectedValue(new QrApiError(404, 'NOT_FOUND', 'Mesa no encontrada'))
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+    qrApi.getQrTable.mockRejectedValue(new QrApiError(404, 'NOT_FOUND', 'Mesa no encontrada'))
+
+    await user.click(callButton())
+
+    expect(await screen.findByRole('heading', { name: 'Este código QR no es válido' })).toBeInTheDocument()
+  })
+
+  it('también en la mesa ocupada y en cobro (lo decide capabilities.callWaiter)', async () => {
+    qrApi.getQrTable.mockResolvedValue(table('en_cobro'))
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+    expect(callButton()).toBeEnabled()
+  })
+
+  it('sin la capacidad no hay botón', async () => {
+    qrApi.getQrTable.mockResolvedValue({ ...table('libre'), capabilities: { ...caps.libre, callWaiter: false } })
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+    expect(screen.queryByRole('button', { name: /Llamar al mesero/ })).toBeNull()
   })
 })
 
@@ -329,6 +401,196 @@ describe('PublicMenuPage: privacidad', () => {
 
     const name = await screen.findByText('<img src=x onerror=alert(1)>')
     expect(name.tagName).toBe('H3')
+    expect(document.querySelector('img[src="x"]')).toBeNull()
+  })
+})
+
+// GC-QR-0003: selección de productos, "Mi Pedido" y envío de la solicitud
+describe('PublicMenuPage: pedido del cliente (GC-QR-0003)', () => {
+  beforeEach(() => {
+    qrApi.getQrTable.mockResolvedValue(table('ocupada'))
+  })
+
+  async function addProduct(user, name, { quantity = 1, note = '' } = {}) {
+    await user.click(await screen.findByRole('button', { name: `Agregar ${name}` }))
+    const dialog = screen.getByRole('dialog', { name: name })
+    for (let i = 1; i < quantity; i++) {
+      await user.click(within(dialog).getByRole('button', { name: 'Agregar uno' }))
+    }
+    if (note) await user.type(within(dialog).getByLabelText('Notas para la cocina (opcional)'), note)
+    await user.click(within(dialog).getByRole('button', { name: /Agregar a mi pedido/ }))
+  }
+
+  const openOrder = (user) => user.click(screen.getByRole('button', { name: /Mi Pedido/ }))
+  const inSheet = () => within(screen.getByRole('dialog', { name: 'Mi Pedido' }))
+
+  it('el "+" abre el detalle (70:2) con categoría, nota con contador, cantidad y total referencial', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Agregar Pizza Margherita' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Pizza Margherita' })
+    expect(within(dialog).getByText('Pizzas')).toBeInTheDocument()
+    expect(within(dialog).getByText('$22.000', { selector: '.qr-detail__price' })).toBeInTheDocument()
+    const note = within(dialog).getByLabelText('Notas para la cocina (opcional)')
+    expect(note).toHaveAttribute('maxLength', '255')
+    await user.type(note, 'sin cebolla')
+    expect(within(dialog).getByText('11/255')).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Agregar uno' }))
+    expect(within(dialog).getByText('$44.000')).toBeInTheDocument()
+    expect(within(dialog).getByText('Total referencial')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Quitar uno' })).toBeEnabled()
+  })
+
+  it('Esc cierra el detalle y el foco vuelve al botón que lo abrió', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const open = await screen.findByRole('button', { name: 'Agregar Pizza Margherita' })
+    await user.click(open)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(open).toHaveFocus()
+  })
+
+  it('agregar suma al contador de "Mi Pedido" y la hoja lista líneas, notas y total referencial', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await addProduct(user, 'Pizza Margherita', { quantity: 2, note: 'sin cebolla' })
+    await addProduct(user, 'Agua')
+
+    expect(screen.getByRole('button', { name: /Mi Pedido.*3 productos/ })).toBeInTheDocument()
+    await openOrder(user)
+    const sheet = screen.getByRole('dialog', { name: 'Mi Pedido' })
+    expect(within(sheet).getByText('Nota: sin cebolla')).toBeInTheDocument()
+    expect(within(sheet).getByText('$46.000')).toBeInTheDocument()
+    expect(within(sheet).getByText('Valor referencial; el mesero confirma tu pedido.')).toBeInTheDocument()
+  })
+
+  it('envía solo productId, quantity y note (R4: nunca precios ni totales) y muestra la confirmación', async () => {
+    qrApi.sendOrderRequest.mockResolvedValue({ qrRequestId: 'q1', status: 'pendiente' })
+    const user = userEvent.setup()
+    renderPage()
+    await addProduct(user, 'Pizza Margherita', { quantity: 2, note: 'sin cebolla' })
+    await openOrder(user)
+
+    await user.click(screen.getByRole('button', { name: /Enviar al mesero/ }))
+
+    const [token, lines] = qrApi.sendOrderRequest.mock.calls[0]
+    expect(token).toBe(TOKEN)
+    expect(lines).toHaveLength(1)
+    expect(await screen.findByRole('heading', { name: '¡Pedido enviado!' })).toBeInTheDocument()
+    expect(screen.getByText('Tu pedido fue enviado a tu mesero; lo revisará en un momento.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Seguir viendo el menú' }))
+    expect(screen.getByRole('button', { name: /^Mi Pedido$/ })).toBeInTheDocument()
+  })
+
+  it('400 de producto inexistente marca solo esa línea y conserva el resto', async () => {
+    qrApi.sendOrderRequest.mockRejectedValue(
+      new QrApiError(400, 'VALIDATION_ERROR', 'Datos de entrada invalidos', {
+        fields: [{ path: 'items.1.productId', message: 'El producto no existe' }],
+      }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await addProduct(user, 'Pizza Margherita')
+    await addProduct(user, 'Agua')
+    await openOrder(user)
+    await user.click(screen.getByRole('button', { name: /Enviar al mesero/ }))
+
+    expect(await screen.findByText('Este producto ya no está disponible. Quítalo para enviar.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Enviar al mesero/ })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Quitar Agua del pedido' }))
+    expect(inSheet().getByText('Pizza Margherita')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Enviar al mesero/ })).toBeEnabled()
+  })
+
+  it('409 de producto agotado (details.unavailable) marca esa línea', async () => {
+    qrApi.sendOrderRequest.mockRejectedValue(
+      new QrApiError(409, 'CONFLICT', 'Producto agotado', { unavailable: [{ productId: 'p3', name: 'Agua' }] }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await addProduct(user, 'Agua')
+    await openOrder(user)
+    await user.click(screen.getByRole('button', { name: /Enviar al mesero/ }))
+
+    expect(await screen.findByText('Se agotó. Quítalo para enviar el resto.')).toBeInTheDocument()
+  })
+
+  it('409 por solicitudes pendientes (pending: 3) pide esperar', async () => {
+    qrApi.sendOrderRequest.mockRejectedValue(new QrApiError(409, 'CONFLICT', 'Ya hay solicitudes', { pending: 3 }))
+    const user = userEvent.setup()
+    renderPage()
+    await addProduct(user, 'Agua')
+    await openOrder(user)
+    await user.click(screen.getByRole('button', { name: /Enviar al mesero/ }))
+
+    expect(await screen.findByText(/Ya tienes pedidos esperando que el mesero los revise/)).toBeInTheDocument()
+  })
+
+  it('mesa en cobro al enviar (409): explica, vuelve a consultar y conserva el carrito', async () => {
+    qrApi.sendOrderRequest.mockRejectedValue(new QrApiError(409, 'INVALID_TRANSITION', 'En cobro'))
+    const user = userEvent.setup()
+    renderPage()
+    await addProduct(user, 'Agua')
+    await openOrder(user)
+    qrApi.getQrTable.mockResolvedValue(table('en_cobro'))
+
+    await user.click(screen.getByRole('button', { name: /Enviar al mesero/ }))
+
+    expect((await screen.findAllByText('Tu mesa ya está en proceso de pago; no se aceptan más pedidos.')).length).toBeGreaterThan(0)
+    expect(inSheet().getByText('Agua')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: /Enviar al mesero/ })).toBeDisabled())
+  })
+
+  it('sin conexión: conserva el carrito, no reintenta solo y avisa del posible duplicado', async () => {
+    qrApi.sendOrderRequest.mockRejectedValue(new QrApiError(0, 'NETWORK_ERROR', 'Sin conexión'))
+    const user = userEvent.setup()
+    renderPage()
+    await addProduct(user, 'Agua')
+    await openOrder(user)
+    await user.click(screen.getByRole('button', { name: /Enviar al mesero/ }))
+
+    expect(await screen.findByText(/el mesero podría recibirlo dos veces/)).toBeInTheDocument()
+    expect(inSheet().getByText('Agua')).toBeInTheDocument()
+    expect(qrApi.sendOrderRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('si el polling cambia la mesa a en cobro, el carrito se conserva y "Enviar" se deshabilita', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderPage()
+    await addProduct(user, 'Agua')
+    await openOrder(user)
+    qrApi.getQrTable.mockResolvedValue(table('en_cobro'))
+
+    await act(() => vi.advanceTimersByTimeAsync(POLL_MS))
+
+    expect(await screen.findByText('Tu mesa ya está en proceso de pago; no se aceptan más pedidos.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Enviar al mesero/ })).toBeDisabled()
+    expect(inSheet().getByText('Agua')).toBeInTheDocument()
+  })
+
+  it('con la mesa libre no hay "+" y "Mi Pedido" está deshabilitado', async () => {
+    qrApi.getQrTable.mockResolvedValue(table('libre'))
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+
+    expect(screen.queryByRole('button', { name: /^Agregar / })).toBeNull()
+    expect(screen.getByRole('button', { name: /Mi Pedido/ })).toBeDisabled()
+  })
+
+  it('la nota del cliente se muestra como texto, nunca como HTML', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await addProduct(user, 'Agua', { note: '<img src=x onerror=alert(1)>' })
+    await openOrder(user)
+
+    expect(screen.getByText('Nota: <img src=x onerror=alert(1)>')).toBeInTheDocument()
     expect(document.querySelector('img[src="x"]')).toBeNull()
   })
 })

@@ -1,0 +1,220 @@
+/* GC-QR-0002/0003. Seccion "Llamados" (propuesta sin Figma) con el lenguaje del panel de mesas:
+   tarjetas blancas con borde 1.5 #e5e5e5 y radio --radius-card (waiter.tokens.css), botones .btn de 44. */
+
+.inbox-section + .inbox-section {
+  margin-top: var(--sp-8);
+}
+
+.inbox-section__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-3);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--n-950);
+}
+
+.inbox-section__title > svg {
+  color: var(--red-600);
+}
+
+.inbox-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--n-100);
+  color: var(--n-700);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.inbox-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inbox-empty,
+.inbox-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.inbox-hint {
+  margin-top: var(--sp-3);
+  font-size: 13px;
+}
+
+.inbox-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-6);
+  color: var(--text-muted);
+}
+
+/* ---------- Solicitud ---------- */
+.inbox-card {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-4);
+  border: 1.5px solid var(--n-200);
+  border-left: 4px solid var(--blue-600); /* mesa ocupada: azul del panel */
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+.inbox-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.inbox-card__table {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--n-950);
+}
+
+.inbox-card__time {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.inbox-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 var(--sp-4);
+  padding: 0;
+  list-style: none;
+}
+
+.inbox-item {
+  display: flex;
+  gap: var(--sp-3);
+  font-size: 14px;
+}
+
+.inbox-item__qty {
+  flex: none;
+  min-width: 28px;
+  font-weight: 700;
+  color: var(--n-700);
+}
+
+.inbox-item__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.inbox-item__name {
+  font-weight: 600;
+  color: var(--n-950);
+  overflow-wrap: anywhere;
+}
+
+/* Texto escrito por el cliente: se recorta a 3 lineas y nunca se interpreta */
+.inbox-item__note {
+  display: -webkit-box;
+  font-size: 13px;
+  color: var(--n-500);
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.inbox-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: auto;
+}
+
+.inbox-btn {
+  flex: 1;
+  min-width: 96px;
+  padding: 0 var(--sp-3);
+  text-decoration: none;
+}
+
+.inbox-btn[aria-disabled='true'] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.inbox-btn--danger {
+  color: var(--red-600);
+}
+
+/* ---------- Llamado ---------- */
+.inbox-call {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1.5px solid var(--n-200);
+  border-left: 4px solid var(--orange-500); /* mismo naranja de "N llamados" en la tarjeta de mesa */
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+.inbox-call__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: var(--orange-50);
+  color: var(--orange-600);
+}
+
+.inbox-call__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.inbox-call__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--n-950);
+}
+
+.inbox-call__time {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.inbox-call .inbox-btn {
+  flex: none;
+}
+
+@media (width <= 640px) {
+  .inbox-list {
+    grid-template-columns: 1fr;
+  }
+
+  .inbox-call {
+    flex-wrap: wrap;
+  }
+
+  .inbox-call .inbox-btn {
+    width: 100%;
+  }
+}
