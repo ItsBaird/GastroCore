@@ -13,6 +13,7 @@ import { paymentMethodRouter } from './routes/paymentMethod.routes.js';
 import { qrRequestRouter } from './routes/qrRequest.routes.js';
 import { serviceCallRouter } from './routes/serviceCall.routes.js';
 import { qrRouter } from './routes/qr.routes.js';
+import { reportsRouter } from './routes/reports.routes.js';
 import { roundRouter } from './routes/round.routes.js';
 import { tableRouter } from './routes/table.routes.js';
 
@@ -36,6 +37,7 @@ router.use('/qr-requests', qrRequestRouter);
 router.use('/service-calls', serviceCallRouter);
 router.use('/items', itemRouter);
 router.use('/kitchen', kitchenRouter);
+router.use('/reports', reportsRouter);
 router.use('/', orderRouter);
 router.use('/:orderId/rounds', roundRouter);
 app.use('/api/orders', router);
