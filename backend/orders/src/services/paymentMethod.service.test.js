@@ -91,7 +91,10 @@ describe('createPaymentMethodService', () => {
 });
 
 describe('updatePaymentMethodService', () => {
-  beforeEach(() => repo.findPaymentMethodById.mockResolvedValue(makeMethod()));
+  beforeEach(() => {
+    repo.findPaymentMethodById.mockResolvedValue(makeMethod());
+    repo.countPaymentsByMethod.mockResolvedValue(0);
+  });
 
   it('desactivar solo cambia isActive: no se borra ni se toca lo demas', async () => {
     repo.updatePaymentMethod.mockImplementation(async (_id, data) => makeMethod(data));
@@ -136,5 +139,89 @@ describe('updatePaymentMethodService', () => {
     const boom = new Error('db caida');
     repo.updatePaymentMethod.mockRejectedValueOnce(boom);
     await expect(updatePaymentMethodService(ID, { name: 'Nequi' })).rejects.toBe(boom);
+  });
+});
+
+describe('metodo con pagos registrados: nombre y tipo quedan fijos', () => {
+  beforeEach(() => {
+    repo.findPaymentMethodById.mockResolvedValue(makeMethod());
+    repo.countPaymentsByMethod.mockResolvedValue(3);
+    repo.updatePaymentMethod.mockImplementation(async (_id, data) => makeMethod(data));
+  });
+
+  it('cambiar el nombre -> 409 CONFLICT con details.locked y no actualiza', async () => {
+    await expect(updatePaymentMethodService(ID, { name: 'Caja' })).rejects.toMatchObject({
+      status: 409,
+      code: 'CONFLICT',
+      details: { locked: ['name'] },
+    });
+    expect(repo.updatePaymentMethod).not.toHaveBeenCalled();
+  });
+
+  it('cambiar si es efectivo -> 409 con details.locked = isCash', async () => {
+    await expect(
+      updatePaymentMethodService(ID, { name: 'Efectivo', isCash: false }),
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT', details: { locked: ['isCash'] } });
+    expect(repo.updatePaymentMethod).not.toHaveBeenCalled();
+  });
+
+  it('cambiar los dos a la vez los informa juntos', async () => {
+    await expect(
+      updatePaymentMethodService(ID, { name: 'Caja', isCash: false }),
+    ).rejects.toMatchObject({ details: { locked: ['name', 'isCash'] } });
+  });
+
+  it('el mensaje explica la salida: desactivarlo y crear uno nuevo', async () => {
+    await expect(updatePaymentMethodService(ID, { name: 'Caja' })).rejects.toThrow(
+      /Desactivalo y crea uno nuevo/,
+    );
+  });
+
+  it('desactivar y reactivar SI se puede (repetir el mismo nombre y tipo)', async () => {
+    const off = await updatePaymentMethodService(ID, {
+      name: 'Efectivo',
+      isCash: true,
+      isActive: false,
+    });
+    expect(off.isActive).toBe(false);
+    const on = await updatePaymentMethodService(ID, { name: 'Efectivo', isActive: true });
+    expect(on.isActive).toBe(true);
+    expect(repo.updatePaymentMethod).toHaveBeenCalledTimes(2);
+  });
+
+  it('si no cambia nada bloqueado ni consulta los pagos', async () => {
+    await updatePaymentMethodService(ID, { name: 'Efectivo', isCash: true, isActive: false });
+    expect(repo.countPaymentsByMethod).not.toHaveBeenCalled();
+  });
+
+  it('un cambio de mayusculas tambien cuenta como cambio de nombre', async () => {
+    await expect(updatePaymentMethodService(ID, { name: 'efectivo' })).rejects.toMatchObject({
+      status: 409,
+      details: { locked: ['name'] },
+    });
+  });
+
+  it('sin pagos el nombre y el tipo se editan como siempre', async () => {
+    repo.countPaymentsByMethod.mockResolvedValue(0);
+    const out = await updatePaymentMethodService(ID, { name: 'Caja', isCash: false });
+    expect(out).toMatchObject({ name: 'Caja', isCash: false });
+    expect(repo.countPaymentsByMethod).toHaveBeenCalledWith(ID);
+  });
+
+  it('la regla de pagos se evalua antes que la del nombre duplicado', async () => {
+    repo.findPaymentMethodByName.mockResolvedValue(
+      makeMethod({ paymentMethodId: OTHER, name: 'Nequi' }),
+    );
+    await expect(updatePaymentMethodService(ID, { name: 'Nequi' })).rejects.toMatchObject({
+      details: { locked: ['name'] },
+    });
+  });
+
+  it('un metodo inexistente sigue siendo 404 (no se consultan los pagos)', async () => {
+    repo.findPaymentMethodById.mockResolvedValue(null);
+    await expect(updatePaymentMethodService(ID, { name: 'Caja' })).rejects.toMatchObject({
+      status: 404,
+    });
+    expect(repo.countPaymentsByMethod).not.toHaveBeenCalled();
   });
 });

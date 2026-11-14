@@ -594,7 +594,13 @@ paths:
     put:
       tags: [Orders - Metodos de pago]
       summary: Editar o desactivar un metodo de pago (ADMIN)
-      description: Un metodo desactivado no aparece al cobrar pero se conserva en los registros historicos.
+      description: |
+        Un metodo desactivado no aparece al cobrar pero se conserva en los registros historicos.
+        Con pagos registrados (`payments`) NO se puede cambiar `name` ni `isCash`: el pago guarda solo el id del
+        metodo, asi que renombrarlo o cambiarle el tipo reescribiria el historial y el cierre de caja de dias
+        anteriores. Responde `409 CONFLICT` con `details.locked` (los campos que se intentaron cambiar). Repetir el
+        mismo valor se acepta y `isActive` siempre se puede cambiar. Para otro nombre o tipo: crear un metodo
+        nuevo y desactivar el viejo. Sin pagos, todo se edita como siempre.
       x-roles: [ADMIN]
       requestBody:
         required: true

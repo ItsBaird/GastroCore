@@ -2,6 +2,7 @@
 // Solo el repositorio va simulado: no hace falta base de datos.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  countPaymentsByMethod,
   createPaymentMethod,
   findAllPaymentMethods,
   findPaymentMethodById,
@@ -21,6 +22,7 @@ import {
 // Evita que los repositorios de las demas rutas construyan un PrismaClient real al cargar la app
 vi.mock('../config/prisma.js', () => ({ prisma: {} }));
 vi.mock('../repositories/paymentMethod.repository.js', () => ({
+  countPaymentsByMethod: vi.fn(),
   createPaymentMethod: vi.fn(),
   findAllPaymentMethods: vi.fn(),
   findPaymentMethodById: vi.fn(),
@@ -42,6 +44,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   findAllPaymentMethods.mockResolvedValue([]);
   findPaymentMethodByName.mockResolvedValue(null);
+  countPaymentsByMethod.mockResolvedValue(0);
   createPaymentMethod.mockImplementation(async (data) => makePaymentMethod(data));
   updatePaymentMethod.mockImplementation(async (_id, data) => makePaymentMethod(data));
   findPaymentMethodById.mockResolvedValue(makePaymentMethod());
@@ -308,5 +311,44 @@ describe('PUT /api/orders/payment-methods/:id', () => {
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
     expect(updatePaymentMethod).not.toHaveBeenCalled();
+  });
+});
+
+describe('PUT con pagos registrados: nombre y tipo quedan fijos (409)', () => {
+  const put = (body, id = METHOD_ID) =>
+    call(app.base, 'PUT', `${URL}/${id}`, { token: admin(), body });
+
+  beforeEach(() => {
+    findPaymentMethodById.mockResolvedValue(makePaymentMethod({ name: 'Efectivo', isCash: true }));
+    updatePaymentMethod.mockImplementation(async (_id, data) => makePaymentMethod(data));
+    countPaymentsByMethod.mockResolvedValue(5);
+  });
+
+  it('renombrarlo -> 409 CONFLICT con la lista de campos bloqueados y sin actualizar', async () => {
+    const res = await put({ name: 'Caja' });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('CONFLICT');
+    expect(res.body.error.details).toEqual({ locked: ['name'] });
+    expect(updatePaymentMethod).not.toHaveBeenCalled();
+  });
+
+  it('cambiar si es efectivo -> 409', async () => {
+    const res = await put({ name: 'Efectivo', isCash: false });
+    expect(res.status).toBe(409);
+    expect(res.body.error.details).toEqual({ locked: ['isCash'] });
+  });
+
+  it('desactivarlo y volver a activarlo -> 200 (es lo que se hace en lugar de renombrar)', async () => {
+    const off = await put({ name: 'Efectivo', isCash: true, isActive: false });
+    expect(off.status).toBe(200);
+    expect(off.body.isActive).toBe(false);
+    expect((await put({ name: 'Efectivo', isActive: true })).status).toBe(200);
+  });
+
+  it('sin pagos se puede renombrar y cambiar el tipo', async () => {
+    countPaymentsByMethod.mockResolvedValue(0);
+    const res = await put({ name: 'Caja', isCash: false });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ name: 'Caja', isCash: false });
   });
 });
