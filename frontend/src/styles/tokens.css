@@ -19,6 +19,7 @@
   --blue-600: #2563eb;
   --green-50: #f0fdf4;
   --green-600: #16a34a;
+  --green-700: #15803d; /* texto verde sobre blanco: 5,02:1 (AA); el 600 da 3,30:1 */
 
   /* Neutros */
   --n-950: #0a0a0a;
