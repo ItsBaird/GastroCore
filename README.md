@@ -25,6 +25,15 @@ docker compose exec auth npm run seed:admin
 ```
 Despues, el ADMIN crea al resto con `POST /api/auth/register`. Para iniciar sesion: `POST /api/auth/login` con `{ "email", "password" }`. Devuelve el access token (15 min) en el cuerpo y el refresh token (7 dias) en la cookie `refreshToken` (`HttpOnly; Secure; SameSite=Strict`). Tras 5 intentos fallidos la cuenta se bloquea 15 minutos (`423 ACCOUNT_LOCKED`). El flujo de sesion (refresh con rotacion, logout) y como proteger rutas en cada servicio estan en [docs/auth.md](docs/auth.md).
 
+### Datos de demostración
+`seed:admin` solo crea al administrador. Para tener una instancia con la que probar todas las pantallas (meseros, cocinero, empleados y turnos, menú con fotos de relleno, mesas, métodos de pago y ventas) hay un seed de demostración, con el stack levantado y el administrador creado:
+```bash
+bash scripts/seed-demo.sh
+```
+Crea, en orden: usuarios `mesero1`, `mesero2`, `mesero3` y `cocinero1` (`@lapizzeta.com`, contraseña común `DEMO_PASSWORD` del `.env`); sus perfiles de empleado y turnos (la semana pasada finalizados, hoy en curso para `mesero1` y `cocinero1`); 5 categorías y 16 productos; 10 mesas; 5 métodos de pago (uno inactivo); una semana de órdenes cerradas con sus pagos (para el cierre de caja) y, hoy, órdenes abiertas en cada estado (cocina, por cobrar y en cobro), una solicitud de pedido por QR y llamados pendientes.
+
+Es **idempotente**: repetirlo no duplica nada y lo que ya existe (mesas o productos creados a mano) no se toca; cada día nuevo agrega las ventas que falten. No corre con `NODE_ENV=production` (deja contraseñas conocidas) salvo que se defina `SEED_DEMO_FORCE=true`. Cada servicio tiene su parte (`docker compose exec <servicio> npm run seed:demo`); se ponen de acuerdo en los ids con un cálculo determinista (`src/scripts/demo/ids.js`, igual en los cuatro), así que ninguna depende de que otra haya corrido.
+
 ### pgAdmin (solo desarrollo)
 pgAdmin corre en la red interna y no publica puerto. Para abrirlo en `http://127.0.0.1:5050`:
 ```bash
