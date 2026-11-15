@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { callWaiter, getPublicMenu, getQrTable, QrApiError, sendOrderRequest } from './qr.js'
+import { callWaiter, getPublicMenu, getQrTable, QrApiError, requestBill, sendOrderRequest } from './qr.js'
 
 const json = (status, body) =>
   Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
@@ -19,6 +19,7 @@ describe('cliente HTTP público del QR', () => {
     await getQrTable('abc')
     await getPublicMenu()
     await callWaiter('abc')
+    await requestBill('abc')
 
     for (const [url, options] of fetchSpy.mock.calls) {
       expect(url).not.toMatch(/\/api\/auth/)
@@ -29,6 +30,7 @@ describe('cliente HTTP público del QR', () => {
       'GET /api/orders/qr/abc',
       'GET /api/catalog/public/menu',
       'POST /api/orders/qr/abc/call',
+      'POST /api/orders/qr/abc/request-bill',
     ])
   })
 

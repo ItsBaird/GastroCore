@@ -73,6 +73,9 @@ export const getPublicMenu = (options) => request('/api/catalog/public/menu', op
 // GC-QR-0002 (backend de Oscar). Sin cuerpo: el cliente no elige mesa ni tipo
 export const callWaiter = (qrToken) => request(`${tokenPath(qrToken)}/call`, { method: 'POST' })
 
+// GC-QR-0004 (backend de Oscar, GC-146). Sin cuerpo; responde PublicServiceCall. Solo con la mesa ocupada
+export const requestBill = (qrToken) => request(`${tokenPath(qrToken)}/request-bill`, { method: 'POST' })
+
 // GC-QR-0003 (backend de Oscar). R4: por item solo productId, quantity y note; nunca precios ni totales.
 // Se arma aqui con una lista blanca de campos para que nada mas viaje aunque el carrito tenga mas datos.
 export const sendOrderRequest = (qrToken, items) =>

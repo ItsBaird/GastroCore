@@ -20,7 +20,7 @@ import brandRing from '../assets/qr/brand-ring.svg'
 import sliceDot from '../assets/qr/slice-dot.svg'
 import slice from '../assets/qr/slice.svg'
 import { useToast } from '../components/Toast.jsx'
-import { useCallWaiter } from '../hooks/useCallWaiter.js'
+import { useCallWaiter, useRequestBill } from '../hooks/useCallWaiter.js'
 import { useOrderCart } from '../hooks/useOrderCart.js'
 import { useQrTable } from '../hooks/useQrTable.js'
 import { formatCOP } from '../utils/formatCOP.js'
@@ -74,6 +74,47 @@ const CALL_VIEW = {
     message: 'No pudimos avisar al mesero. Revisa tu conexión e intenta de nuevo.',
     tone: 'warn',
   },
+}
+
+// GC-QR-0004 (GC-148). "Pedir la cuenta" (propuesta sin Figma, mismo lenguaje que el llamado). Si la mesa
+// cambio de estado entre la consulta y el clic (stale), el boton desaparece al refrescar y queda el mensaje.
+const BILL_VIEW = {
+  idle: { label: 'Pedir la cuenta', icon: ReceiptText, disabled: false, message: '' },
+  sending: { label: 'Pidiendo la cuenta…', icon: LoaderCircle, disabled: true, message: '' },
+  sent: {
+    label: 'Cuenta pedida',
+    icon: CircleCheck,
+    disabled: true,
+    message: 'Avisamos a tu mesero. En un momento te trae la cuenta.',
+    tone: 'ok',
+  },
+  already: {
+    label: 'Cuenta pedida',
+    icon: CircleCheck,
+    disabled: true,
+    message: 'Ya pediste la cuenta; tu mesero ya fue avisado.',
+    tone: 'info',
+  },
+  stale: { label: 'Pedir la cuenta', icon: ReceiptText, disabled: true, tone: 'info' },
+  limited: {
+    label: 'Pedir la cuenta',
+    icon: ReceiptText,
+    disabled: false,
+    message: 'Espera unos segundos e intenta de nuevo.',
+    tone: 'warn',
+  },
+  failed: {
+    label: 'Reintentar',
+    icon: RefreshCw,
+    disabled: false,
+    message: 'No pudimos pedir la cuenta. Revisa tu conexión e intenta de nuevo.',
+    tone: 'warn',
+  },
+}
+
+const BILL_STALE_MESSAGE = {
+  INVALID_TRANSITION: 'Tu mesa ya está en proceso de pago: el mesero está preparando tu cuenta.',
+  TABLE_NOT_OPEN: 'Tu mesa no tiene un mesero asignado; llama a un mesero.',
 }
 
 // Busqueda sin tildes ni mayusculas: "cesar" encuentra "César"
@@ -227,6 +268,17 @@ export default function PublicMenuPage() {
   }, [categories, categoryId, query])
 
   const waiterCall = useCallWaiter(qrToken, { onInvalid: qr.retry })
+  const billRequest = useRequestBill(qrToken, { onInvalid: qr.retry, onStale: qr.retry })
+  // Una sola linea de respuesta sobre los botones: la de la ultima accion
+  const [lastAction, setLastAction] = useState('call')
+  const callWaiterNow = () => {
+    setLastAction('call')
+    waiterCall.call()
+  }
+  const requestBillNow = () => {
+    setLastAction('bill')
+    billRequest.call()
+  }
 
   // GC-QR-0003: detalle, carrito "Mi Pedido" y envio
   const cart = useOrderCart()
@@ -317,6 +369,13 @@ export default function PublicMenuPage() {
   }
 
   const callView = CALL_VIEW[waiterCall.state]
+  const billView = BILL_VIEW[billRequest.state]
+  const billMessage =
+    billRequest.state === 'stale' ? (BILL_STALE_MESSAGE[billRequest.reason] ?? '') : billView.message
+  const feedback =
+    lastAction === 'bill'
+      ? { message: billMessage, tone: billView.tone }
+      : { message: callView.message, tone: callView.tone }
 
   if (qr.phase === 'invalid') return <InvalidQrPage />
 
@@ -465,10 +524,10 @@ export default function PublicMenuPage() {
         )}
         <p
           id="qr-call-feedback"
-          className={`qr-shell qr-call-feedback${callView.message ? '' : ' sr-only'}${callView.tone ? ` qr-call-feedback--${callView.tone}` : ''}`}
+          className={`qr-shell qr-call-feedback${feedback.message ? '' : ' sr-only'}${feedback.tone ? ` qr-call-feedback--${feedback.tone}` : ''}`}
           aria-live="polite"
         >
-          {callView.message}
+          {feedback.message}
         </p>
         {caps && (caps.callWaiter || caps.requestBill) && (
           <div className="qr-shell qr-actions">
@@ -476,7 +535,7 @@ export default function PublicMenuPage() {
               <button
                 type="button"
                 className={`qr-btn-call qr-btn-call--${waiterCall.state}`}
-                onClick={waiterCall.call}
+                onClick={callWaiterNow}
                 disabled={callView.disabled}
                 aria-describedby="qr-call-feedback"
               >
@@ -489,11 +548,20 @@ export default function PublicMenuPage() {
               </button>
             )}
             {caps.requestBill && (
-              // GC-QR-0004: aun sin backend
-              <button type="button" className="qr-btn-bill" disabled title="Próximamente">
-                <ReceiptText size={18} aria-hidden="true" />
-                Pedir la cuenta
-                <span className="qr-soon">Próximamente</span>
+              // GC-QR-0004 (GC-148): solo con la mesa ocupada (capabilities.requestBill, lo decide el backend)
+              <button
+                type="button"
+                className={`qr-btn-bill qr-btn-bill--${billRequest.state}`}
+                onClick={requestBillNow}
+                disabled={billView.disabled}
+                aria-describedby="qr-call-feedback"
+              >
+                <billView.icon
+                  size={18}
+                  className={billRequest.state === 'sending' ? 'spin' : undefined}
+                  aria-hidden="true"
+                />
+                {billView.label}
               </button>
             )}
           </div>
