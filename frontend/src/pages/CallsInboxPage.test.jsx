@@ -233,6 +233,19 @@ describe('CallsInboxPage: llamados', () => {
     expect(callsSection().getByText('Mesa 7 · Llama al mesero')).toBeInTheDocument()
   })
 
+  it('en vivo: bill:requested (GC-QR-0004) agrega la petición de cuenta y avisa una sola vez', async () => {
+    renderInbox()
+    await callsSection().findByText('Mesa 3 · Llama al mesero')
+    const event = { ...call('c-bill', 'request_bill'), tableId: 't-nine', tableNumber: 9 }
+
+    act(() => handlers()['bill:requested'](event))
+    act(() => handlers()['bill:requested'](event))
+
+    expect(await screen.findByText('Mesa 9 pide la cuenta')).toBeInTheDocument()
+    expect(screen.getAllByText('Mesa 9 pide la cuenta')).toHaveLength(1)
+    expect(callsSection().getAllByText('Mesa 9 · Pide la cuenta')).toHaveLength(1)
+  })
+
   it('table:status_changed reemplaza los llamados de esa mesa (al abrirla quedan atendidos)', async () => {
     renderInbox()
     await callsSection().findByText('Mesa 3 · Llama al mesero')

@@ -11,7 +11,14 @@ import PublicMenuPage from './PublicMenuPage.jsx'
 
 vi.mock('../api/qr.js', async (importOriginal) => {
   const real = await importOriginal()
-  return { ...real, getQrTable: vi.fn(), getPublicMenu: vi.fn(), callWaiter: vi.fn(), sendOrderRequest: vi.fn() }
+  return {
+    ...real,
+    getQrTable: vi.fn(),
+    getPublicMenu: vi.fn(),
+    callWaiter: vi.fn(),
+    requestBill: vi.fn(),
+    sendOrderRequest: vi.fn(),
+  }
 })
 
 const TOKEN = 'tok_ABC123'
@@ -75,15 +82,15 @@ describe('PublicMenuPage: acciones según el estado de la mesa (las decide el ba
     expect(qrApi.getQrTable).toHaveBeenCalledWith(TOKEN, expect.anything())
   })
 
-  it('Esc. 2 mesa ocupada: además el punto de entrada del pedido y "Pedir la cuenta" (próximamente)', async () => {
+  it('Esc. 2 mesa ocupada: además el punto de entrada del pedido y "Pedir la cuenta"', async () => {
     qrApi.getQrTable.mockResolvedValue(table('ocupada'))
     renderPage()
 
     expect(await screen.findByText('Estás en la mesa 5. Puedes pedir o llamar a tu mesero.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Llamar al mesero/ })).toBeEnabled()
     const bill = screen.getByRole('button', { name: /Pedir la cuenta/ })
-    expect(bill).toBeDisabled()
-    expect(bill).toHaveTextContent('Próximamente')
+    expect(bill).toBeEnabled()
+    expect(bill).not.toHaveTextContent('Próximamente')
     expect(screen.getByRole('button', { name: 'Agregar Pizza Margherita' })).toBeEnabled()
   })
 
@@ -323,6 +330,153 @@ describe('PublicMenuPage: Llamar al mesero (GC-QR-0002)', () => {
     renderPage()
     await screen.findByText('Pizza Margherita')
     expect(screen.queryByRole('button', { name: /Llamar al mesero/ })).toBeNull()
+  })
+})
+
+describe('PublicMenuPage: Pedir la cuenta (GC-QR-0004, GC-148)', () => {
+  const billButton = () =>
+    screen.getByRole('button', { name: /Pedir la cuenta|Pidiendo la cuenta|Cuenta pedida|^Reintentar$/ })
+  const feedback = () => document.getElementById('qr-call-feedback')
+
+  beforeEach(() => {
+    qrApi.getQrTable.mockResolvedValue(table('ocupada'))
+  })
+
+  it('reposo -> enviando (sin doble envío) -> pedida, con mensaje anunciado; solo viaja el token', async () => {
+    let resolve
+    qrApi.requestBill.mockReturnValue(new Promise((r) => (resolve = r)))
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+
+    await user.click(billButton())
+    expect(billButton()).toHaveTextContent('Pidiendo la cuenta…')
+    expect(billButton()).toBeDisabled()
+    await user.click(billButton())
+    expect(qrApi.requestBill).toHaveBeenCalledTimes(1)
+    expect(qrApi.requestBill).toHaveBeenCalledWith(TOKEN)
+
+    await act(async () => resolve({ serviceCallId: 's1', type: 'request_bill', status: 'pendiente' }))
+    expect(billButton()).toHaveTextContent('Cuenta pedida')
+    expect(billButton()).toBeDisabled()
+    expect(feedback()).toHaveAttribute('aria-live', 'polite')
+    expect(feedback()).toHaveTextContent('Avisamos a tu mesero. En un momento te trae la cuenta.')
+    expect(feedback()).toHaveClass('qr-call-feedback--ok')
+    expect(qrApi.callWaiter).not.toHaveBeenCalled()
+  })
+
+  it('tras un minuto vuelve a reposo', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    qrApi.requestBill.mockResolvedValue({})
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+    fireEvent.click(billButton())
+    await screen.findByText('Avisamos a tu mesero. En un momento te trae la cuenta.')
+
+    await act(() => vi.advanceTimersByTimeAsync(NOTIFIED_MS))
+
+    expect(billButton()).toHaveTextContent('Pedir la cuenta')
+    expect(billButton()).toBeEnabled()
+  })
+
+  it('409 CONFLICT (ya la había pedido) es informativo, no un error', async () => {
+    qrApi.requestBill.mockRejectedValue(
+      new QrApiError(409, 'CONFLICT', 'Ya pediste la cuenta: el mesero ya fue avisado', { type: 'request_bill' }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+
+    await user.click(billButton())
+
+    expect(await screen.findByText('Ya pediste la cuenta; tu mesero ya fue avisado.')).toBeInTheDocument()
+    expect(feedback()).toHaveClass('qr-call-feedback--info')
+    expect(billButton()).toHaveTextContent('Cuenta pedida')
+  })
+
+  it('409 INVALID_TRANSITION (la mesa pasó a cobro): vuelve a consultar, el botón desaparece y se explica', async () => {
+    qrApi.requestBill.mockRejectedValue(new QrApiError(409, 'INVALID_TRANSITION', 'La mesa ya esta en cobro'))
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+    qrApi.getQrTable.mockResolvedValue(table('en_cobro'))
+
+    await user.click(billButton())
+
+    expect(await screen.findByText('Tu mesa ya está en proceso de pago: el mesero está preparando tu cuenta.')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Pedir la cuenta/ })).toBeNull())
+    expect(qrApi.getQrTable).toHaveBeenCalledTimes(2)
+  })
+
+  it('409 TABLE_NOT_OPEN (la mesa se liberó): vuelve a consultar y se explica', async () => {
+    qrApi.requestBill.mockRejectedValue(new QrApiError(409, 'TABLE_NOT_OPEN', 'La mesa todavia no esta abierta'))
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+    qrApi.getQrTable.mockResolvedValue(table('libre'))
+
+    await user.click(billButton())
+
+    expect(await screen.findByText('Tu mesa no tiene un mesero asignado; llama a un mesero.')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Pedir la cuenta/ })).toBeNull())
+  })
+
+  it('429: pide esperar y deja intentar de nuevo', async () => {
+    qrApi.requestBill.mockRejectedValue(new QrApiError(429, 'RATE_LIMITED', 'Demasiadas solicitudes'))
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+
+    await user.click(billButton())
+
+    expect(await screen.findByText('Espera unos segundos e intenta de nuevo.')).toBeInTheDocument()
+    expect(billButton()).toBeEnabled()
+  })
+
+  it('sin conexión: ofrece reintentar y el reintento pide la cuenta', async () => {
+    qrApi.requestBill
+      .mockRejectedValueOnce(new QrApiError(0, 'NETWORK_ERROR', 'Sin conexión'))
+      .mockResolvedValue({})
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+
+    await user.click(billButton())
+    expect(await screen.findByRole('button', { name: /^Reintentar$/ })).toBeEnabled()
+    expect(screen.getByText(/No pudimos pedir la cuenta/)).toBeInTheDocument()
+    expect(feedback()).toHaveClass('qr-call-feedback--warn')
+
+    await user.click(billButton())
+    expect(await screen.findByText('Avisamos a tu mesero. En un momento te trae la cuenta.')).toBeInTheDocument()
+  })
+
+  it('404 (mesa eliminada): vuelve a consultar y muestra QR inválido', async () => {
+    qrApi.requestBill.mockRejectedValue(new QrApiError(404, 'NOT_FOUND', 'Mesa no encontrada'))
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+    qrApi.getQrTable.mockRejectedValue(new QrApiError(404, 'NOT_FOUND', 'Mesa no encontrada'))
+
+    await user.click(billButton())
+
+    expect(await screen.findByRole('heading', { name: 'Este código QR no es válido' })).toBeInTheDocument()
+  })
+
+  it('una sola línea de respuesta: muestra la de la última acción y cada botón conserva su estado', async () => {
+    qrApi.callWaiter.mockResolvedValue({})
+    qrApi.requestBill.mockResolvedValue({})
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+
+    await user.click(screen.getByRole('button', { name: /Llamar al mesero/ }))
+    expect(await screen.findByText('Avisamos al mesero. En un momento se acercará.')).toBeInTheDocument()
+
+    await user.click(billButton())
+    expect(await screen.findByText('Avisamos a tu mesero. En un momento te trae la cuenta.')).toBeInTheDocument()
+    expect(screen.queryByText('Avisamos al mesero. En un momento se acercará.')).toBeNull()
+    expect(screen.getByRole('button', { name: /Mesero avisado/ })).toBeDisabled()
+    expect(billButton()).toHaveTextContent('Cuenta pedida')
   })
 })
 

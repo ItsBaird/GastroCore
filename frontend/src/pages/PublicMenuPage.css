@@ -415,16 +415,24 @@
   cursor: not-allowed;
 }
 
-.qr-soon {
-  position: absolute;
-  top: -9px;
-  right: 14px;
-  padding: 1px var(--sp-2);
-  border-radius: var(--radius-full);
-  background: var(--n-100);
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 600;
+/* GC-QR-0004: enviando conserva el rojo atenuado; pedida pasa a verde como "Mesero avisado" (secundario) */
+.qr-btn-bill--sending:disabled {
+  border-color: var(--red-600);
+  color: var(--red-600);
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.qr-btn-bill--sent:disabled,
+.qr-btn-bill--already:disabled {
+  border-color: var(--green-600);
+  color: var(--green-600);
+  cursor: default;
+}
+
+.qr-btn-bill:focus-visible {
+  outline: 2px solid var(--n-950);
+  outline-offset: 2px;
 }
 
 /* 69:98: pestañas de 64, blancas, borde superior #e5e5e5 */
@@ -591,11 +599,12 @@
   pointer-events: auto;
 }
 
-.qr-call-feedback--ok {
+/* Doble clase: ".qr-call-feedback:not(.sr-only)" pesa 0,2,0 y antes dejaba el texto siempre en #404040 */
+.qr-call-feedback.qr-call-feedback--ok {
   color: var(--green-600);
 }
 
-.qr-call-feedback--warn {
+.qr-call-feedback.qr-call-feedback--warn {
   color: var(--orange-600);
 }
 
