@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/errors.js'
 import * as menuApi from '../api/menu.js'
 import * as qrApi from '../api/qrRequests.js'
+import * as serviceCallsApi from '../api/serviceCalls.js'
 import * as tablesApi from '../api/tablesStatus.js'
 import { AuthContext } from '../auth/authContext.js'
 import { ToastProvider } from '../components/Toast.jsx'
@@ -13,6 +14,7 @@ import CallsInboxPage from './CallsInboxPage.jsx'
 
 vi.mock('../api/qrRequests.js')
 vi.mock('../api/tablesStatus.js')
+vi.mock('../api/serviceCalls.js')
 vi.mock('../api/menu.js')
 vi.mock('../hooks/useActiveShift.js', () => ({ useActiveShift: vi.fn() }))
 vi.mock('../hooks/useRealtimeEvent.js', () => ({ useRealtimeEvents: vi.fn(), useRealtimeEvent: vi.fn() }))
@@ -277,5 +279,82 @@ describe('CallsInboxPage: llamados', () => {
 
     expect(await screen.findByText('No hay solicitudes de pedido pendientes.')).toBeInTheDocument()
     expect(screen.getByText('No hay llamados pendientes.')).toBeInTheDocument()
+  })
+})
+
+describe('CallsInboxPage: botón "Atendido" (GC-QR-0002)', () => {
+  const attendButton = (table) => callsSection().getByRole('button', { name: new RegExp(`atendido: mesa ${table},`) })
+
+  it('marca el llamado como atendido, lo quita de la lista y avisa', async () => {
+    serviceCallsApi.attendServiceCall.mockResolvedValue({ serviceCallId: 'c-mine', status: 'atendido' })
+    const user = userEvent.setup()
+    renderInbox()
+    await callsSection().findByText('Mesa 7 · Pide la cuenta')
+
+    await user.click(attendButton(7))
+
+    expect(serviceCallsApi.attendServiceCall).toHaveBeenCalledWith('c-mine')
+    expect(await screen.findByText('Mesa 7: petición de cuenta atendida')).toBeInTheDocument()
+    expect(callsSection().queryByText('Mesa 7 · Pide la cuenta')).toBeNull()
+    expect(callsSection().getByText('Mesa 3 · Llama al mesero')).toBeInTheDocument()
+  })
+
+  it('también en la mesa libre, junto a "Abrir mesa"', async () => {
+    serviceCallsApi.attendServiceCall.mockResolvedValue({})
+    const user = userEvent.setup()
+    renderInbox()
+    await callsSection().findByText('Mesa 3 · Llama al mesero')
+    expect(callsSection().getByRole('button', { name: /Abrir mesa/ })).toBeEnabled()
+
+    await user.click(attendButton(3))
+
+    expect(await screen.findByText('Mesa 3: llamado atendido')).toBeInTheDocument()
+    expect(serviceCallsApi.attendServiceCall).toHaveBeenCalledWith('c-free')
+    expect(tablesApi.openTable).not.toHaveBeenCalled()
+  })
+
+  it('mientras se envía queda deshabilitado (sin doble envío)', async () => {
+    let resolve
+    serviceCallsApi.attendServiceCall.mockReturnValue(new Promise((r) => (resolve = r)))
+    const user = userEvent.setup()
+    renderInbox()
+    await callsSection().findByText('Mesa 7 · Pide la cuenta')
+
+    await user.click(attendButton(7))
+    expect(attendButton(7)).toBeDisabled()
+    await user.click(attendButton(7))
+    expect(serviceCallsApi.attendServiceCall).toHaveBeenCalledTimes(1)
+    await act(async () => resolve({}))
+  })
+
+  it.each([
+    [409, 'INVALID_TRANSITION', 'Ese llamado ya estaba atendido.'],
+    [403, 'FORBIDDEN', 'Esta mesa ya no está asignada a ti.'],
+    [404, 'NOT_FOUND', 'El llamado ya no existe.'],
+  ])('%i: avisa y recarga la lista', async (status, code, message) => {
+    serviceCallsApi.attendServiceCall.mockRejectedValue(new ApiError(status, code, 'x'))
+    const user = userEvent.setup()
+    renderInbox()
+    await callsSection().findByText('Mesa 7 · Pide la cuenta')
+    tablesApi.listTableStatuses.mockResolvedValue(TABLES.map((t) => (t.tableId === 't-mine' ? { ...t, pendingCalls: [] } : t)))
+
+    await user.click(attendButton(7))
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
+    await waitFor(() => expect(callsSection().queryByText('Mesa 7 · Pide la cuenta')).toBeNull())
+    expect(tablesApi.listTableStatuses).toHaveBeenCalledTimes(2)
+  })
+
+  it('sin conexión: avisa, no recarga y deja reintentar', async () => {
+    serviceCallsApi.attendServiceCall.mockRejectedValue(new ApiError(0, 'NETWORK_ERROR', 'Sin conexión'))
+    const user = userEvent.setup()
+    renderInbox()
+    await callsSection().findByText('Mesa 7 · Pide la cuenta')
+
+    await user.click(attendButton(7))
+
+    expect(await screen.findByText('Sin conexión: intenta de nuevo.')).toBeInTheDocument()
+    expect(attendButton(7)).toBeEnabled()
+    expect(tablesApi.listTableStatuses).toHaveBeenCalledTimes(1)
   })
 })

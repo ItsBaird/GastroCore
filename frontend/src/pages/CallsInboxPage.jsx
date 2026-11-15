@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { confirmQrRequest, rejectQrRequest } from '../api/qrRequests.js'
+import { attendServiceCall } from '../api/serviceCalls.js'
 import { openTable } from '../api/tablesStatus.js'
 import { ConfirmDialog } from '../components/ConfirmDialog.jsx'
 import { useToast } from '../components/Toast.jsx'
@@ -161,11 +162,38 @@ function RequestCard({ request, products, now, onResolved }) {
   )
 }
 
+// Errores de "Atendido": ya no esta pendiente, la mesa es de otro mesero o el llamado no existe -> se recarga
+function attendErrorMessage(err) {
+  if (err?.status === 409) return 'Ese llamado ya estaba atendido.'
+  if (err?.status === 403) return 'Esta mesa ya no está asignada a ti.'
+  if (err?.status === 404) return 'El llamado ya no existe.'
+  if (err?.status === 0) return 'Sin conexión: intenta de nuevo.'
+  return err?.message || 'No se pudo marcar como atendido.'
+}
+
 function CallRow({ call, now }) {
   const toast = useToast()
   const navigate = useNavigate()
+  const inbox = useWaiterInbox()
   const [opening, setOpening] = useState(false)
+  const [attending, setAttending] = useState(false)
   const isBill = call.type === 'request_bill'
+
+  // GC-QR-0002: PUT /service-calls/:id/attend. El backend avisa al panel con table:status_changed
+  const attend = async () => {
+    setAttending(true)
+    try {
+      await attendServiceCall(call.serviceCallId)
+      toast.success(
+        `Mesa ${call.tableNumber}: ${isBill ? 'petición de cuenta atendida' : 'llamado atendido'}`,
+      )
+      inbox.removeCall(call.serviceCallId)
+    } catch (err) {
+      toast.error(attendErrorMessage(err))
+      if ([403, 404, 409].includes(err?.status)) inbox.reload()
+      setAttending(false)
+    }
+  }
 
   const open = async () => {
     setOpening(true)
@@ -194,18 +222,39 @@ function CallRow({ call, now }) {
         </span>
         <span className="inbox-call__time">{ago(call.createdAt, now)}</span>
       </span>
-      {call.tableStatus === 'libre' ? (
-        <button type="button" className="btn btn--ghost inbox-btn" onClick={open} disabled={opening}>
-          {opening && <LoaderCircle className="spin" size={16} aria-hidden="true" />}
-          Abrir mesa
+      <div className="inbox-call__actions">
+        {call.tableStatus === 'libre' ? (
+          <button
+            type="button"
+            className="btn btn--ghost inbox-btn"
+            onClick={open}
+            disabled={opening || attending}
+          >
+            {opening && <LoaderCircle className="spin" size={16} aria-hidden="true" />}
+            Abrir mesa
+          </button>
+        ) : (
+          call.orderId && (
+            <Link className="btn btn--ghost inbox-btn" to={`/mesero/mesas/${call.orderId}`}>
+              Ir a la mesa
+            </Link>
+          )
+        )}
+        <button
+          type="button"
+          className="btn btn--primary inbox-btn"
+          onClick={attend}
+          disabled={attending || opening}
+          aria-label={`Marcar como atendido: mesa ${call.tableNumber}, ${isBill ? 'pide la cuenta' : 'llama al mesero'}`}
+        >
+          {attending ? (
+            <LoaderCircle className="spin" size={16} aria-hidden="true" />
+          ) : (
+            <Check size={16} aria-hidden="true" />
+          )}
+          Atendido
         </button>
-      ) : (
-        call.orderId && (
-          <Link className="btn btn--ghost inbox-btn" to={`/mesero/mesas/${call.orderId}`}>
-            Ir a la mesa
-          </Link>
-        )
-      )}
+      </div>
     </li>
   )
 }
@@ -268,7 +317,7 @@ export default function CallsInboxPage() {
               ))}
             </ul>
             <p className="inbox-hint">
-              El llamado se marca como atendido al abrir la mesa o al cobrarla.
+              Marca «Atendido» cuando lo resuelvas. También se cierra solo al abrir la mesa o al cobrarla.
             </p>
           </>
         )}

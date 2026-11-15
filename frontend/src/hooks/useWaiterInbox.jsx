@@ -159,6 +159,12 @@ export function WaiterInboxProvider({ children }) {
     [],
   )
 
+  // Atendido aqui: se quita al instante; el table:status_changed que emite el backend llega despues y coincide
+  const removeCall = useCallback(
+    (serviceCallId) => setCalls((prev) => prev.filter((c) => c.serviceCallId !== serviceCallId)),
+    [],
+  )
+
   const value = useMemo(
     () => ({
       requests,
@@ -168,8 +174,9 @@ export function WaiterInboxProvider({ children }) {
       count: requests.length + calls.length,
       reload: loadAll,
       removeRequest,
+      removeCall,
     }),
-    [requests, calls, products, phase, loadAll, removeRequest],
+    [requests, calls, products, phase, loadAll, removeRequest, removeCall],
   )
 
   return <InboxContext.Provider value={value}>{children}</InboxContext.Provider>
@@ -184,6 +191,7 @@ const EMPTY = {
   count: 0,
   reload: () => {},
   removeRequest: () => {},
+  removeCall: () => {},
 }
 
 export function useWaiterInbox() {
