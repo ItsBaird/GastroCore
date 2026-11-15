@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node src/server.js",
     "prisma:generate": "prisma generate",
+    "seed:demo": "node src/scripts/seed-demo.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },

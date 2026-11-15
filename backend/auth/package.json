@@ -10,6 +10,7 @@
     "start": "node src/server.js",
     "prisma:generate": "prisma generate",
     "seed:admin": "node src/scripts/seed-admin.js",
+    "seed:demo": "node src/scripts/seed-demo.js",
     "pretest": "prisma generate",
     "test": "vitest run",
     "test:watch": "vitest"
