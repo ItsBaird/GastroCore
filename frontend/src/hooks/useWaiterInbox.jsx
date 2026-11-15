@@ -11,7 +11,7 @@ import { useRealtimeEvents } from './useRealtimeEvent.js'
 // pedido QR. Vive en el layout del mesero para que el badge de "Llamados" y la seccion compartan datos.
 //   - Carga: GET /qr-requests (el backend ya filtra por mesero; ADMIN ve todas) y los pendingCalls de
 //     GET /tables/status (el WAITER ve los de sus mesas y los de mesas libres, que van a todos; ADMIN todos).
-//   - En vivo, con UNA conexion: waiter:called, qr_request:created, table:status_changed y order:updated.
+//   - En vivo, con UNA conexion: waiter:called, bill:requested, qr_request:created, table:status_changed y order:updated.
 //   - Al reconectar se recarga todo: lo emitido sin conexion se pierde.
 const InboxContext = createContext(null)
 
@@ -82,33 +82,41 @@ export function WaiterInboxProvider({ children }) {
     reloadTimer.current = setTimeout(loadAll, 400)
   }, [loadAll])
 
+  // waiter:called (GC-QR-0002) y bill:requested (GC-QR-0004) traen la misma forma (ServiceCall + tableNumber):
+  // un solo manejador; el tipo (call_waiter / request_bill) decide el texto
+  const addCall = useCallback(
+    (call) => {
+      if (!call?.serviceCallId || seen.current.has(call.serviceCallId)) return
+      seen.current.add(call.serviceCallId)
+      setCalls((prev) =>
+        prev.some((c) => c.serviceCallId === call.serviceCallId)
+          ? prev
+          : [
+              ...prev,
+              {
+                serviceCallId: call.serviceCallId,
+                tableId: call.tableId,
+                tableNumber: call.tableNumber,
+                tableStatus: statuses.current.get(call.tableId)?.status ?? 'libre',
+                orderId: statuses.current.get(call.tableId)?.orderId ?? null,
+                type: call.type,
+                createdAt: call.createdAt,
+              },
+            ].sort(byOldest),
+      )
+      toast.success(
+        call.type === 'request_bill'
+          ? `Mesa ${call.tableNumber} pide la cuenta`
+          : `Mesa ${call.tableNumber} te llama`,
+      )
+    },
+    [toast],
+  )
+
   useRealtimeEvents(
     {
-      'waiter:called': (call) => {
-        if (!call?.serviceCallId || seen.current.has(call.serviceCallId)) return
-        seen.current.add(call.serviceCallId)
-        setCalls((prev) =>
-          prev.some((c) => c.serviceCallId === call.serviceCallId)
-            ? prev
-            : [
-                ...prev,
-                {
-                  serviceCallId: call.serviceCallId,
-                  tableId: call.tableId,
-                  tableNumber: call.tableNumber,
-                  tableStatus: statuses.current.get(call.tableId)?.status ?? 'libre',
-                  orderId: statuses.current.get(call.tableId)?.orderId ?? null,
-                  type: call.type,
-                  createdAt: call.createdAt,
-                },
-              ].sort(byOldest),
-        )
-        toast.success(
-          call.type === 'request_bill'
-            ? `Mesa ${call.tableNumber} pide la cuenta`
-            : `Mesa ${call.tableNumber} te llama`,
-        )
-      },
+      'waiter:called': addCall,
+      'bill:requested': addCall,
       'qr_request:created': (request) => {
         if (!request?.qrRequestId || seen.current.has(request.qrRequestId)) return
         seen.current.add(request.qrRequestId)
