@@ -1406,16 +1406,34 @@ paths:
     get:
       tags: [Orders - Reportes]
       summary: Dashboard de metricas operativas (ADMIN)
-      description: REQ-F10-05. Ventas, tiempo de preparacion y platos mas vendidos.
+      description: |
+        REQ-F10-05 / GC-RPT-0004. Metricas del periodo `from`..`to` (dias de negocio Colombia UTC-5, ambos incluidos)
+        comparadas con el periodo anterior de igual duracion que termina el dia previo a `from`. Sin `from`/`to`
+        se usa la semana en curso, de lunes a domingo (si la semana no termino, `to` es el domingo igual y los
+        dias futuros salen en cero). Rango maximo 92 dias (`400 VALIDATION_ERROR` si se excede o si `from` > `to`).
+
+        Definiciones (todas sobre cuentas CERRADA con cierre dentro del periodo, montos enteros COP, R5):
+        - `sales`: suma de `payments.total` (lo cobrado despues del descuento).
+        - `orders`: cuentas cerradas. `averageTicket` = sales / orders redondeado; 0 sin cuentas.
+        - `preparationMinutes`: promedio de (`ready_at` - `sent_at`) de los items no cancelados que llegaron a
+          `listo` en el periodo, en minutos con un decimal; `null` si no hay items. `sent_at` es cuando el
+          mesero envio la ronda a cocina y `ready_at` cuando cocina la marco lista.
+        - `changePercent`: (value - previous) / previous x 100 con un decimal; `null` si `previous` es 0.
+        - `salesByDay`: un elemento por cada dia del rango (incluye los de venta cero).
+        - `salesByHour`: horas 0-23 del dia de negocio, sumadas sobre todo el periodo (siempre 24 elementos).
+        - `topProducts`: los 5 mas vendidos por unidades (mismo desempate que el cierre de caja).
+        - `waiterBreakdown` y `paymentBreakdown`: igual que el cierre de caja, sobre el periodo.
       x-roles: [ADMIN]
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
       responses:
         '200':
           description: Metricas
           content:
             application/json:
-              schema:
-                type: object
-                additionalProperties: true
+              schema: { $ref: '#/components/schemas/Dashboard' }
+        '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/orders/history:
@@ -2288,6 +2306,107 @@ components:
               items: { $ref: '#/components/schemas/HistoryOrderLine' }
             cashReceived: { type: integer, minimum: 0, nullable: true, description: 'Solo pagos en efectivo' }
             changeGiven: { type: integer, minimum: 0, nullable: true, description: 'Solo pagos en efectivo' }
+    DashboardPeriod:
+      type: object
+      required: [from, to]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+    DashboardKpi:
+      type: object
+      required: [value, previous, changePercent]
+      properties:
+        value: { type: number }
+        previous: { type: number }
+        changePercent: { type: number, nullable: true, description: 'null si previous es 0' }
+    DashboardKpis:
+      type: object
+      required: [sales, orders, averageTicket, preparationMinutes]
+      properties:
+        sales: { $ref: '#/components/schemas/DashboardKpi' }
+        orders: { $ref: '#/components/schemas/DashboardKpi' }
+        averageTicket: { $ref: '#/components/schemas/DashboardKpi' }
+        preparationMinutes:
+          allOf:
+            - $ref: '#/components/schemas/DashboardKpi'
+          nullable: true
+          description: 'value/previous pueden ser null si no hubo items listos en ese periodo'
+    DashboardSalesByDay:
+      type: object
+      required: [date, totalSales, orders]
+      properties:
+        date: { type: string, format: date }
+        totalSales: { type: integer, minimum: 0 }
+        orders: { type: integer, minimum: 0 }
+    DashboardSalesByHour:
+      type: object
+      required: [hour, totalSales, orders]
+      properties:
+        hour: { type: integer, minimum: 0, maximum: 23 }
+        totalSales: { type: integer, minimum: 0 }
+        orders: { type: integer, minimum: 0 }
+    DashboardTopProduct:
+      type: object
+      required: [rank, productId, productName, quantitySold, revenue]
+      properties:
+        rank: { type: integer, minimum: 1, maximum: 5 }
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        quantitySold: { type: integer, minimum: 1 }
+        revenue: { type: integer, minimum: 0, description: 'Precio snapshot x cantidad, antes del descuento de la cuenta' }
+    DashboardPreparation:
+      type: object
+      required: [averageMinutes, itemsMeasured, byCategory]
+      properties:
+        averageMinutes: { type: number, nullable: true }
+        itemsMeasured: { type: integer, minimum: 0 }
+        byCategory:
+          type: array
+          description: 'Promedio por categoria del producto (snapshot), de mayor a menor tiempo'
+          items:
+            type: object
+            required: [categoryId, categoryName, averageMinutes, itemsMeasured]
+            properties:
+              categoryId: { type: string, format: uuid }
+              categoryName: { type: string }
+              averageMinutes: { type: number }
+              itemsMeasured: { type: integer, minimum: 1 }
+    Dashboard:
+      type: object
+      required: [period, previousPeriod, kpis, salesByDay, salesByHour, topProducts, preparation, waiterBreakdown, paymentBreakdown]
+      properties:
+        period: { $ref: '#/components/schemas/DashboardPeriod' }
+        previousPeriod: { $ref: '#/components/schemas/DashboardPeriod' }
+        kpis: { $ref: '#/components/schemas/DashboardKpis' }
+        salesByDay:
+          type: array
+          items: { $ref: '#/components/schemas/DashboardSalesByDay' }
+        salesByHour:
+          type: array
+          items: { $ref: '#/components/schemas/DashboardSalesByHour' }
+        topProducts:
+          type: array
+          maxItems: 5
+          items: { $ref: '#/components/schemas/DashboardTopProduct' }
+        preparation: { $ref: '#/components/schemas/DashboardPreparation' }
+        waiterBreakdown:
+          type: array
+          items:
+            type: object
+            required: [waiterId, totalAmount, ordersCount]
+            properties:
+              waiterId: { type: string, format: uuid }
+              totalAmount: { type: integer, minimum: 0 }
+              ordersCount: { type: integer, minimum: 0 }
+        paymentBreakdown:
+          type: array
+          items:
+            type: object
+            required: [paymentMethodId, totalAmount, paymentCount]
+            properties:
+              paymentMethodId: { type: string, format: uuid }
+              totalAmount: { type: integer, minimum: 0 }
+              paymentCount: { type: integer, minimum: 0 }
     CashClose:
       allOf:
         - $ref: '#/components/schemas/CashClosePreview'
