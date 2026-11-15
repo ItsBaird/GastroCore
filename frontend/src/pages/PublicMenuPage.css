@@ -425,8 +425,8 @@
 
 .qr-btn-bill--sent:disabled,
 .qr-btn-bill--already:disabled {
-  border-color: var(--green-600);
-  color: var(--green-600);
+  border-color: var(--green-700);
+  color: var(--green-700);
   cursor: default;
 }
 
@@ -601,7 +601,7 @@
 
 /* Doble clase: ".qr-call-feedback:not(.sr-only)" pesa 0,2,0 y antes dejaba el texto siempre en #404040 */
 .qr-call-feedback.qr-call-feedback--ok {
-  color: var(--green-600);
+  color: var(--green-700);
 }
 
 .qr-call-feedback.qr-call-feedback--warn {
@@ -612,7 +612,7 @@
 .qr-btn-call--sent:disabled,
 .qr-btn-call--already:disabled {
   opacity: 1;
-  background: var(--green-600);
+  background: var(--green-700);
   cursor: default;
 }
 
