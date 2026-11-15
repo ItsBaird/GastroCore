@@ -599,11 +599,12 @@
   pointer-events: auto;
 }
 
-.qr-call-feedback--ok {
+/* Doble clase: ".qr-call-feedback:not(.sr-only)" pesa 0,2,0 y antes dejaba el texto siempre en #404040 */
+.qr-call-feedback.qr-call-feedback--ok {
   color: var(--green-600);
 }
 
-.qr-call-feedback--warn {
+.qr-call-feedback.qr-call-feedback--warn {
   color: var(--orange-600);
 }
 
