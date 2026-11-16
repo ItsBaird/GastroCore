@@ -342,7 +342,7 @@ function Sections({ data, names }) {
         label="Método"
         total={total}
         icon={CreditCard}
-        tone="purple"
+        tone="yellow"
       />
     </div>
   )

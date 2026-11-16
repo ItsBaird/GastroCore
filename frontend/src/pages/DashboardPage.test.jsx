@@ -390,7 +390,7 @@ describe('DashboardPage: graficas y listados', () => {
 
     const methods = within(card('Ventas por método de pago'))
     expect(await methods.findByText('Efectivo')).toBeInTheDocument()
-    expect(card('Ventas por método de pago')).toHaveClass('dash-tone--purple')
+    expect(card('Ventas por método de pago')).toHaveClass('dash-tone--yellow')
     expect(methods.getByText('Efectivo').closest('.dash-rank__row').querySelector('.dash-rank__sub')).toHaveTextContent(
       '81,8 % · 10 pagos',
     )

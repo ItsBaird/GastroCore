@@ -10,7 +10,7 @@ import './DashboardCharts.css'
 //
 // Tono por tema (DashboardCharts.css): rojo tomate para las ventas en el tiempo,
 // naranja horno para los productos, mostaza (queso) para la cocina, frambuesa para meseros
-// y violeta (pastilla ADMIN) para los pagos. `tone` acepta: red, orange, mustard, raspberry, purple (y blue/green,
+// y amarillo fuerte apagado para los pagos. `tone` acepta: red, orange, mustard, raspberry, yellow (y blue/green,
 // solo para los iconos de la franja de KPI).
 
 // Tarjeta de una grafica o listado con el control "Ver como tabla"

@@ -3,9 +3,9 @@
    (contraste >= 3:1 sobre blanco como elemento grafico) y el maximo el tono fuerte con su valor escrito. Los
    textos siempre en tinta: el color va en las marcas, no en las cifras. */
 
-/* Paleta ligada a la marca (La Pizzeta): tomate, horno, queso y frambuesa, mas el violeta del design system. Los
+/* Paleta ligada a la marca (La Pizzeta): tomate, horno, queso, frambuesa y amarillo. Los
    tonos que tokens.css no tiene se declaran aqui, solo para el dashboard (regla: "token propio en un archivo tuyo").
-   Validados con el script de dataviz: frambuesa y violeta pasan; naranja y mostaza quedan cerca entre si, lo que se
+   Validados con el script de dataviz: frambuesa pasa; naranja, mostaza y amarillo quedan cerca entre si, lo que se
    acepta porque nunca comparten grafica, cada tarjeta lleva titulo e icono y cada barra su valor escrito. */
 .dash {
   --dash-red-light: #f87171; /* tomate claro: barras comunes (2,7:1; el pico va rotulado y hay tabla) */
@@ -16,7 +16,9 @@
   --dash-raspberry: #e11d48; /* frambuesa: familia del rojo de marca, sin repetir el tomate (4,7:1) */
   --dash-raspberry-strong: #be123c;
   --dash-raspberry-soft: #fff1f2;
-  --dash-purple-strong: #7e22ce; /* el 600 sale de tokens.css (pastilla ADMIN) */
+  --dash-yellow: #d6b322; /* amarillo fuerte y algo opaco, ni encendido ni oscuro (pagos) */
+  --dash-yellow-strong: #b5960f;
+  --dash-yellow-soft: #fefce8;
 }
 
 /* --tone: series; --tone-strong: la marca destacada (y el lider); --tone-soft: fondo del icono y de la pista */
@@ -47,11 +49,11 @@
   --tone-soft: var(--dash-raspberry-soft);
 }
 
-/* Pagos: violeta del design system (pastilla ADMIN; el cobro y el cierre son del administrador) */
-.dash-tone--purple {
-  --tone: var(--purple-600); /* 5,4:1 */
-  --tone-strong: var(--dash-purple-strong);
-  --tone-soft: var(--purple-50);
+/* Pagos: amarillo fuerte apagado (2,0:1 sobre blanco: cada barra lleva su monto escrito y hay tabla) */
+.dash-tone--yellow {
+  --tone: var(--dash-yellow);
+  --tone-strong: var(--dash-yellow-strong);
+  --tone-soft: var(--dash-yellow-soft);
 }
 
 /* Solo para los iconos de la franja de KPI (Cuentas y Ticket), tokens del design system */
