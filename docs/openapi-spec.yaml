@@ -1410,19 +1410,29 @@ paths:
         REQ-F10-05 / GC-RPT-0004. Metricas del periodo `from`..`to` (dias de negocio Colombia UTC-5, ambos incluidos)
         comparadas con el periodo anterior de igual duracion que termina el dia previo a `from`. Sin `from`/`to`
         se usa la semana en curso, de lunes a domingo (si la semana no termino, `to` es el domingo igual y los
-        dias futuros salen en cero). Rango maximo 92 dias (`400 VALIDATION_ERROR` si se excede o si `from` > `to`).
+        dias futuros salen en cero). `from` y `to` van juntos o no van: enviar solo uno es 400. Rango maximo
+        92 dias contados con ambos extremos (`to` - `from` + 1 <= 92); `400 VALIDATION_ERROR` si se excede, si
+        `from` > `to`, si una fecha no existe o si llega un parametro desconocido. Responde `Cache-Control: no-store`.
 
-        Definiciones (todas sobre cuentas CERRADA con cierre dentro del periodo, montos enteros COP, R5):
+        Ventas (cuentas CERRADA cuyo `orders.closed_at` cae en el periodo, igual que el cierre de caja; montos
+        enteros COP, R5):
         - `sales`: suma de `payments.total` (lo cobrado despues del descuento).
         - `orders`: cuentas cerradas. `averageTicket` = sales / orders redondeado; 0 sin cuentas.
-        - `preparationMinutes`: promedio de (`ready_at` - `sent_at`) de los items no cancelados que llegaron a
-          `listo` en el periodo, en minutos con un decimal; `null` si no hay items. `sent_at` es cuando el
-          mesero envio la ronda a cocina y `ready_at` cuando cocina la marco lista.
-        - `changePercent`: (value - previous) / previous x 100 con un decimal; `null` si `previous` es 0.
-        - `salesByDay`: un elemento por cada dia del rango (incluye los de venta cero).
-        - `salesByHour`: horas 0-23 del dia de negocio, sumadas sobre todo el periodo (siempre 24 elementos).
-        - `topProducts`: los 5 mas vendidos por unidades (mismo desempate que el cierre de caja).
-        - `waiterBreakdown` y `paymentBreakdown`: igual que el cierre de caja, sobre el periodo.
+        - `changePercent`: (value - previous) / previous x 100 con un decimal; `null` si `previous` es 0 o null.
+        - `salesByDay`: un elemento por cada dia del rango (incluye los de venta cero), por dia de `closed_at`.
+        - `salesByHour`: horas 0-23 (hora Colombia) de `closed_at`, es decir la hora de cobro, sumadas sobre todo
+          el periodo (siempre 24 elementos).
+        - `topProducts`: los 5 mas vendidos por unidades (mismo desempate que el cierre de caja). `revenue` es
+          precio snapshot x cantidad antes del descuento: su suma no tiene que dar `sales`.
+        - `waiterBreakdown` y `paymentBreakdown`: igual que el cierre de caja, sobre el periodo. Cada uno suma
+          `sales`. Solo ids: los nombres se resuelven aparte (Staff y metodos de pago).
+
+        Preparacion (mide la cocina, no el cobro: NO exige que la orden este CERRADA):
+        - `preparationMinutes` y `preparation`: promedio de (`items.ready_at` - `rounds.created_at`) de los items
+          no cancelados con `ready_at` dentro del periodo (dia de negocio de `ready_at`), en minutos con un
+          decimal. `rounds.created_at` es cuando la ronda llego a cocina (el mesero la envio o confirmo la
+          solicitud QR) y `ready_at` cuando cocina marco el item listo. Un item con `ready_at` anterior a la ronda
+          se descarta. Sin items medidos, `value`/`averageMinutes` es `null`.
       x-roles: [ADMIN]
       parameters:
         - { name: from, in: query, schema: { type: string, format: date } }
@@ -1547,8 +1557,10 @@ paths:
   /internal/products:
     get:
       tags: [Internal]
-      summary: Catalog - nombre, precio y disponibilidad de productos
-      description: Orders lo usa al crear una ronda (snapshot R3, REQ-F03-05).
+      summary: Catalog - nombre, precio, disponibilidad y categoria de productos
+      description: |
+        Orders lo usa al crear una ronda (snapshot R3, REQ-F03-05) y el dashboard (GC-RPT-0004) para agrupar el
+        tiempo de preparacion por categoria. Hasta 100 ids por llamado; los ids que no existen no aparecen.
       security:
         - serviceToken: []
       parameters:
@@ -1566,12 +1578,14 @@ paths:
                 type: array
                 items:
                   type: object
-                  required: [productId, name, price, isAvailable]
+                  required: [productId, name, price, isAvailable, categoryId, categoryName]
                   properties:
                     productId: { type: string, format: uuid }
                     name: { type: string }
                     price: { type: integer }
                     isAvailable: { type: boolean }
+                    categoryId: { type: string, format: uuid }
+                    categoryName: { type: string }
         '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
   /internal/employees:
@@ -2316,21 +2330,18 @@ components:
       type: object
       required: [value, previous, changePercent]
       properties:
-        value: { type: number }
-        previous: { type: number }
-        changePercent: { type: number, nullable: true, description: 'null si previous es 0' }
+        value: { type: number, nullable: true, description: 'Solo preparationMinutes puede ser null (sin items medidos)' }
+        previous: { type: number, nullable: true, description: 'Solo preparationMinutes puede ser null (sin items medidos)' }
+        changePercent: { type: number, nullable: true, description: 'null si previous es 0 o null, o si value es null' }
     DashboardKpis:
       type: object
       required: [sales, orders, averageTicket, preparationMinutes]
+      description: 'Los cuatro KPI siempre estan presentes como objeto; sales, orders y averageTicket son enteros.'
       properties:
         sales: { $ref: '#/components/schemas/DashboardKpi' }
         orders: { $ref: '#/components/schemas/DashboardKpi' }
         averageTicket: { $ref: '#/components/schemas/DashboardKpi' }
-        preparationMinutes:
-          allOf:
-            - $ref: '#/components/schemas/DashboardKpi'
-          nullable: true
-          description: 'value/previous pueden ser null si no hubo items listos en ese periodo'
+        preparationMinutes: { $ref: '#/components/schemas/DashboardKpi' }
     DashboardSalesByDay:
       type: object
       required: [date, totalSales, orders]
@@ -2362,7 +2373,11 @@ components:
         itemsMeasured: { type: integer, minimum: 0 }
         byCategory:
           type: array
-          description: 'Promedio por categoria del producto (snapshot), de mayor a menor tiempo'
+          nullable: true
+          description: |
+            Promedio por categoria ACTUAL del producto segun Catalog (los items no guardan la categoria), de mayor a
+            menor tiempo. `null` si Catalog no respondio (el promedio global sigue valiendo); `[]` si no hay items.
+            Un producto que ya no existe en Catalog cuenta en el promedio global y no en este desglose.
           items:
             type: object
             required: [categoryId, categoryName, averageMinutes, itemsMeasured]
