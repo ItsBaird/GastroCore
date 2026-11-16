@@ -1,0 +1,316 @@
+/* GC-RPT-0004. Dashboard de metricas. Mockup Figma 12:2 adaptado al design system: tarjetas planas de borde 1px sobre
+   --page (como el cierre de caja), KPI como franja tipografica partida por lineas de 1px (sin tarjeta por KPI ni
+   icono), rojo solo en marcas pequenas y series, un solo boton primario. Cuadricula de 8 px: margenes, rellenos,
+   espacios y alturas con --sp-2/4/6/8 (excepciones documentadas en el reporte: el boton de 44 px del sistema y
+   los 4 px entre etiqueta y cifra). Solo tokens de tokens.css: ningun color suelto. */
+
+.dash {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  min-width: 0;
+}
+
+.dash[aria-busy='true'] .dash-card {
+  transition: opacity 0.2s;
+  opacity: 0.6;
+}
+
+/* ---------- Selector de periodo ---------- */
+.dash-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.dash-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.dash-preset {
+  padding: 0 var(--sp-4);
+  font-weight: 500;
+}
+
+/* Seleccionado: borde de tinta y fondo neutro; el primario queda solo para "Aplicar" */
+.dash-preset--on {
+  border-color: var(--n-950);
+  background: var(--n-100);
+}
+
+.dash-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-2);
+}
+
+.dash-date {
+  width: 168px;
+}
+
+.dash-range-error {
+  flex-basis: 100%;
+  text-align: right;
+}
+
+.dash-period {
+  margin-top: calc(-1 * var(--sp-2));
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.dash-period strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ---------- Tarjetas ---------- */
+.dash-card {
+  min-width: 0;
+  padding: var(--sp-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+/* ---------- Franja de KPI ---------- */
+.dash-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dash-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: 0 var(--sp-6);
+  border-left: 1px solid var(--border);
+}
+
+.dash-kpi:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.dash-kpi__label {
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.dash-kpi__value {
+  font-size: clamp(22px, 2.4vw, 28px);
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* El color dice si el cambio es bueno o malo (en preparacion bajar es bueno); sin anterior, gris */
+.dash-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-delta--good {
+  color: var(--green-700);
+}
+
+.dash-delta--bad {
+  color: var(--red-700);
+}
+
+.dash-delta--neutral {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.dash-kpi__prev {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-strip__empty {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+/* Ayuda con las definiciones: nativa (details), accesible por teclado */
+.dash-help {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.dash-help summary {
+  width: fit-content;
+  color: var(--text-muted);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dash-help summary:focus-visible,
+.dash-link:focus-visible {
+  outline: 2px solid var(--n-950);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.dash-help dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--sp-2) var(--sp-4);
+  margin-top: var(--sp-4);
+}
+
+.dash-help dt {
+  font-weight: 600;
+}
+
+.dash-help dd {
+  color: var(--n-700);
+}
+
+/* ---------- Estados ---------- */
+.dash-skel {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--n-100) 25%, var(--n-50) 50%, var(--n-100) 75%);
+  background-size: 200% 100%;
+  animation: catalog-shimmer 1.4s ease-in-out infinite;
+}
+
+.dash-skel--label {
+  width: 96px;
+  height: 16px;
+}
+
+.dash-skel--value {
+  width: 160px;
+  height: 32px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-skel {
+    animation: none;
+  }
+
+  .dash[aria-busy='true'] .dash-card {
+    transition: none;
+  }
+}
+
+.dash-inline-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-size: 14px;
+}
+
+.dash-inline-error svg {
+  color: var(--red-600);
+}
+
+.dash-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.dash-foot {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ---------- Tablet ---------- */
+@media (width <= 1100px) {
+  .dash-picker {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dash-range-error {
+    text-align: left;
+  }
+
+  /* KPI en 2 x 2 con sus lineas */
+  .dash-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: var(--sp-6);
+  }
+
+  .dash-kpi:nth-child(3) {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+/* ---------- Movil ---------- */
+@media (width <= 640px) {
+  .dash-card {
+    padding: var(--sp-4);
+  }
+
+  .dash-kpi {
+    padding: 0 var(--sp-4);
+  }
+
+  .dash-custom {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dash-date {
+    width: auto;
+  }
+
+  .dash-custom .btn--primary {
+    grid-column: 1 / -1;
+  }
+
+  .dash-help dl {
+    grid-template-columns: 1fr;
+    gap: var(--sp-1);
+  }
+
+  .dash-help dd {
+    margin-bottom: var(--sp-2);
+  }
+}
+
+/* Pantallas muy angostas (320): una cifra por fila, sin lineas verticales */
+@media (width <= 400px) {
+  .dash-kpis {
+    grid-template-columns: 1fr;
+    row-gap: var(--sp-4);
+  }
+
+  .dash-kpi {
+    padding: 0;
+    border-left: 0;
+  }
+}
