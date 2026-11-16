@@ -2,6 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as dashboardApi from './api/dashboard.js'
+import * as paymentMethodsApi from './api/paymentMethods.js'
 import * as staffApi from './api/staff.js'
 import * as tablesStatusApi from './api/tablesStatus.js'
 import * as usersApi from './api/users.js'
@@ -11,6 +13,8 @@ import { ToastProvider } from './components/Toast.jsx'
 
 vi.mock('./api/users.js')
 vi.mock('./api/staff.js')
+vi.mock('./api/dashboard.js')
+vi.mock('./api/paymentMethods.js')
 vi.mock('./api/tablesStatus.js')
 vi.mock('./api/kitchen.js', () => ({
   listKitchenRounds: async () => [],
@@ -110,10 +114,11 @@ describe('rutas de la aplicacion', () => {
 
       const toWaiter = screen.getByRole('link', { name: /Vista Mesero/ })
       expect(toWaiter).toHaveAttribute('href', '/mesero/mesas')
-      // Tambien en la barra movil, con etiqueta corta, en el lugar de Dashboard (que aun no existe)
+      // Tambien en la barra movil, con etiqueta corta, en el lugar de Dashboard (GC-RPT-0004: ya existe, pero
+      // sigue fuera de la barra movil para no quitarle el lugar a Vista Mesero)
       expect(toWaiter).toHaveClass('nav-item--mobile')
       expect(toWaiter).toHaveTextContent('Mesero')
-      expect(screen.getByRole('button', { name: /Dashboard/ })).not.toHaveClass('nav-item--mobile')
+      expect(screen.getByRole('link', { name: /Dashboard/ })).not.toHaveClass('nav-item--mobile')
       await ui.click(toWaiter)
       expect(await screen.findByRole('heading', { name: 'Mis Mesas' })).toBeInTheDocument()
 
@@ -243,6 +248,63 @@ describe('rutas de la aplicacion', () => {
     it('un mesero no entra a la cocina', () => {
       renderApp('/cocina', as('WAITER'))
       expect(screen.queryByRole('heading', { name: /Kitchen Display System/ })).not.toBeInTheDocument()
+    })
+  })
+
+  // GC-RPT-0004 (GC-205). El backend ya responde 403 a WAITER/COOK; esto es la parte de la interfaz
+  describe('Dashboard (solo ADMIN)', () => {
+    const dashboardData = {
+      period: { from: '2026-11-16', to: '2026-11-22' },
+      previousPeriod: { from: '2026-11-09', to: '2026-11-15' },
+      kpis: {
+        sales: { value: 0, previous: 0, changePercent: null },
+        orders: { value: 0, previous: 0, changePercent: null },
+        averageTicket: { value: 0, previous: 0, changePercent: null },
+        preparationMinutes: { value: null, previous: null, changePercent: null },
+      },
+      salesByDay: [],
+      salesByHour: Array.from({ length: 24 }, (_, hour) => ({ hour, totalSales: 0, orders: 0 })),
+      topProducts: [],
+      preparation: { averageMinutes: null, itemsMeasured: 0, byCategory: [] },
+      waiterBreakdown: [],
+      paymentBreakdown: [],
+    }
+
+    beforeEach(() => {
+      dashboardApi.getDashboard.mockResolvedValue(dashboardData)
+      staffApi.listEmployees.mockResolvedValue([])
+      paymentMethodsApi.listPaymentMethods.mockResolvedValue([])
+    })
+
+    it('el ADMIN llega desde su menu y la entrada queda activa', async () => {
+      const ui = userEvent.setup()
+      renderApp('/admin/usuarios', as('ADMIN'))
+
+      const link = await screen.findByRole('link', { name: /Dashboard/ })
+      expect(link).toHaveAttribute('href', '/admin/dashboard')
+      await ui.click(link)
+
+      expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /Dashboard/ })).toHaveClass('nav-item--active')
+      await waitFor(() => expect(dashboardApi.getDashboard).toHaveBeenCalledTimes(1))
+    })
+
+    it.each(['WAITER', 'COOK'])('un %s que entra por URL es redirigido sin pedir las metricas', async (role) => {
+      renderApp('/admin/dashboard', as(role))
+      await waitFor(() => expect(screen.queryByRole('heading', { name: 'Dashboard' })).not.toBeInTheDocument())
+      expect(dashboardApi.getDashboard).not.toHaveBeenCalled()
+    })
+
+    it('el mesero no ve la entrada del dashboard en su menu', async () => {
+      renderApp('/mesero/mesas', as('WAITER'))
+      await screen.findByRole('heading', { name: 'Mis Mesas' })
+      expect(screen.queryByRole('link', { name: /Dashboard/ })).toBeNull()
+    })
+
+    it('sin sesion exige iniciar sesion y no pide las metricas', () => {
+      renderApp('/admin/dashboard', anonymous)
+      expect(screen.getByRole('heading', { name: /Iniciar Sesión/i })).toBeInTheDocument()
+      expect(dashboardApi.getDashboard).not.toHaveBeenCalled()
     })
   })
 })

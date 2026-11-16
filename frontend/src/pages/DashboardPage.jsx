@@ -37,11 +37,10 @@ function useNames() {
     let active = true
     Promise.allSettled([listEmployees(), listPaymentMethods()]).then(([people, methods]) => {
       if (!active) return
+      const list = (result) => (result.status === 'fulfilled' && Array.isArray(result.value) ? result.value : [])
       setNames({
-        people: new Map(people.status === 'fulfilled' ? people.value.map((p) => [p.userId, p.fullName]) : []),
-        methods: new Map(
-          methods.status === 'fulfilled' ? methods.value.map((m) => [m.paymentMethodId, m.name]) : [],
-        ),
+        people: new Map(list(people).map((p) => [p.userId, p.fullName])),
+        methods: new Map(list(methods).map((m) => [m.paymentMethodId, m.name])),
       })
     })
     return () => {
