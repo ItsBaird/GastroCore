@@ -92,3 +92,25 @@ export async function soldProducts({ start, end }) {
     revenue: toInt(r.revenue),
   }));
 }
+
+// Preparacion por producto: items no cancelados con ready_at en el rango (sin importar el estado de la orden:
+// mide la cocina). Inicio = rounds.created_at, cuando la ronda llego a cocina (sent_at no existe). Un item con
+// ready_at anterior a su ronda es incoherente: no se mide, se cuenta aparte en `discarded`.
+export async function preparationByProduct({ start, end }) {
+  const rows = await prisma.$queryRaw`
+    SELECT i.product_id AS "productId",
+           count(*) FILTER (WHERE i.ready_at >= r.created_at)::int AS items,
+           COALESCE(sum(EXTRACT(EPOCH FROM i.ready_at - r.created_at))
+                    FILTER (WHERE i.ready_at >= r.created_at), 0)::float8 AS seconds,
+           count(*) FILTER (WHERE i.ready_at < r.created_at)::int AS discarded
+    FROM items i
+    JOIN rounds r ON r.round_id = i.round_id
+    WHERE i.status <> 'cancelado' AND i.ready_at >= ${start} AND i.ready_at < ${end}
+    GROUP BY i.product_id`;
+  return rows.map((r) => ({
+    productId: r.productId,
+    items: r.items,
+    seconds: Number(r.seconds),
+    discarded: r.discarded,
+  }));
+}
