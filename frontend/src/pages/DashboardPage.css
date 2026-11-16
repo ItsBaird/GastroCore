@@ -66,7 +66,8 @@
 
 .dash-period strong {
   color: var(--text);
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 /* ---------- Tarjetas ---------- */
@@ -98,41 +99,90 @@
   border-left: 0;
 }
 
+/* Etiqueta con el icono del tema en un circulo teñido (el tono lo da .dash-tone--*; DashboardCharts.css) */
 .dash-kpi__label {
-  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+  color: var(--n-700);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+}
+
+.dash-chip--sm {
+  width: 32px;
+  height: 32px;
+}
+
+/* Iconos de la franja en el tono base de cada color (rojo 600, azul, verde y naranja 600), como en la version
+   aprobada; el rojo de la serie de barras es mas claro, asi que Ventas fija el 600 */
+.dash-kpi .dash-chip {
+  color: var(--tone);
+}
+
+.dash-kpi.dash-tone--red .dash-chip {
+  color: var(--red-600);
 }
 
 .dash-kpi__value {
-  font-size: clamp(22px, 2.4vw, 28px);
-  font-weight: 600;
+  font-size: clamp(24px, 2.4vw, 30px);
+  font-weight: 700;
   line-height: 1.2;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 
-/* El color dice si el cambio es bueno o malo (en preparacion bajar es bueno); sin anterior, gris */
+/* La cifra que responde la pantalla (Ventas) manda: ~1,3 veces sus vecinas */
+.dash-kpi--lead .dash-kpi__value {
+  font-size: clamp(30px, 3.2vw, 40px);
+  letter-spacing: -0.02em;
+}
+
+/* Cambio en una pastilla teñida. El color dice si es bueno o malo (en preparacion bajar es bueno), no si sube */
 .dash-delta {
   display: inline-flex;
   align-items: center;
+  align-self: flex-start;
   gap: var(--sp-1);
-  font-size: 14px;
-  font-weight: 600;
+  margin-top: var(--sp-1);
+  padding: 2px var(--sp-2);
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .dash-delta--good {
+  background: var(--green-50);
   color: var(--green-700);
 }
 
 .dash-delta--bad {
+  background: var(--red-50);
   color: var(--red-700);
 }
 
 .dash-delta--neutral {
-  color: var(--text-muted);
+  background: var(--n-100);
+  color: var(--n-600);
   font-weight: 500;
+}
+
+/* Resumen del periodo en una frase: lo importante en negrita, con una marca roja a la izquierda */
+.dash-insight {
+  margin-bottom: var(--sp-6);
+  padding: var(--sp-2) 0 var(--sp-2) var(--sp-4);
+  border-left: 4px solid var(--red-600);
+  color: var(--n-700);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.dash-insight strong {
+  color: var(--text);
+  font-weight: 700;
 }
 
 .dash-kpi__prev {
@@ -279,6 +329,25 @@
     padding: 0 var(--sp-4);
   }
 
+  /* Ventas (la cifra principal) ocupa toda la fila: a la mitad del ancho se partia en dos lineas.
+     Debajo, Cuentas y Ticket lado a lado, y Preparacion cierra a lo ancho. */
+  .dash-kpi--lead,
+  .dash-kpi:last-child {
+    grid-column: 1 / -1;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .dash-kpi:nth-child(2) {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .dash-kpi:nth-child(3) {
+    padding-left: var(--sp-4);
+    border-left: 1px solid var(--border);
+  }
+
   .dash-custom {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -317,7 +386,8 @@
     row-gap: var(--sp-4);
   }
 
-  .dash-kpi {
+  .dash-kpi,
+  .dash-kpi:nth-child(n) {
     padding: 0;
     border-left: 0;
   }

@@ -310,6 +310,8 @@ describe('DashboardPage: graficas y listados', () => {
     })
   }
   const card = (title) => screen.getByRole('region', { name: title })
+  // Subtitulo de la tarjeta como texto completo (lleva cifras en negrita, partidas en varios elementos)
+  const subtitle = (title) => card(title).querySelector('.dash-chart__sub').textContent
 
   it('ventas por dia y por hora: resumen en texto, marca del pico en rojo y la hora pico rotulada', async () => {
     dashboardApi.getDashboard.mockResolvedValue(full())
@@ -317,15 +319,17 @@ describe('DashboardPage: graficas y listados', () => {
     await screen.findByText('16–22 nov 2026')
 
     const byDay = within(card('Ventas por día'))
-    expect(byDay.getByText(/Día más alto: mié 18 nov · \$340\.000/)).toBeInTheDocument()
+    expect(subtitle('Ventas por día')).toBe('Día más alto: mié 18 nov · $340.000')
+    // el maximo lleva su valor escrito encima, en formato compacto
+    expect(card('Ventas por día').querySelector('.dash-col__bar--hi .dash-col__value')).toHaveTextContent('$340 mil')
+    expect(card('Ventas por día')).toHaveClass('dash-tone--red')
     expect(byDay.getByRole('img')).toHaveAccessibleName(/Ventas por día, 7 días, total \$550\.000/)
     const bars = card('Ventas por día').querySelectorAll('.dash-col__bar')
     expect(bars).toHaveLength(7)
     expect(card('Ventas por día').querySelectorAll('.dash-col__bar--hi')).toHaveLength(1)
     expect(bars[2]).toHaveClass('dash-col__bar--hi')
 
-    const byHour = within(card('Ventas por hora de cobro'))
-    expect(byHour.getByText(/Hora pico: 1:00–2:00 p\. m\. · \$300\.000/)).toBeInTheDocument()
+    expect(subtitle('Ventas por hora de cobro')).toBe('Hora pico: 1:00–2:00 p. m. · $300.000')
     expect(card('Ventas por hora de cobro').querySelectorAll('.dash-col__bar')).toHaveLength(24)
   })
 
@@ -359,28 +363,72 @@ describe('DashboardPage: graficas y listados', () => {
     await screen.findByText('16–22 nov 2026')
 
     const top = within(card('Top 5 productos'))
-    expect(top.getByText('1. Pizza Margarita')).toBeInTheDocument()
+    const first = top.getByText('Pizza Margarita').closest('.dash-rank__row')
+    // el lider va destacado y con su posicion en una insignia
+    expect(first).toHaveClass('dash-rank__row--lead')
+    expect(first.querySelector('.dash-rank__pos')).toHaveTextContent('1')
     expect(top.getByText('12 u.')).toBeInTheDocument()
     expect(top.getByText('$336.000 ingreso bruto')).toBeInTheDocument()
     // nombre largo: se recorta con puntos suspensivos y queda completo en el title
     expect(top.getByTitle(/nombre larguísimo/)).toHaveClass('dash-rank__name')
 
     const prep = within(card('Tiempo de preparación'))
-    expect(prep.getByText(/Promedio 12,4 min · 30 ítems medidos · menos es mejor/)).toBeInTheDocument()
+    expect(subtitle('Tiempo de preparación')).toMatch(/Promedio 12,4 min · 30 ítems medidos ·\s*menos es mejor/)
+    expect(card('Tiempo de preparación')).toHaveClass('dash-tone--mustard')
     expect(prep.getByText('Pizzas')).toBeInTheDocument()
     expect(prep.getByText('18,2 min')).toBeInTheDocument()
 
     const waiters = within(card('Ventas por mesero'))
     expect(await waiters.findByText('Ana Martínez')).toBeInTheDocument()
-    expect(waiters.getByText('63,6 % · 8 cuentas')).toBeInTheDocument()
+    expect(card('Ventas por mesero')).toHaveClass('dash-tone--raspberry')
+    const ana = waiters.getByText('Ana Martínez').closest('.dash-rank__row')
+    expect(ana.querySelector('.dash-rank__sub')).toHaveTextContent('63,6 % · 8 cuentas')
+    expect(ana.querySelector('.dash-rank__sub strong')).toHaveTextContent('63,6 %')
     // mesero que ya no existe: nombre generico, sus ventas no se pierden
     expect(waiters.getByText('Mesero no disponible')).toBeInTheDocument()
     expect(waiters.getByText('$200.000')).toBeInTheDocument()
 
     const methods = within(card('Ventas por método de pago'))
     expect(await methods.findByText('Efectivo')).toBeInTheDocument()
-    expect(methods.getByText('81,8 % · 10 pagos')).toBeInTheDocument()
+    expect(card('Ventas por método de pago')).toHaveClass('dash-tone--purple')
+    expect(methods.getByText('Efectivo').closest('.dash-rank__row').querySelector('.dash-rank__sub')).toHaveTextContent(
+      '81,8 % · 10 pagos',
+    )
+    // plural correcto: "3 pagos", y con uno solo seria "1 pago"
+    expect(methods.getByText('Método no disponible').closest('.dash-rank__row')).toHaveTextContent('3 pagos')
     expect(methods.getByText('Método no disponible')).toBeInTheDocument()
+  })
+
+  it('resumen en una frase con lo importante en negrita, y Ventas como cifra principal', async () => {
+    dashboardApi.getDashboard.mockResolvedValue(full())
+    renderPage()
+    await screen.findByText('16–22 nov 2026')
+
+    const insight = document.querySelector('.dash-insight')
+    // un solo punto despues de "p. m." (no "p. m..")
+    expect(insight.textContent).toBe(
+      'Se vendieron $550.000 en 128 cuentas. El mejor día fue el mié 18 nov y la hora pico, 1:00–2:00 p. m. Lo más vendido: Pizza Margarita (12 unidades).',
+    )
+    expect([...insight.querySelectorAll('strong')].map((s) => s.textContent)).toEqual([
+      '$550.000',
+      '128 cuentas',
+      'mié 18 nov',
+      '1:00–2:00 p. m.',
+      'Pizza Margarita',
+    ])
+    expect(kpiCell('Ventas')).toHaveClass('dash-kpi--lead')
+    expect(kpiCell('Cuentas cerradas')).not.toHaveClass('dash-kpi--lead')
+    // el cambio va en una pastilla con el tono de bueno/malo
+    expect(within(kpiCell('Ventas')).getByText('+10,0 %').closest('.dash-delta')).toHaveClass('dash-delta--good')
+  })
+
+  it('sin ventas no hay frase de resumen (no se inventa un "mejor dia")', async () => {
+    dashboardApi.getDashboard.mockResolvedValue(
+      makeDashboard({ kpis: { ...makeDashboard().kpis, sales: kpi(0, 100, -100), orders: kpi(0, 2, -100) } }),
+    )
+    renderPage()
+    await screen.findByText('16–22 nov 2026')
+    expect(document.querySelector('.dash-insight')).toBeNull()
   })
 
   it('si Staff y metodos fallan, los montos se muestran igual con nombre generico', async () => {
@@ -402,7 +450,7 @@ describe('DashboardPage: graficas y listados', () => {
     await screen.findByText('16–22 nov 2026')
 
     const prep = within(card('Tiempo de preparación'))
-    expect(prep.getByText(/Promedio 9,5 min · 4 ítems medidos/)).toBeInTheDocument()
+    expect(subtitle('Tiempo de preparación')).toMatch(/Promedio 9,5 min · 4 ítems medidos/)
     expect(
       prep.getByText('El desglose por categoría no está disponible por ahora; el promedio general sí.'),
     ).toBeInTheDocument()

@@ -1,6 +1,83 @@
-/* GC-RPT-0004. Graficas y listados del dashboard (sin librerias). Solo tokens; cuadricula de 8 px. Series en gris
-   neutro (--n-500, 4,7:1 sobre blanco) y la marca destacada en --red-600 (4,8:1): el rojo solo en esa barra, en
-   el punto de la hora/dia pico y en las barras de los listados no. Textos siempre en tinta de texto. */
+/* GC-RPT-0004. Graficas y listados del dashboard (sin librerias). Solo tokens; cuadricula de 8 px.
+   Un tono por tarjeta (tema), tomado del design system y de su significado en la app. Las barras usan el tono
+   (contraste >= 3:1 sobre blanco como elemento grafico) y el maximo el tono fuerte con su valor escrito. Los
+   textos siempre en tinta: el color va en las marcas, no en las cifras. */
+
+/* Paleta ligada a la marca (La Pizzeta): tomate, horno, queso y frambuesa, mas el violeta del design system. Los
+   tonos que tokens.css no tiene se declaran aqui, solo para el dashboard (regla: "token propio en un archivo tuyo").
+   Validados con el script de dataviz: frambuesa y violeta pasan; naranja y mostaza quedan cerca entre si, lo que se
+   acepta porque nunca comparten grafica, cada tarjeta lleva titulo e icono y cada barra su valor escrito. */
+.dash {
+  --dash-red-light: #f87171; /* tomate claro: barras comunes (2,7:1; el pico va rotulado y hay tabla) */
+  --dash-orange-strong: #c2410c;
+  --dash-mustard: #ca8a04; /* queso */
+  --dash-mustard-strong: #a16207;
+  --dash-mustard-soft: #fefce8;
+  --dash-raspberry: #e11d48; /* frambuesa: familia del rojo de marca, sin repetir el tomate (4,7:1) */
+  --dash-raspberry-strong: #be123c;
+  --dash-raspberry-soft: #fff1f2;
+  --dash-purple-strong: #7e22ce; /* el 600 sale de tokens.css (pastilla ADMIN) */
+}
+
+/* --tone: series; --tone-strong: la marca destacada (y el lider); --tone-soft: fondo del icono y de la pista */
+.dash-tone--red {
+  --tone: var(--dash-red-light);
+  --tone-strong: var(--red-800); /* el maximo: intenso */
+  --tone-soft: var(--red-50);
+}
+
+/* Productos: horno */
+.dash-tone--orange {
+  --tone: var(--orange-600);
+  --tone-strong: var(--dash-orange-strong);
+  --tone-soft: var(--orange-50);
+}
+
+/* Cocina y preparacion: queso */
+.dash-tone--mustard {
+  --tone: var(--dash-mustard);
+  --tone-strong: var(--dash-mustard-strong);
+  --tone-soft: var(--dash-mustard-soft);
+}
+
+/* Meseros: frambuesa */
+.dash-tone--raspberry {
+  --tone: var(--dash-raspberry);
+  --tone-strong: var(--dash-raspberry-strong);
+  --tone-soft: var(--dash-raspberry-soft);
+}
+
+/* Pagos: violeta del design system (pastilla ADMIN; el cobro y el cierre son del administrador) */
+.dash-tone--purple {
+  --tone: var(--purple-600); /* 5,4:1 */
+  --tone-strong: var(--dash-purple-strong);
+  --tone-soft: var(--purple-50);
+}
+
+/* Solo para los iconos de la franja de KPI (Cuentas y Ticket), tokens del design system */
+.dash-tone--blue {
+  --tone: var(--blue-600);
+  --tone-strong: var(--blue-600);
+  --tone-soft: var(--blue-50);
+}
+
+.dash-tone--green {
+  --tone: var(--green-600);
+  --tone-strong: var(--green-700);
+  --tone-soft: var(--green-50);
+}
+
+/* Icono del tema en un circulo teñido (como los KPI del mockup Figma 12:2) */
+.dash-chip {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--tone-soft);
+  color: var(--tone-strong);
+}
 
 .dash-grid {
   display: grid;
@@ -23,6 +100,7 @@
 }
 
 .dash-chart__heading {
+  flex: 1;
   min-width: 0;
 }
 
@@ -56,7 +134,12 @@
   width: 8px;
   height: 8px;
   border-radius: var(--radius-full);
-  background: var(--red-600);
+  background: var(--tone-strong);
+}
+
+.dash-peak strong {
+  font-weight: 700;
+  color: var(--text);
 }
 
 /* ---------- Columnas ---------- */
@@ -68,7 +151,9 @@
   position: relative;
   display: grid;
   grid-template-columns: var(--axis) minmax(0, 1fr);
-  height: 192px;
+  height: 224px;
+  /* espacio para el valor escrito sobre la barra mas alta */
+  margin-top: var(--sp-6);
 }
 
 .dash-columns__axis {
@@ -116,19 +201,42 @@
 }
 
 .dash-col__bar {
+  position: relative;
   width: 100%;
   max-width: 48px;
   margin: 0 auto;
-  background: var(--n-500);
+  border-radius: 4px 4px 0 0;
+  /* tono completo: con transparencia el rojo bajaria de 3:1 sobre blanco */
+  background: var(--tone);
+  transition: filter 0.15s;
 }
 
 .dash-col:hover .dash-col__bar {
-  background: var(--n-700);
+  filter: brightness(0.85);
 }
 
-.dash-col__bar--hi,
-.dash-col:hover .dash-col__bar--hi {
-  background: var(--red-600);
+/* El maximo: tono fuerte, con su valor encima */
+.dash-col__bar--hi {
+  background: var(--tone-strong);
+}
+
+.dash-col__value {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-bottom: var(--sp-1);
+  transform: translateX(-50%);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-col__bar {
+    transition: none;
+  }
 }
 
 .dash-columns__x {
@@ -167,13 +275,14 @@
 
 .dash-rank__top {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--sp-4);
   font-size: 14px;
 }
 
 .dash-rank__name {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -190,14 +299,55 @@
   display: block;
   height: 8px;
   border-radius: var(--radius-full);
-  background: var(--n-100);
+  background: var(--tone-soft);
 }
 
 .dash-rank__bar {
   display: block;
   height: 100%;
   border-radius: var(--radius-full);
-  background: var(--n-950);
+  background: var(--tone);
+}
+
+/* Posicion en el ranking: insignia teñida; el primero, en el tono lleno */
+.dash-rank__pos {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--tone-soft);
+  color: var(--n-950);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dash-rank__row--lead .dash-rank__pos {
+  background: var(--tone-strong);
+  color: var(--white);
+}
+
+/* El lider de cada lista: nombre y cifra mas grandes, barra mas gruesa */
+.dash-rank__row--lead .dash-rank__top {
+  font-size: 16px;
+}
+
+.dash-rank__row--lead .dash-rank__name {
+  font-weight: 600;
+}
+
+.dash-rank__row--lead .dash-rank__value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.dash-rank__row--lead .dash-rank__track {
+  height: 16px;
+}
+
+.dash-rank__row--lead .dash-rank__bar {
+  background: var(--tone-strong);
 }
 
 .dash-rank__sub {

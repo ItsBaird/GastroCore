@@ -1,4 +1,19 @@
-import { ArrowDown, ArrowUp, Minus, RefreshCw, TriangleAlert } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  CalendarDays,
+  Clock,
+  CreditCard,
+  DollarSign,
+  Minus,
+  ReceiptText,
+  RefreshCw,
+  Timer,
+  TriangleAlert,
+  Trophy,
+  Users,
+  Wallet,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { listPaymentMethods } from '../api/paymentMethods.js'
 import { listEmployees } from '../api/staff.js'
@@ -57,8 +72,8 @@ function peakOf(rows) {
 
 const money = (value) => formatCOP(value)
 
-// "1 cuenta", "2 cuentas", "1 ítem": el plural sale de quitar la "s" final
-const plural = (count, word) => `${formatCount(count)} ${count === 1 ? word.replace(/s$/, '') : word}`
+// "1 cuenta", "2 cuentas", "1 ítem". El singular se pasa cuando no basta con quitar la "s" (unidades -> unidad)
+const plural = (count, many, one = many.replace(/s$/, '')) => `${formatCount(count)} ${count === 1 ? one : many}`
 
 function SalesByDay({ rows }) {
   const peak = peakOf(rows)
@@ -68,10 +83,12 @@ function SalesByDay({ rows }) {
   return (
     <ChartCard
       title="Ventas por día"
+      icon={CalendarDays}
+      tone="red"
       subtitle={
         peak ? (
           <span className="dash-peak">
-            Día más alto: {dayLabel(peak.date)} · {money(peak.totalSales)}
+            Día más alto: <strong>{dayLabel(peak.date)}</strong> · <strong>{money(peak.totalSales)}</strong>
           </span>
         ) : (
           'Total cobrado cada día'
@@ -112,10 +129,12 @@ function SalesByHour({ rows }) {
   return (
     <ChartCard
       title="Ventas por hora de cobro"
+      icon={Clock}
+      tone="red"
       subtitle={
         peak ? (
           <span className="dash-peak">
-            Hora pico: {formatHourSlot(peak.hour)} · {money(peak.totalSales)}
+            Hora pico: <strong>{formatHourSlot(peak.hour)}</strong> · <strong>{money(peak.totalSales)}</strong>
           </span>
         ) : (
           'Suma del periodo en cada hora'
@@ -155,6 +174,8 @@ function TopProducts({ rows }) {
   return (
     <ChartCard
       title="Top 5 productos"
+      icon={Trophy}
+      tone="orange"
       subtitle="Por unidades vendidas; ingreso bruto antes de descuentos"
       table={
         rows.length > 0 && {
@@ -173,9 +194,10 @@ function TopProducts({ rows }) {
       <RankList
         summary="Top 5 productos por unidades vendidas"
         empty="Ningún producto vendido en este periodo."
+        numbered
         rows={rows.map((p) => ({
           key: p.productId,
-          name: `${p.rank}. ${p.productName}`,
+          name: p.productName,
           value: p.quantitySold,
           primary: `${formatCount(p.quantitySold)} u.`,
           secondary: `${money(p.revenue)} ingreso bruto`,
@@ -198,10 +220,17 @@ function Preparation({ preparation }) {
   return (
     <ChartCard
       title="Tiempo de preparación"
+      icon={Timer}
+      tone="mustard"
       subtitle={
-        averageMinutes === null
-          ? 'Desde que el pedido llega a cocina hasta que está listo'
-          : `Promedio ${formatMinutes(averageMinutes)} · ${plural(itemsMeasured, 'ítems')} medidos · menos es mejor`
+        averageMinutes === null ? (
+          'Desde que el pedido llega a cocina hasta que está listo'
+        ) : (
+          <>
+            Promedio <strong>{formatMinutes(averageMinutes)}</strong> · {plural(itemsMeasured, 'ítems')} medidos ·
+            menos es mejor
+          </>
+        )
       }
       table={
         rows.length > 0 && {
@@ -232,11 +261,13 @@ function Preparation({ preparation }) {
   )
 }
 
-function Breakdown({ title, subtitle, rows, idKey, names, unknown, countKey, countLabel, total, label }) {
+function Breakdown({ title, subtitle, rows, idKey, names, unknown, countKey, countLabel, total, label, icon, tone }) {
   const named = rows.map((r) => ({ ...r, name: names.get(r[idKey]) ?? unknown }))
   return (
     <ChartCard
       title={title}
+      icon={icon}
+      tone={tone}
       subtitle={subtitle}
       table={
         named.length > 0 && {
@@ -266,7 +297,11 @@ function Breakdown({ title, subtitle, rows, idKey, names, unknown, countKey, cou
           name: r.name,
           value: r.totalAmount,
           primary: money(r.totalAmount),
-          secondary: `${formatShare(r.totalAmount, total)} · ${plural(r[countKey], countLabel.toLowerCase())}`,
+          secondary: (
+            <>
+              <strong>{formatShare(r.totalAmount, total)}</strong> · {plural(r[countKey], countLabel.toLowerCase())}
+            </>
+          ),
         }))}
       />
     </ChartCard>
@@ -292,6 +327,8 @@ function Sections({ data, names }) {
         countLabel="Cuentas"
         label="Mesero"
         total={total}
+        icon={Users}
+        tone="raspberry"
       />
       <Breakdown
         title="Ventas por método de pago"
@@ -304,6 +341,8 @@ function Sections({ data, names }) {
         countLabel="Pagos"
         label="Método"
         total={total}
+        icon={CreditCard}
+        tone="purple"
       />
     </div>
   )
@@ -316,22 +355,28 @@ function Sections({ data, names }) {
 
 const DELTA_ICON = { up: ArrowUp, down: ArrowDown }
 
-// Una cifra de la franja: etiqueta, valor, cambio frente al periodo anterior y el valor anterior
-function Kpi({ label, kpi, format, lowerIsBetter = false, note }) {
+// Una cifra de la franja: icono del tema (circulo teñido, como el mockup), etiqueta, valor, cambio frente al
+// periodo anterior en una pastilla y el valor anterior. `lead` es la cifra principal (Ventas): mas grande.
+function Kpi({ label, kpi, format, lowerIsBetter = false, note, icon: TopicIcon, tone, lead = false }) {
   const { value, previous, changePercent } = kpi
-  const tone = deltaTone(changePercent, { lowerIsBetter })
+  const deltaKind = deltaTone(changePercent, { lowerIsBetter })
   const Icon = changePercent > 0 ? DELTA_ICON.up : changePercent < 0 ? DELTA_ICON.down : Minus
-  const toneText = tone === 'good' ? 'mejora' : tone === 'bad' ? 'empeora' : 'sin cambio'
+  const toneText = deltaKind === 'good' ? 'mejora' : deltaKind === 'bad' ? 'empeora' : 'sin cambio'
   return (
-    <div className="dash-kpi">
-      <p className="dash-kpi__label">{label}</p>
+    <div className={`dash-kpi dash-tone--${tone}${lead ? ' dash-kpi--lead' : ''}`}>
+      <p className="dash-kpi__label">
+        <span className="dash-chip dash-chip--sm" aria-hidden="true">
+          <TopicIcon size={16} />
+        </span>
+        {label}
+      </p>
       <p className="dash-kpi__value">{value === null ? '—' : format(value)}</p>
       {changePercent === null ? (
         <p className="dash-delta dash-delta--neutral">
           <span aria-hidden="true">—</span> Sin periodo anterior
         </p>
       ) : (
-        <p className={`dash-delta dash-delta--${tone}`}>
+        <p className={`dash-delta dash-delta--${deltaKind}`}>
           <Icon size={16} aria-hidden="true" />
           {formatPercent(changePercent)}
           <span className="sr-only"> ({toneText})</span>
@@ -345,6 +390,45 @@ function Kpi({ label, kpi, format, lowerIsBetter = false, note }) {
   )
 }
 
+// Resumen en una frase con lo importante en negrita: cuanto se vendio, el mejor dia, la hora pico y lo mas
+// vendido. Solo lee las series del backend (R4): no calcula ningun total.
+function Highlights({ data }) {
+  const { kpis, salesByDay, salesByHour, topProducts } = data
+  if (kpis.sales.value === 0) return null
+  const day = peakOf(salesByDay)
+  const hour = peakOf(salesByHour)
+  const top = topProducts[0]
+  return (
+    <p className="dash-insight">
+      Se vendieron <strong>{formatCOP(kpis.sales.value)}</strong> en{' '}
+      <strong>{plural(kpis.orders.value, 'cuentas')}</strong>.
+      {day && (
+        <>
+          {' '}
+          El mejor día fue el{' '}
+          <strong>
+            {formatWeekday(day.date)} {formatShortDate(day.date)}
+          </strong>
+        </>
+      )}
+      {hour && (
+        <>
+          {day ? ' y la hora pico, ' : ' La hora pico fue '}
+          <strong>{formatHourSlot(hour.hour)}</strong>
+        </>
+      )}
+      {/* Cierra la oracion sin duplicar el punto de "p. m." */}
+      {(day || hour) && !(hour && formatHourSlot(hour.hour).endsWith('.')) && '.'}
+      {top && (
+        <>
+          {' '}
+          Lo más vendido: <strong>{top.productName}</strong> ({plural(top.quantitySold, 'unidades', 'unidad')}).
+        </>
+      )}
+    </p>
+  )
+}
+
 function KpiStrip({ data }) {
   const { kpis, preparation } = data
   const empty = kpis.orders.value === 0 && preparation.itemsMeasured === 0
@@ -353,16 +437,19 @@ function KpiStrip({ data }) {
       <h2 id="dash-kpis-title" className="sr-only">
         Indicadores del periodo
       </h2>
+      <Highlights data={data} />
       <div className="dash-kpis">
-        <Kpi label="Ventas" kpi={kpis.sales} format={formatCOP} />
-        <Kpi label="Cuentas cerradas" kpi={kpis.orders} format={formatCount} />
-        <Kpi label="Ticket promedio" kpi={kpis.averageTicket} format={formatCOP} />
+        <Kpi label="Ventas" kpi={kpis.sales} format={formatCOP} icon={DollarSign} tone="red" lead />
+        <Kpi label="Cuentas cerradas" kpi={kpis.orders} format={formatCount} icon={ReceiptText} tone="blue" />
+        <Kpi label="Ticket promedio" kpi={kpis.averageTicket} format={formatCOP} icon={Wallet} tone="green" />
         <Kpi
           label="Tiempo de preparación"
           kpi={kpis.preparationMinutes}
           format={formatMinutes}
           lowerIsBetter
           note="menos es mejor"
+          icon={Timer}
+          tone="orange"
         />
       </div>
       {empty && (

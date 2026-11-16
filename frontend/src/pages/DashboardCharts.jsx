@@ -3,18 +3,28 @@ import { barPercent, niceScale } from '../utils/dashboard.js'
 import './DashboardCharts.css'
 
 // GC-RPT-0004. Graficas del dashboard sin librerias (package.json es protegido): HTML y CSS con los tokens.
-// Reglas (skills dataviz y design-taste/app-screens): una sola serie por grafica y sin leyenda; escala desde 0 con
-// 4-5 marcas redondas; barras de esquinas rectas; en gris neutro y solo la marca destacada (el maximo) en rojo; los
-// textos en tinta de texto, nunca en el color de la serie; cada grafica con un resumen en texto (role="img") y una
-// tabla real a un clic. Todas las cifras vienen del backend: aqui solo se dibujan.
+// Reglas (skills dataviz y design-taste/app-screens): una sola serie y un solo tono por grafica, sin leyenda; escala
+// desde 0 con 4-5 marcas redondas; barras de esquinas rectas; la marca destacada (el maximo) en el tono fuerte y con
+// su valor escrito; los textos en tinta de texto, nunca en el color de la serie; cada grafica con un resumen en texto
+// (role="img") y una tabla real a un clic. Todas las cifras vienen del backend: aqui solo se dibujan.
+//
+// Tono por tema (DashboardCharts.css): rojo tomate para las ventas en el tiempo,
+// naranja horno para los productos, mostaza (queso) para la cocina, frambuesa para meseros
+// y violeta (pastilla ADMIN) para los pagos. `tone` acepta: red, orange, mustard, raspberry, purple (y blue/green,
+// solo para los iconos de la franja de KPI).
 
 // Tarjeta de una grafica o listado con el control "Ver como tabla"
-export function ChartCard({ title, subtitle, note, table, children }) {
+export function ChartCard({ title, subtitle, note, table, children, icon: Icon, tone = 'red' }) {
   const id = useId()
   const [asTable, setAsTable] = useState(false)
   return (
-    <section className="dash-card dash-chart" aria-labelledby={`${id}-title`}>
+    <section className={`dash-card dash-chart dash-tone--${tone}`} aria-labelledby={`${id}-title`}>
       <header className="dash-chart__head">
+        {Icon && (
+          <span className="dash-chip" aria-hidden="true">
+            <Icon size={20} />
+          </span>
+        )}
         <div className="dash-chart__heading">
           <h2 id={`${id}-title`} className="dash-chart__title">
             {title}
@@ -101,14 +111,24 @@ export function ColumnChart({ items, summary, highlightKey, labelEvery = 1, form
             />
           ))}
           <div className="dash-columns__bars" style={{ '--count': items.length }}>
-            {items.map((i) => (
-              <div key={i.key} className="dash-col" title={`${i.label}: ${i.display}`}>
-                <span
-                  className={`dash-col__bar${i.key === highlightKey ? ' dash-col__bar--hi' : ''}`}
-                  style={{ height: `${barPercent(i.value, scale.max)}%` }}
-                />
-              </div>
-            ))}
+            {items.map((i) => {
+              const hi = i.key === highlightKey
+              return (
+                <div key={i.key} className="dash-col" title={`${i.label}: ${i.display}`}>
+                  <span
+                    className={`dash-col__bar${hi ? ' dash-col__bar--hi' : ''}`}
+                    style={{ height: `${barPercent(i.value, scale.max)}%` }}
+                  >
+                    {/* El maximo lleva su valor escrito encima: se lee sin pasar el mouse */}
+                    {hi && (
+                      <span className="dash-col__value" aria-hidden="true">
+                        {formatTick(i.value)}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -129,15 +149,21 @@ export function ColumnChart({ items, summary, highlightKey, labelEvery = 1, form
 }
 
 // Ranking con barra horizontal (mejor legibilidad que una torta). `rows`: [{ key, name, value, primary, secondary }];
-// la barra es la proporcion frente al mayor de la lista.
-export function RankList({ rows, summary, empty }) {
+// la barra es la proporcion frente al mayor de la lista, en el tono de la tarjeta. El primero (el lider) va
+// destacado. `numbered` agrega la posicion en una insignia.
+export function RankList({ rows, summary, empty, numbered = false }) {
   if (rows.length === 0) return <p className="dash-empty">{empty}</p>
   const max = rows.reduce((m, r) => Math.max(m, r.value), 0)
   return (
     <ol className="dash-rank" aria-label={summary}>
-      {rows.map((r) => (
-        <li key={r.key} className="dash-rank__row">
+      {rows.map((r, index) => (
+        <li key={r.key} className={`dash-rank__row${index === 0 ? ' dash-rank__row--lead' : ''}`}>
           <div className="dash-rank__top">
+            {numbered && (
+              <span className="dash-rank__pos" aria-hidden="true">
+                {index + 1}
+              </span>
+            )}
             <span className="dash-rank__name" title={r.name}>
               {r.name}
             </span>
