@@ -1,0 +1,435 @@
+/* GC-RPT-0004. Graficas y listados del dashboard (sin librerias). Solo tokens; cuadricula de 8 px.
+   Un tono por tarjeta (tema), tomado del design system y de su significado en la app. Las barras usan el tono
+   (contraste >= 3:1 sobre blanco como elemento grafico) y el maximo el tono fuerte con su valor escrito. Los
+   textos siempre en tinta: el color va en las marcas, no en las cifras. */
+
+/* Paleta ligada a la marca (La Pizzeta): tomate, horno, queso, frambuesa y amarillo. Los
+   tonos que tokens.css no tiene se declaran aqui, solo para el dashboard (regla: "token propio en un archivo tuyo").
+   Validados con el script de dataviz: frambuesa pasa; naranja, mostaza y amarillo quedan cerca entre si, lo que se
+   acepta porque nunca comparten grafica, cada tarjeta lleva titulo e icono y cada barra su valor escrito. */
+.dash {
+  --dash-red-light: #f87171; /* tomate claro: barras comunes (2,7:1; el pico va rotulado y hay tabla) */
+  --dash-orange-strong: #c2410c;
+  --dash-mustard: #ca8a04; /* queso */
+  --dash-mustard-strong: #a16207;
+  --dash-mustard-soft: #fefce8;
+  --dash-raspberry: #e11d48; /* frambuesa: familia del rojo de marca, sin repetir el tomate (4,7:1) */
+  --dash-raspberry-strong: #be123c;
+  --dash-raspberry-soft: #fff1f2;
+  --dash-yellow: #d6b322; /* amarillo fuerte y algo opaco, ni encendido ni oscuro (pagos) */
+  --dash-yellow-strong: #b5960f;
+  --dash-yellow-soft: #fefce8;
+}
+
+/* --tone: series; --tone-strong: la marca destacada (y el lider); --tone-soft: fondo del icono y de la pista */
+.dash-tone--red {
+  --tone: var(--dash-red-light);
+  --tone-strong: var(--red-800); /* el maximo: intenso */
+  --tone-soft: var(--red-50);
+}
+
+/* Productos: horno */
+.dash-tone--orange {
+  --tone: var(--orange-600);
+  --tone-strong: var(--dash-orange-strong);
+  --tone-soft: var(--orange-50);
+}
+
+/* Cocina y preparacion: queso */
+.dash-tone--mustard {
+  --tone: var(--dash-mustard);
+  --tone-strong: var(--dash-mustard-strong);
+  --tone-soft: var(--dash-mustard-soft);
+}
+
+/* Meseros: frambuesa */
+.dash-tone--raspberry {
+  --tone: var(--dash-raspberry);
+  --tone-strong: var(--dash-raspberry-strong);
+  --tone-soft: var(--dash-raspberry-soft);
+}
+
+/* Pagos: amarillo fuerte apagado (2,0:1 sobre blanco: cada barra lleva su monto escrito y hay tabla) */
+.dash-tone--yellow {
+  --tone: var(--dash-yellow);
+  --tone-strong: var(--dash-yellow-strong);
+  --tone-soft: var(--dash-yellow-soft);
+}
+
+/* Solo para los iconos de la franja de KPI (Cuentas y Ticket), tokens del design system */
+.dash-tone--blue {
+  --tone: var(--blue-600);
+  --tone-strong: var(--blue-600);
+  --tone-soft: var(--blue-50);
+}
+
+.dash-tone--green {
+  --tone: var(--green-600);
+  --tone-strong: var(--green-700);
+  --tone-soft: var(--green-50);
+}
+
+/* Icono del tema en un circulo teñido (como los KPI del mockup Figma 12:2) */
+.dash-chip {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--tone-soft);
+  color: var(--tone-strong);
+}
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-6);
+  align-items: start;
+}
+
+.dash-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.dash-chart__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.dash-chart__heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-chart__title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.dash-chart__sub {
+  margin-top: var(--sp-1);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.dash-chart__toggle {
+  flex: none;
+  font-size: 14px;
+}
+
+/* Marca de la hora/dia pico: un punto rojo pequeno junto al texto */
+.dash-peak {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.dash-peak::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--tone-strong);
+}
+
+.dash-peak strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ---------- Columnas ---------- */
+.dash-columns {
+  --axis: 64px;
+}
+
+.dash-columns__body {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--axis) minmax(0, 1fr);
+  height: 224px;
+  /* espacio para el valor escrito sobre la barra mas alta */
+  margin-top: var(--sp-6);
+}
+
+.dash-columns__axis {
+  position: relative;
+}
+
+.dash-columns__axis span {
+  position: absolute;
+  right: var(--sp-2);
+  transform: translateY(50%);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dash-columns__plot {
+  position: relative;
+}
+
+.dash-columns__grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--n-200);
+}
+
+.dash-columns__grid--base {
+  border-top-color: var(--n-400);
+}
+
+.dash-columns__bars {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--count), minmax(0, 1fr));
+  gap: 2px;
+  align-items: end;
+}
+
+.dash-col {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+}
+
+.dash-col__bar {
+  position: relative;
+  width: 100%;
+  max-width: 48px;
+  margin: 0 auto;
+  border-radius: 4px 4px 0 0;
+  /* tono completo: con transparencia el rojo bajaria de 3:1 sobre blanco */
+  background: var(--tone);
+  transition: filter 0.15s;
+}
+
+.dash-col:hover .dash-col__bar {
+  filter: brightness(0.85);
+}
+
+/* El maximo: tono fuerte, con su valor encima */
+.dash-col__bar--hi {
+  background: var(--tone-strong);
+}
+
+.dash-col__value {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-bottom: var(--sp-1);
+  transform: translateX(-50%);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-col__bar {
+    transition: none;
+  }
+}
+
+.dash-columns__x {
+  display: grid;
+  grid-template-columns: repeat(var(--count), minmax(0, 1fr));
+  gap: 2px;
+  margin-top: var(--sp-2);
+  margin-left: var(--axis);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* La etiqueta puede ser mas ancha que su columna: se desborda hacia la derecha sin empujar la cuadricula */
+.dash-columns__x span {
+  overflow: visible;
+  white-space: nowrap;
+}
+
+/* ---------- Listados con barra ---------- */
+.dash-rank {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dash-rank__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.dash-rank__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  font-size: 14px;
+}
+
+.dash-rank__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-rank__value {
+  flex: none;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-rank__track {
+  display: block;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--tone-soft);
+}
+
+.dash-rank__bar {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--tone);
+}
+
+/* Posicion en el ranking: insignia teñida; el primero, en el tono lleno */
+.dash-rank__pos {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--tone-soft);
+  color: var(--n-950);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dash-rank__row--lead .dash-rank__pos {
+  background: var(--tone-strong);
+  color: var(--white);
+}
+
+/* El lider de cada lista: nombre y cifra mas grandes, barra mas gruesa */
+.dash-rank__row--lead .dash-rank__top {
+  font-size: 16px;
+}
+
+.dash-rank__row--lead .dash-rank__name {
+  font-weight: 600;
+}
+
+.dash-rank__row--lead .dash-rank__value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.dash-rank__row--lead .dash-rank__track {
+  height: 16px;
+}
+
+.dash-rank__row--lead .dash-rank__bar {
+  background: var(--tone-strong);
+}
+
+.dash-rank__sub {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-empty {
+  padding: var(--sp-4);
+  border: 1px dashed var(--n-300);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.dash-note {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ---------- Tabla alternativa ---------- */
+.dash-table-wrap {
+  max-height: 384px;
+  overflow: auto;
+}
+
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.dash-table th,
+.dash-table td {
+  padding: var(--sp-2);
+  border-bottom: 1px solid var(--n-100);
+  text-align: left;
+}
+
+.dash-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dash-table tbody th {
+  font-weight: 500;
+}
+
+.dash-table .dash-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Tablet y movil ---------- */
+@media (width <= 1100px) {
+  .dash-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width <= 640px) {
+  .dash-columns {
+    --axis: 56px;
+  }
+
+  .dash-columns__body {
+    height: 160px;
+  }
+
+  .dash-chart__head {
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+
+  .dash-x--alt {
+    visibility: hidden;
+  }
+}
