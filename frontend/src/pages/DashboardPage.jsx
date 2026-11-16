@@ -1,21 +1,309 @@
 import { ArrowDown, ArrowUp, Minus, RefreshCw, TriangleAlert } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { listPaymentMethods } from '../api/paymentMethods.js'
+import { listEmployees } from '../api/staff.js'
 import { useDashboard } from '../hooks/useDashboard.js'
 import { AdminPage } from '../layouts/AdminLayout.jsx'
 import {
   businessToday,
   deltaTone,
+  formatCompactCOP,
   formatCount,
+  formatHourSlot,
   formatMinutes,
   formatPercent,
   formatRange,
+  formatShare,
+  formatShortDate,
+  formatWeekday,
+  labelStep,
   PRESETS,
   remainingDays,
   validateRange,
 } from '../utils/dashboard.js'
 import { formatCOP } from '../utils/formatCOP.js'
 import './CatalogPages.css'
+import { ChartCard, ColumnChart, RankList } from './DashboardCharts.jsx'
 import './DashboardPage.css'
+
+const UNKNOWN_WAITER = 'Mesero no disponible'
+const UNKNOWN_METHOD = 'Método no disponible'
+
+// Nombres de meseros y metodos (el dashboard trae ids, como el cierre de caja). Si alguno falla, nombre generico:
+// los montos no dependen de eso y nunca se omiten (la suma por mesero sigue dando las ventas).
+function useNames() {
+  const [names, setNames] = useState({ people: new Map(), methods: new Map() })
+  useEffect(() => {
+    let active = true
+    Promise.allSettled([listEmployees(), listPaymentMethods()]).then(([people, methods]) => {
+      if (!active) return
+      setNames({
+        people: new Map(people.status === 'fulfilled' ? people.value.map((p) => [p.userId, p.fullName]) : []),
+        methods: new Map(
+          methods.status === 'fulfilled' ? methods.value.map((m) => [m.paymentMethodId, m.name]) : [],
+        ),
+      })
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+  return names
+}
+
+// La mayor de una serie, solo para marcarla (la serie la calcula el backend). null si todo es cero.
+function peakOf(rows) {
+  return rows.reduce((best, r) => (r.totalSales > (best?.totalSales ?? 0) ? r : best), null)
+}
+
+const money = (value) => formatCOP(value)
+
+function SalesByDay({ rows }) {
+  const peak = peakOf(rows)
+  const short = rows.length <= 7
+  const dayLabel = (date) => `${formatWeekday(date)} ${formatShortDate(date)}`
+  const total = rows.reduce((s, r) => s + r.totalSales, 0)
+  return (
+    <ChartCard
+      title="Ventas por día"
+      subtitle={
+        peak ? (
+          <span className="dash-peak">
+            Día más alto: {dayLabel(peak.date)} · {money(peak.totalSales)}
+          </span>
+        ) : (
+          'Total cobrado cada día'
+        )
+      }
+      table={{
+        columns: [
+          { key: 'day', label: 'Día' },
+          { key: 'sales', label: 'Ventas', numeric: true },
+          { key: 'orders', label: 'Cuentas', numeric: true },
+        ],
+        rows: rows.map((r) => ({
+          key: r.date,
+          cells: { day: dayLabel(r.date), sales: money(r.totalSales), orders: formatCount(r.orders) },
+        })),
+      }}
+    >
+      <ColumnChart
+        items={rows.map((r) => ({
+          key: r.date,
+          label: dayLabel(r.date),
+          axisLabel: short ? dayLabel(r.date) : formatShortDate(r.date),
+          value: r.totalSales,
+          display: `${money(r.totalSales)} · ${formatCount(r.orders)} cuentas`,
+        }))}
+        highlightKey={peak?.date}
+        labelEvery={labelStep(rows.length, short ? 7 : 6)}
+        formatTick={formatCompactCOP}
+        summary={`Ventas por día, ${rows.length} días, total ${money(total)}.${peak ? ` Día más alto: ${dayLabel(peak.date)} con ${money(peak.totalSales)}.` : ' Sin ventas.'}`}
+      />
+    </ChartCard>
+  )
+}
+
+function SalesByHour({ rows }) {
+  const peak = peakOf(rows)
+  return (
+    <ChartCard
+      title="Ventas por hora de cobro"
+      subtitle={
+        peak ? (
+          <span className="dash-peak">
+            Hora pico: {formatHourSlot(peak.hour)} · {money(peak.totalSales)}
+          </span>
+        ) : (
+          'Suma del periodo en cada hora'
+        )
+      }
+      table={{
+        columns: [
+          { key: 'hour', label: 'Hora' },
+          { key: 'sales', label: 'Ventas', numeric: true },
+          { key: 'orders', label: 'Cuentas', numeric: true },
+        ],
+        rows: rows.map((r) => ({
+          key: r.hour,
+          cells: { hour: formatHourSlot(r.hour), sales: money(r.totalSales), orders: formatCount(r.orders) },
+        })),
+      }}
+    >
+      <ColumnChart
+        items={rows.map((r) => ({
+          key: r.hour,
+          label: formatHourSlot(r.hour),
+          axisLabel: `${r.hour} h`,
+          value: r.totalSales,
+          display: `${money(r.totalSales)} · ${formatCount(r.orders)} cuentas`,
+        }))}
+        highlightKey={peak?.hour}
+        labelEvery={3}
+        formatTick={formatCompactCOP}
+        summary={`Ventas por hora del día, sumadas sobre el periodo.${peak ? ` Hora pico: ${formatHourSlot(peak.hour)} con ${money(peak.totalSales)}.` : ' Sin ventas.'}`}
+      />
+      <p className="dash-note">Hora en que se cobró la cuenta, en hora de Colombia.</p>
+    </ChartCard>
+  )
+}
+
+function TopProducts({ rows }) {
+  return (
+    <ChartCard
+      title="Top 5 productos"
+      subtitle="Por unidades vendidas; ingreso bruto antes de descuentos"
+      table={
+        rows.length > 0 && {
+          columns: [
+            { key: 'name', label: 'Producto' },
+            { key: 'qty', label: 'Unidades', numeric: true },
+            { key: 'revenue', label: 'Ingreso bruto', numeric: true },
+          ],
+          rows: rows.map((p) => ({
+            key: p.productId,
+            cells: { name: `${p.rank}. ${p.productName}`, qty: formatCount(p.quantitySold), revenue: money(p.revenue) },
+          })),
+        }
+      }
+    >
+      <RankList
+        summary="Top 5 productos por unidades vendidas"
+        empty="Ningún producto vendido en este periodo."
+        rows={rows.map((p) => ({
+          key: p.productId,
+          name: `${p.rank}. ${p.productName}`,
+          value: p.quantitySold,
+          primary: `${formatCount(p.quantitySold)} u.`,
+          secondary: `${money(p.revenue)} ingreso bruto`,
+        }))}
+      />
+    </ChartCard>
+  )
+}
+
+function Preparation({ preparation }) {
+  const { averageMinutes, itemsMeasured, byCategory } = preparation
+  let empty = 'Sin ítems preparados en este periodo.'
+  if (itemsMeasured > 0 && byCategory === null) {
+    empty = 'El desglose por categoría no está disponible: el catálogo no respondió.'
+  } else if (itemsMeasured > 0) {
+    empty = 'Sin categorías para mostrar.'
+  }
+  const rows = byCategory ?? []
+  return (
+    <ChartCard
+      title="Tiempo de preparación"
+      subtitle={
+        averageMinutes === null
+          ? 'Desde que el pedido llega a cocina hasta que está listo'
+          : `Promedio ${formatMinutes(averageMinutes)} · ${formatCount(itemsMeasured)} ítems medidos · menos es mejor`
+      }
+      table={
+        rows.length > 0 && {
+          columns: [
+            { key: 'name', label: 'Categoría' },
+            { key: 'minutes', label: 'Promedio', numeric: true },
+            { key: 'items', label: 'Ítems', numeric: true },
+          ],
+          rows: rows.map((c) => ({
+            key: c.categoryId,
+            cells: { name: c.categoryName, minutes: formatMinutes(c.averageMinutes), items: formatCount(c.itemsMeasured) },
+          })),
+        }
+      }
+    >
+      <RankList
+        summary="Tiempo promedio de preparación por categoría"
+        empty={empty}
+        rows={rows.map((c) => ({
+          key: c.categoryId,
+          name: c.categoryName,
+          value: c.averageMinutes,
+          primary: formatMinutes(c.averageMinutes),
+          secondary: `${formatCount(c.itemsMeasured)} ítems`,
+        }))}
+      />
+    </ChartCard>
+  )
+}
+
+function Breakdown({ title, subtitle, rows, idKey, names, unknown, countKey, countLabel, total, label }) {
+  const named = rows.map((r) => ({ ...r, name: names.get(r[idKey]) ?? unknown }))
+  return (
+    <ChartCard
+      title={title}
+      subtitle={subtitle}
+      table={
+        named.length > 0 && {
+          columns: [
+            { key: 'name', label },
+            { key: 'amount', label: 'Ventas', numeric: true },
+            { key: 'share', label: 'Participación', numeric: true },
+            { key: 'count', label: countLabel, numeric: true },
+          ],
+          rows: named.map((r) => ({
+            key: r[idKey],
+            cells: {
+              name: r.name,
+              amount: money(r.totalAmount),
+              share: formatShare(r.totalAmount, total),
+              count: formatCount(r[countKey]),
+            },
+          })),
+        }
+      }
+    >
+      <RankList
+        summary={title}
+        empty="Sin cuentas cerradas que repartir."
+        rows={named.map((r) => ({
+          key: r[idKey],
+          name: r.name,
+          value: r.totalAmount,
+          primary: money(r.totalAmount),
+          secondary: `${formatShare(r.totalAmount, total)} · ${formatCount(r[countKey])} ${countLabel.toLowerCase()}`,
+        }))}
+      />
+    </ChartCard>
+  )
+}
+
+function Sections({ data, names }) {
+  const total = data.kpis.sales.value
+  return (
+    <div className="dash-grid">
+      <SalesByDay rows={data.salesByDay} />
+      <SalesByHour rows={data.salesByHour} />
+      <TopProducts rows={data.topProducts} />
+      <Preparation preparation={data.preparation} />
+      <Breakdown
+        title="Ventas por mesero"
+        subtitle="Atribuidas a quien abrió la mesa"
+        rows={data.waiterBreakdown}
+        idKey="waiterId"
+        names={names.people}
+        unknown={UNKNOWN_WAITER}
+        countKey="ordersCount"
+        countLabel="Cuentas"
+        label="Mesero"
+        total={total}
+      />
+      <Breakdown
+        title="Ventas por método de pago"
+        subtitle="Según el método registrado en cada pago"
+        rows={data.paymentBreakdown}
+        idKey="paymentMethodId"
+        names={names.methods}
+        unknown={UNKNOWN_METHOD}
+        countKey="paymentCount"
+        countLabel="Pagos"
+        label="Método"
+        total={total}
+      />
+    </div>
+  )
+}
 
 // GC-RPT-0004. Dashboard de metricas del ADMIN. Mockup: Figma 12:2 "Admin — Dashboard", adaptado al design system
 // (decision de la HU): los KPI son una franja tipografica partida por lineas de 1px, no tarjetas con icono; el rojo
@@ -196,6 +484,7 @@ export default function DashboardPage() {
   const [to, setTo] = useState(initial.to)
   const [rangeError, setRangeError] = useState('')
   const dash = useDashboard(initial)
+  const names = useNames()
 
   const choosePreset = (preset) => {
     const range = preset.range(today)
@@ -275,6 +564,7 @@ export default function DashboardPage() {
 
         {dash.status === 'loading' && <StripSkeleton />}
         {data && <KpiStrip data={data} />}
+        {data && <Sections data={data} names={names} />}
 
         <p className="dash-foot">Días de negocio en hora de Colombia (UTC−5).</p>
       </div>

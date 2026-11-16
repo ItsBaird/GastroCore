@@ -9,6 +9,11 @@ import { ToastProvider } from '../components/Toast.jsx'
 import DashboardPage from './DashboardPage.jsx'
 
 vi.mock('../api/dashboard.js')
+vi.mock('../api/staff.js')
+vi.mock('../api/paymentMethods.js')
+
+const staffApi = await import('../api/staff.js')
+const methodsApi = await import('../api/paymentMethods.js')
 
 const ME = { userId: 'me', email: 'admin@lapizzeta.com', role: 'ADMIN', isActive: true }
 
@@ -70,6 +75,8 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(NOW)
   dashboardApi.getDashboard.mockResolvedValue(makeDashboard())
+  staffApi.listEmployees.mockResolvedValue([{ userId: 'w1', fullName: 'Ana Martínez' }])
+  methodsApi.listPaymentMethods.mockResolvedValue([{ paymentMethodId: 'm1', name: 'Efectivo' }])
 })
 
 afterEach(() => {
@@ -145,7 +152,8 @@ describe('DashboardPage: periodo y franja de KPI', () => {
     )
     renderPage()
 
-    expect(await screen.findByText('Sin ventas en este periodo.')).toBeInTheDocument()
+    // Una sola vez, en la franja: las tarjetas no repiten el aviso
+    expect(await screen.findByText('Sin ventas en este periodo.')).toHaveClass('dash-strip__empty')
     expect(within(kpiCell('Ventas')).getByText('$0')).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/NaN|Infinity/)
   })
@@ -254,5 +262,182 @@ describe('DashboardPage: carga y error (patron catalog-state)', () => {
 
     await user.click(within(alert).getByRole('button', { name: /Reintentar/ }))
     expect(await screen.findByText('16–22 nov 2026')).toBeInTheDocument()
+  })
+})
+
+describe('DashboardPage: graficas y listados', () => {
+  const full = () => {
+    const salesByDay = days('2026-11-16', 7).map((d, i) => ({
+      ...d,
+      totalSales: [0, 120000, 340000, 90000, 0, 0, 0][i],
+      orders: [0, 3, 8, 2, 0, 0, 0][i],
+    }))
+    const salesByHour = hours().map((h) => {
+      if (h.hour === 13) return { ...h, totalSales: 300000, orders: 7 }
+      if (h.hour === 20) return { ...h, totalSales: 250000, orders: 6 }
+      return h
+    })
+    return makeDashboard({
+      kpis: { ...makeDashboard().kpis, sales: kpi(550000, 500000, 10) },
+      salesByDay,
+      salesByHour,
+      topProducts: [
+        { rank: 1, productId: 'p1', productName: 'Pizza Margarita', quantitySold: 12, revenue: 336000 },
+        {
+          rank: 2,
+          productId: 'p2',
+          productName: 'Limonada de coco con hierbabuena y un nombre larguísimo',
+          quantitySold: 9,
+          revenue: 72000,
+        },
+      ],
+      preparation: {
+        averageMinutes: 12.4,
+        itemsMeasured: 30,
+        byCategory: [
+          { categoryId: 'c1', categoryName: 'Pizzas', averageMinutes: 18.2, itemsMeasured: 12 },
+          { categoryId: 'c2', categoryName: 'Bebidas', averageMinutes: 3.1, itemsMeasured: 18 },
+        ],
+      },
+      waiterBreakdown: [
+        { waiterId: 'w1', totalAmount: 350000, ordersCount: 8 },
+        { waiterId: 'w-borrado', totalAmount: 200000, ordersCount: 5 },
+      ],
+      paymentBreakdown: [
+        { paymentMethodId: 'm1', totalAmount: 450000, paymentCount: 10 },
+        { paymentMethodId: 'm-otro', totalAmount: 100000, paymentCount: 3 },
+      ],
+    })
+  }
+  const card = (title) => screen.getByRole('region', { name: title })
+
+  it('ventas por dia y por hora: resumen en texto, marca del pico en rojo y la hora pico rotulada', async () => {
+    dashboardApi.getDashboard.mockResolvedValue(full())
+    renderPage()
+    await screen.findByText('16–22 nov 2026')
+
+    const byDay = within(card('Ventas por día'))
+    expect(byDay.getByText(/Día más alto: mié 18 nov · \$340\.000/)).toBeInTheDocument()
+    expect(byDay.getByRole('img')).toHaveAccessibleName(/Ventas por día, 7 días, total \$550\.000/)
+    const bars = card('Ventas por día').querySelectorAll('.dash-col__bar')
+    expect(bars).toHaveLength(7)
+    expect(card('Ventas por día').querySelectorAll('.dash-col__bar--hi')).toHaveLength(1)
+    expect(bars[2]).toHaveClass('dash-col__bar--hi')
+
+    const byHour = within(card('Ventas por hora de cobro'))
+    expect(byHour.getByText(/Hora pico: 1:00–2:00 p\. m\. · \$300\.000/)).toBeInTheDocument()
+    expect(card('Ventas por hora de cobro').querySelectorAll('.dash-col__bar')).toHaveLength(24)
+  })
+
+  it('"Ver como tabla" muestra una tabla real con encabezados y vuelve a la grafica', async () => {
+    dashboardApi.getDashboard.mockResolvedValue(full())
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('16–22 nov 2026')
+
+    const byHour = within(card('Ventas por hora de cobro'))
+    await user.click(byHour.getByRole('button', { name: 'Ver como tabla' }))
+    const table = byHour.getByRole('table', { name: 'Ventas por hora de cobro' })
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
+      'Hora',
+      'Ventas',
+      'Cuentas',
+    ])
+    expect(within(table).getAllByRole('row')).toHaveLength(25)
+    expect(within(table).getByRole('rowheader', { name: '1:00–2:00 p. m.' }).closest('tr')).toHaveTextContent(
+      '$300.000',
+    )
+
+    await user.click(byHour.getByRole('button', { name: 'Ver gráfica' }))
+    expect(byHour.queryByRole('table')).toBeNull()
+    expect(byHour.getByRole('img')).toBeInTheDocument()
+  })
+
+  it('top 5, preparacion por categoria, meseros y metodos con su participacion', async () => {
+    dashboardApi.getDashboard.mockResolvedValue(full())
+    renderPage()
+    await screen.findByText('16–22 nov 2026')
+
+    const top = within(card('Top 5 productos'))
+    expect(top.getByText('1. Pizza Margarita')).toBeInTheDocument()
+    expect(top.getByText('12 u.')).toBeInTheDocument()
+    expect(top.getByText('$336.000 ingreso bruto')).toBeInTheDocument()
+    // nombre largo: se recorta con puntos suspensivos y queda completo en el title
+    expect(top.getByTitle(/nombre larguísimo/)).toHaveClass('dash-rank__name')
+
+    const prep = within(card('Tiempo de preparación'))
+    expect(prep.getByText(/Promedio 12,4 min · 30 ítems medidos · menos es mejor/)).toBeInTheDocument()
+    expect(prep.getByText('Pizzas')).toBeInTheDocument()
+    expect(prep.getByText('18,2 min')).toBeInTheDocument()
+
+    const waiters = within(card('Ventas por mesero'))
+    expect(await waiters.findByText('Ana Martínez')).toBeInTheDocument()
+    expect(waiters.getByText('63,6 % · 8 cuentas')).toBeInTheDocument()
+    // mesero que ya no existe: nombre generico, sus ventas no se pierden
+    expect(waiters.getByText('Mesero no disponible')).toBeInTheDocument()
+    expect(waiters.getByText('$200.000')).toBeInTheDocument()
+
+    const methods = within(card('Ventas por método de pago'))
+    expect(await methods.findByText('Efectivo')).toBeInTheDocument()
+    expect(methods.getByText('81,8 % · 10 pagos')).toBeInTheDocument()
+    expect(methods.getByText('Método no disponible')).toBeInTheDocument()
+  })
+
+  it('si Staff y metodos fallan, los montos se muestran igual con nombre generico', async () => {
+    dashboardApi.getDashboard.mockResolvedValue(full())
+    staffApi.listEmployees.mockRejectedValue(new ApiError(503, 'X', 'x'))
+    methodsApi.listPaymentMethods.mockRejectedValue(new ApiError(503, 'X', 'x'))
+    renderPage()
+    await screen.findByText('16–22 nov 2026')
+
+    expect(within(card('Ventas por mesero')).getAllByText('Mesero no disponible')).toHaveLength(2)
+    expect(within(card('Ventas por método de pago')).getByText('$450.000')).toBeInTheDocument()
+  })
+
+  it('Catalog sin categorias: el promedio global sigue y se explica que falta el desglose', async () => {
+    dashboardApi.getDashboard.mockResolvedValue(
+      makeDashboard({ preparation: { averageMinutes: 9.5, itemsMeasured: 4, byCategory: null } }),
+    )
+    renderPage()
+    await screen.findByText('16–22 nov 2026')
+
+    const prep = within(card('Tiempo de preparación'))
+    expect(prep.getByText(/Promedio 9,5 min · 4 ítems medidos/)).toBeInTheDocument()
+    expect(
+      prep.getByText('El desglose por categoría no está disponible: el catálogo no respondió.'),
+    ).toBeInTheDocument()
+  })
+
+  it('periodo sin ventas: graficas dibujadas sin barras, listados con su aviso y sin NaN', async () => {
+    dashboardApi.getDashboard.mockResolvedValue(
+      makeDashboard({
+        kpis: {
+          sales: kpi(0, 0, null),
+          orders: kpi(0, 0, null),
+          averageTicket: kpi(0, 0, null),
+          preparationMinutes: kpi(null, null, null),
+        },
+        preparation: { averageMinutes: null, itemsMeasured: 0, byCategory: [] },
+      }),
+    )
+    renderPage()
+    await screen.findByText('Sin ventas en este periodo.', { selector: '.dash-strip__empty' })
+
+    const day = card('Ventas por día')
+    expect(day.querySelectorAll('.dash-col__bar')).toHaveLength(7)
+    expect([...day.querySelectorAll('.dash-col__bar')].every((b) => b.style.height === '0%')).toBe(true)
+    expect(day.querySelectorAll('.dash-col__bar--hi')).toHaveLength(0)
+    expect(within(card('Top 5 productos')).getByText('Ningún producto vendido en este periodo.')).toBeInTheDocument()
+    expect(within(card('Tiempo de preparación')).getByText('Sin ítems preparados en este periodo.')).toBeInTheDocument()
+    expect(document.body.innerHTML).not.toMatch(/NaN|Infinity/)
+  })
+
+  it('cifras de 8 digitos se formatean completas', async () => {
+    dashboardApi.getDashboard.mockResolvedValue(
+      makeDashboard({ kpis: { ...makeDashboard().kpis, sales: kpi(12345678, 9876543, 25) } }),
+    )
+    renderPage()
+    await screen.findByText('16–22 nov 2026')
+    expect(within(kpiCell('Ventas')).getByText('$12.345.678')).toBeInTheDocument()
   })
 })

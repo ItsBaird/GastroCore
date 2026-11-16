@@ -1,0 +1,276 @@
+/* GC-RPT-0004. Graficas y listados del dashboard (sin librerias). Solo tokens; cuadricula de 8 px. Series en gris
+   neutro (--n-500, 4,7:1 sobre blanco) y la marca destacada en --red-600 (4,8:1): el rojo solo en esa barra, en
+   el punto de la hora/dia pico y en las barras de los listados no. Textos siempre en tinta de texto. */
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-6);
+  align-items: start;
+}
+
+.dash-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.dash-chart__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.dash-chart__heading {
+  min-width: 0;
+}
+
+.dash-chart__title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.dash-chart__sub {
+  margin-top: var(--sp-1);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.dash-chart__toggle {
+  flex: none;
+  font-size: 14px;
+}
+
+/* Marca de la hora/dia pico: un punto rojo pequeno junto al texto */
+.dash-peak {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.dash-peak::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--red-600);
+}
+
+/* ---------- Columnas ---------- */
+.dash-columns {
+  --axis: 64px;
+}
+
+.dash-columns__body {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--axis) minmax(0, 1fr);
+  height: 192px;
+}
+
+.dash-columns__axis {
+  position: relative;
+}
+
+.dash-columns__axis span {
+  position: absolute;
+  right: var(--sp-2);
+  transform: translateY(50%);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dash-columns__plot {
+  position: relative;
+}
+
+.dash-columns__grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--n-200);
+}
+
+.dash-columns__grid--base {
+  border-top-color: var(--n-400);
+}
+
+.dash-columns__bars {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--count), minmax(0, 1fr));
+  gap: 2px;
+  align-items: end;
+}
+
+.dash-col {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+}
+
+.dash-col__bar {
+  width: 100%;
+  max-width: 48px;
+  margin: 0 auto;
+  background: var(--n-500);
+}
+
+.dash-col:hover .dash-col__bar {
+  background: var(--n-700);
+}
+
+.dash-col__bar--hi,
+.dash-col:hover .dash-col__bar--hi {
+  background: var(--red-600);
+}
+
+.dash-columns__x {
+  display: grid;
+  grid-template-columns: repeat(var(--count), minmax(0, 1fr));
+  gap: 2px;
+  margin-top: var(--sp-2);
+  margin-left: var(--axis);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* La etiqueta puede ser mas ancha que su columna: se desborda hacia la derecha sin empujar la cuadricula */
+.dash-columns__x span {
+  overflow: visible;
+  white-space: nowrap;
+}
+
+/* ---------- Listados con barra ---------- */
+.dash-rank {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.dash-rank__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.dash-rank__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  font-size: 14px;
+}
+
+.dash-rank__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-rank__value {
+  flex: none;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-rank__track {
+  display: block;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--n-100);
+}
+
+.dash-rank__bar {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--n-950);
+}
+
+.dash-rank__sub {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-empty {
+  padding: var(--sp-4);
+  border: 1px dashed var(--n-300);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.dash-note {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ---------- Tabla alternativa ---------- */
+.dash-table-wrap {
+  max-height: 384px;
+  overflow: auto;
+}
+
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.dash-table th,
+.dash-table td {
+  padding: var(--sp-2);
+  border-bottom: 1px solid var(--n-100);
+  text-align: left;
+}
+
+.dash-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dash-table tbody th {
+  font-weight: 500;
+}
+
+.dash-table .dash-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Tablet y movil ---------- */
+@media (width <= 1100px) {
+  .dash-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width <= 640px) {
+  .dash-columns {
+    --axis: 56px;
+  }
+
+  .dash-columns__body {
+    height: 160px;
+  }
+
+  .dash-chart__head {
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+}
