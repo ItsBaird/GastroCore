@@ -1406,39 +1406,120 @@ paths:
     get:
       tags: [Orders - Reportes]
       summary: Dashboard de metricas operativas (ADMIN)
-      description: REQ-F10-05. Ventas, tiempo de preparacion y platos mas vendidos.
+      description: |
+        REQ-F10-05 / GC-RPT-0004. Metricas del periodo `from`..`to` (dias de negocio Colombia UTC-5, ambos incluidos)
+        comparadas con el periodo anterior de igual duracion que termina el dia previo a `from`. Sin `from`/`to`
+        se usa la semana en curso, de lunes a domingo (si la semana no termino, `to` es el domingo igual y los
+        dias futuros salen en cero). Rango maximo 92 dias (`400 VALIDATION_ERROR` si se excede o si `from` > `to`).
+
+        Definiciones (todas sobre cuentas CERRADA con cierre dentro del periodo, montos enteros COP, R5):
+        - `sales`: suma de `payments.total` (lo cobrado despues del descuento).
+        - `orders`: cuentas cerradas. `averageTicket` = sales / orders redondeado; 0 sin cuentas.
+        - `preparationMinutes`: promedio de (`ready_at` - `sent_at`) de los items no cancelados que llegaron a
+          `listo` en el periodo, en minutos con un decimal; `null` si no hay items. `sent_at` es cuando el
+          mesero envio la ronda a cocina y `ready_at` cuando cocina la marco lista.
+        - `changePercent`: (value - previous) / previous x 100 con un decimal; `null` si `previous` es 0.
+        - `salesByDay`: un elemento por cada dia del rango (incluye los de venta cero).
+        - `salesByHour`: horas 0-23 del dia de negocio, sumadas sobre todo el periodo (siempre 24 elementos).
+        - `topProducts`: los 5 mas vendidos por unidades (mismo desempate que el cierre de caja).
+        - `waiterBreakdown` y `paymentBreakdown`: igual que el cierre de caja, sobre el periodo.
       x-roles: [ADMIN]
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
       responses:
         '200':
           description: Metricas
           content:
             application/json:
-              schema:
-                type: object
-                additionalProperties: true
+              schema: { $ref: '#/components/schemas/Dashboard' }
+        '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/orders/history:
     get:
       tags: [Orders - Reportes]
-      summary: Historial de ordenes con filtros (ADMIN)
-      description: REQ-F10-06.
+      summary: Historial de ventas con filtros y paginacion (ADMIN)
+      description: |
+        REQ-F10-06 / GC-RPT-0003. Lista las cuentas CERRADA cuyo cierre cae en el rango de dias de negocio
+        `from`..`to` (ambos incluidos, dia Colombia UTC-5; internamente [from 00:00, to+1 00:00)). Orden fijo:
+        `closedAt` descendente, desempate por `orderId`. Sin `from`/`to` se usa el dia de negocio actual.
+        El rango maximo es de 366 dias (`400 VALIDATION_ERROR` si se excede o si `from` > `to`).
+        `summary` agrega TODO el resultado filtrado (no solo la pagina). Los montos son enteros COP (R5).
+        El filtro `waiterId` se aplica sobre quien ABRIO la mesa (`orders.opened_by`), igual que el cierre de caja.
       x-roles: [ADMIN]
       parameters:
         - { name: from, in: query, schema: { type: string, format: date } }
         - { name: to, in: query, schema: { type: string, format: date } }
         - { name: waiterId, in: query, schema: { type: string, format: uuid } }
         - { name: tableId, in: query, schema: { type: string, format: uuid } }
+        - { name: paymentMethodId, in: query, schema: { type: string, format: uuid } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
       responses:
         '200':
-          description: Ordenes
+          description: Pagina de ventas
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/Order' }
+              schema: { $ref: '#/components/schemas/HistoryPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/orders/history/export:
+    get:
+      tags: [Orders - Reportes]
+      summary: Exportar el historial de ventas a Excel (ADMIN)
+      description: |
+        GC-RPT-0003. Mismos filtros que `GET /api/orders/history` (sin `page`/`pageSize`). Devuelve un `.xlsx`
+        con una hoja `Ventas` (una fila por cuenta: Referencia, Fecha cierre, Mesa, Mesero, Productos, Subtotal,
+        Descuento, Total, Metodo de pago) y una fila final de totales. El nombre del archivo es
+        `ventas_AAAA-MM-DD_AAAA-MM-DD.xlsx` (Content-Disposition). Maximo 10000 filas: si el filtro devuelve mas,
+        responde `422 EXPORT_TOO_LARGE` y se debe acotar el rango.
+      x-roles: [ADMIN]
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: waiterId, in: query, schema: { type: string, format: uuid } }
+        - { name: tableId, in: query, schema: { type: string, format: uuid } }
+        - { name: paymentMethodId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Archivo Excel
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422':
+          description: El filtro devuelve mas de 10000 filas (`EXPORT_TOO_LARGE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/orders/history/{orderId}:
+    get:
+      tags: [Orders - Reportes]
+      summary: Detalle de una venta del historial (ADMIN)
+      description: |
+        GC-RPT-0003. Detalle de una cuenta CERRADA: lineas con los snapshots R3 (nombre y precio al momento de
+        pedir; los items cancelados no se incluyen), descuento y pago. `404 ORDER_NOT_FOUND` si no existe o no
+        esta CERRADA.
+      x-roles: [ADMIN]
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Detalle
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HistoryOrderDetail' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Orden inexistente o no cerrada (`ORDER_NOT_FOUND`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   # ───────────── Internal (solo red Docker, X-Service-Token) ─────────────
   /internal/shifts/active/{userId}:
@@ -2168,6 +2249,164 @@ components:
             properties:
               waiterId: { type: string, format: uuid }
               totalAmount: { type: integer }
+    HistoryOrder:
+      type: object
+      required: [orderId, reference, tableId, waiterId, openedAt, closedAt, itemsCount, subtotal, discountAmount, total, paymentMethodId]
+      properties:
+        orderId: { type: string, format: uuid }
+        reference:
+          type: string
+          description: Primeros 6 caracteres del `orderId` en mayusculas, para mostrar. No se garantiza unico; el identificador real es `orderId`.
+          example: 3F9A1C
+        tableId: { type: string, format: uuid }
+        waiterId: { type: string, format: uuid, description: 'Quien abrio la mesa (orders.opened_by)' }
+        openedAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time }
+        itemsCount: { type: integer, minimum: 0, description: 'Unidades no canceladas' }
+        subtotal: { type: integer, minimum: 0 }
+        discountAmount: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 0, description: 'Cobrado (payments.total) = subtotal - discountAmount' }
+        paymentMethodId: { type: string, format: uuid }
+    HistorySummary:
+      type: object
+      required: [totalSales, ordersCount, averageTicket]
+      properties:
+        totalSales: { type: integer, minimum: 0 }
+        ordersCount: { type: integer, minimum: 0 }
+        averageTicket: { type: integer, minimum: 0, description: 'Redondeado al entero mas cercano; 0 sin ordenes' }
+    HistoryPage:
+      type: object
+      required: [items, page, pageSize, total, summary]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/HistoryOrder' }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1 }
+        total: { type: integer, minimum: 0, description: 'Cuentas que cumplen el filtro (todas las paginas)' }
+        summary: { $ref: '#/components/schemas/HistorySummary' }
+    HistoryOrderLine:
+      type: object
+      required: [productId, productName, quantity, unitPrice, lineTotal]
+      properties:
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        quantity: { type: integer, minimum: 1 }
+        unitPrice: { type: integer, minimum: 0 }
+        lineTotal: { type: integer, minimum: 0 }
+        notes: { type: string, nullable: true }
+    HistoryOrderDetail:
+      allOf:
+        - $ref: '#/components/schemas/HistoryOrder'
+        - type: object
+          required: [lines, cashReceived, changeGiven]
+          properties:
+            lines:
+              type: array
+              items: { $ref: '#/components/schemas/HistoryOrderLine' }
+            cashReceived: { type: integer, minimum: 0, nullable: true, description: 'Solo pagos en efectivo' }
+            changeGiven: { type: integer, minimum: 0, nullable: true, description: 'Solo pagos en efectivo' }
+    DashboardPeriod:
+      type: object
+      required: [from, to]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+    DashboardKpi:
+      type: object
+      required: [value, previous, changePercent]
+      properties:
+        value: { type: number }
+        previous: { type: number }
+        changePercent: { type: number, nullable: true, description: 'null si previous es 0' }
+    DashboardKpis:
+      type: object
+      required: [sales, orders, averageTicket, preparationMinutes]
+      properties:
+        sales: { $ref: '#/components/schemas/DashboardKpi' }
+        orders: { $ref: '#/components/schemas/DashboardKpi' }
+        averageTicket: { $ref: '#/components/schemas/DashboardKpi' }
+        preparationMinutes:
+          allOf:
+            - $ref: '#/components/schemas/DashboardKpi'
+          nullable: true
+          description: 'value/previous pueden ser null si no hubo items listos en ese periodo'
+    DashboardSalesByDay:
+      type: object
+      required: [date, totalSales, orders]
+      properties:
+        date: { type: string, format: date }
+        totalSales: { type: integer, minimum: 0 }
+        orders: { type: integer, minimum: 0 }
+    DashboardSalesByHour:
+      type: object
+      required: [hour, totalSales, orders]
+      properties:
+        hour: { type: integer, minimum: 0, maximum: 23 }
+        totalSales: { type: integer, minimum: 0 }
+        orders: { type: integer, minimum: 0 }
+    DashboardTopProduct:
+      type: object
+      required: [rank, productId, productName, quantitySold, revenue]
+      properties:
+        rank: { type: integer, minimum: 1, maximum: 5 }
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        quantitySold: { type: integer, minimum: 1 }
+        revenue: { type: integer, minimum: 0, description: 'Precio snapshot x cantidad, antes del descuento de la cuenta' }
+    DashboardPreparation:
+      type: object
+      required: [averageMinutes, itemsMeasured, byCategory]
+      properties:
+        averageMinutes: { type: number, nullable: true }
+        itemsMeasured: { type: integer, minimum: 0 }
+        byCategory:
+          type: array
+          description: 'Promedio por categoria del producto (snapshot), de mayor a menor tiempo'
+          items:
+            type: object
+            required: [categoryId, categoryName, averageMinutes, itemsMeasured]
+            properties:
+              categoryId: { type: string, format: uuid }
+              categoryName: { type: string }
+              averageMinutes: { type: number }
+              itemsMeasured: { type: integer, minimum: 1 }
+    Dashboard:
+      type: object
+      required: [period, previousPeriod, kpis, salesByDay, salesByHour, topProducts, preparation, waiterBreakdown, paymentBreakdown]
+      properties:
+        period: { $ref: '#/components/schemas/DashboardPeriod' }
+        previousPeriod: { $ref: '#/components/schemas/DashboardPeriod' }
+        kpis: { $ref: '#/components/schemas/DashboardKpis' }
+        salesByDay:
+          type: array
+          items: { $ref: '#/components/schemas/DashboardSalesByDay' }
+        salesByHour:
+          type: array
+          items: { $ref: '#/components/schemas/DashboardSalesByHour' }
+        topProducts:
+          type: array
+          maxItems: 5
+          items: { $ref: '#/components/schemas/DashboardTopProduct' }
+        preparation: { $ref: '#/components/schemas/DashboardPreparation' }
+        waiterBreakdown:
+          type: array
+          items:
+            type: object
+            required: [waiterId, totalAmount, ordersCount]
+            properties:
+              waiterId: { type: string, format: uuid }
+              totalAmount: { type: integer, minimum: 0 }
+              ordersCount: { type: integer, minimum: 0 }
+        paymentBreakdown:
+          type: array
+          items:
+            type: object
+            required: [paymentMethodId, totalAmount, paymentCount]
+            properties:
+              paymentMethodId: { type: string, format: uuid }
+              totalAmount: { type: integer, minimum: 0 }
+              paymentCount: { type: integer, minimum: 0 }
     CashClose:
       allOf:
         - $ref: '#/components/schemas/CashClosePreview'
