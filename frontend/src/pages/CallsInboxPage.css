@@ -201,20 +201,20 @@
   color: var(--text-muted);
 }
 
-.inbox-call .inbox-btn {
-  flex: none;
+/* Dos acciones (ir/abrir la mesa y "Atendido"): van en una segunda fila a todo el ancho de la tarjeta, que mide
+   desde 320 px y no tiene espacio para ellas al lado del texto */
+.inbox-call {
+  flex-wrap: wrap;
+}
+
+.inbox-call__actions {
+  display: flex;
+  flex-basis: 100%;
+  gap: var(--sp-2);
 }
 
 @media (width <= 640px) {
   .inbox-list {
     grid-template-columns: 1fr;
-  }
-
-  .inbox-call {
-    flex-wrap: wrap;
-  }
-
-  .inbox-call .inbox-btn {
-    width: 100%;
   }
 }
