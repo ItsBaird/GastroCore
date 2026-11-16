@@ -57,6 +57,9 @@ function peakOf(rows) {
 
 const money = (value) => formatCOP(value)
 
+// "1 cuenta", "2 cuentas", "1 ítem": el plural sale de quitar la "s" final
+const plural = (count, word) => `${formatCount(count)} ${count === 1 ? word.replace(/s$/, '') : word}`
+
 function SalesByDay({ rows }) {
   const peak = peakOf(rows)
   const short = rows.length <= 7
@@ -90,7 +93,8 @@ function SalesByDay({ rows }) {
         items={rows.map((r) => ({
           key: r.date,
           label: dayLabel(r.date),
-          axisLabel: short ? dayLabel(r.date) : formatShortDate(r.date),
+          // Eje corto ("lun 9"): el dia completo ("lun 9 nov") va en el tooltip y en la tabla
+          axisLabel: short ? `${formatWeekday(r.date)} ${Number(r.date.slice(8))}` : formatShortDate(r.date),
           value: r.totalSales,
           display: `${money(r.totalSales)} · ${formatCount(r.orders)} cuentas`,
         }))}
@@ -185,7 +189,8 @@ function Preparation({ preparation }) {
   const { averageMinutes, itemsMeasured, byCategory } = preparation
   let empty = 'Sin ítems preparados en este periodo.'
   if (itemsMeasured > 0 && byCategory === null) {
-    empty = 'El desglose por categoría no está disponible: el catálogo no respondió.'
+    // Catalog no respondio o aun no entrega la categoria: el promedio general sigue siendo valido
+    empty = 'El desglose por categoría no está disponible por ahora; el promedio general sí.'
   } else if (itemsMeasured > 0) {
     empty = 'Sin categorías para mostrar.'
   }
@@ -196,7 +201,7 @@ function Preparation({ preparation }) {
       subtitle={
         averageMinutes === null
           ? 'Desde que el pedido llega a cocina hasta que está listo'
-          : `Promedio ${formatMinutes(averageMinutes)} · ${formatCount(itemsMeasured)} ítems medidos · menos es mejor`
+          : `Promedio ${formatMinutes(averageMinutes)} · ${plural(itemsMeasured, 'ítems')} medidos · menos es mejor`
       }
       table={
         rows.length > 0 && {
@@ -220,7 +225,7 @@ function Preparation({ preparation }) {
           name: c.categoryName,
           value: c.averageMinutes,
           primary: formatMinutes(c.averageMinutes),
-          secondary: `${formatCount(c.itemsMeasured)} ítems`,
+          secondary: plural(c.itemsMeasured, 'ítems'),
         }))}
       />
     </ChartCard>
@@ -261,7 +266,7 @@ function Breakdown({ title, subtitle, rows, idKey, names, unknown, countKey, cou
           name: r.name,
           value: r.totalAmount,
           primary: money(r.totalAmount),
-          secondary: `${formatShare(r.totalAmount, total)} · ${formatCount(r[countKey])} ${countLabel.toLowerCase()}`,
+          secondary: `${formatShare(r.totalAmount, total)} · ${plural(r[countKey], countLabel.toLowerCase())}`,
         }))}
       />
     </ChartCard>

@@ -404,7 +404,7 @@ describe('DashboardPage: graficas y listados', () => {
     const prep = within(card('Tiempo de preparación'))
     expect(prep.getByText(/Promedio 9,5 min · 4 ítems medidos/)).toBeInTheDocument()
     expect(
-      prep.getByText('El desglose por categoría no está disponible: el catálogo no respondió.'),
+      prep.getByText('El desglose por categoría no está disponible por ahora; el promedio general sí.'),
     ).toBeInTheDocument()
   })
 

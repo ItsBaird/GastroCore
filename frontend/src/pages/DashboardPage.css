@@ -302,8 +302,16 @@
   }
 }
 
-/* Pantallas muy angostas (320): una cifra por fila, sin lineas verticales */
+/* Los dos campos de fecha nativos no caben lado a lado por debajo de ~400 px (su ancho minimo es de unos 164 px):
+   se apilan para no forzar desplazamiento horizontal */
 @media (width <= 400px) {
+  .dash-custom {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Pantallas muy angostas (320): una cifra por fila, sin lineas verticales */
+@media (width <= 360px) {
   .dash-kpis {
     grid-template-columns: 1fr;
     row-gap: var(--sp-4);

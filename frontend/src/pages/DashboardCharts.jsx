@@ -113,9 +113,16 @@ export function ColumnChart({ items, summary, highlightKey, labelEvery = 1, form
         </div>
       </div>
       <div className="dash-columns__x" style={{ '--count': items.length }} aria-hidden="true">
-        {items.map((i, index) => (
-          <span key={i.key}>{index % labelEvery === 0 ? i.axisLabel : ''}</span>
-        ))}
+        {/* En movil se oculta una de cada dos etiquetas (dash-x--alt): la columna es angosta para todas */}
+        {items.map((i, index) => {
+          const labelled = index % labelEvery === 0
+          const alt = labelled && (index / labelEvery) % 2 === 1
+          return (
+            <span key={i.key} className={alt ? 'dash-x--alt' : undefined}>
+              {labelled ? i.axisLabel : ''}
+            </span>
+          )
+        })}
       </div>
     </div>
   )
