@@ -8,6 +8,7 @@ import CashClosePage from './pages/CashClosePage.jsx'
 import { AdminLayout } from './layouts/AdminLayout.jsx'
 import { WaiterLayout } from './layouts/WaiterLayout.jsx'
 import CategoriesPage from './pages/CategoriesPage.jsx'
+import DashboardPage from './pages/DashboardPage.jsx'
 import EmployeesPage from './pages/EmployeesPage.jsx'
 import KitchenPage from './pages/KitchenPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="productos" element={<ProductsPage />} />
           <Route path="categorias" element={<CategoriesPage />} />
           <Route path="cierre-caja" element={<CashClosePage />} />
+          <Route path="dashboard" element={<DashboardPage />} />
         </Route>
       </Route>
 

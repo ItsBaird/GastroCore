@@ -21,8 +21,8 @@ import './AdminLayout.css'
 // Usuarios, Empleados, Turnos, Metodos de pago, Mesas, Productos y Categorias existen por ahora; el resto se activa cuando se construya cada modulo.
 // "mobile" marca los 4 destinos de la barra inferior (el diseno permite 4-5).
 const NAV = [
-  // Sin modulo todavia: fuera de la barra movil para dejar el lugar a Vista Mesero
-  { label: 'Dashboard', icon: LayoutDashboard },
+  // GC-RPT-0004. Fuera de la barra movil para dejar el lugar a Vista Mesero
+  { label: 'Dashboard', icon: LayoutDashboard, to: '/admin/dashboard' },
   { label: 'Mesas', icon: Table, to: '/admin/mesas', mobile: true },
   // El ADMIN tambien atiende mesas (WAITER y ADMIN comparten /mesero): acceso directo al panel del mesero
   { label: 'Vista Mesero', short: 'Mesero', icon: ConciergeBell, to: '/mesero/mesas', mobile: true },
