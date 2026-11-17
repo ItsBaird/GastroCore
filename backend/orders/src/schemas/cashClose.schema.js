@@ -10,11 +10,13 @@ function isRealCalendarDay(value) {
 
 // `date` es obligatoria y con el formato AAAA-MM-DD (2026-1-5 es 400). Cualquier otro parametro tambien es 400:
 // un filtro que no existe no se ignora en silencio.
-export const cashCloseQuerySchema = z
-  .object({
-    date: z
-      .string({ error: 'La fecha es obligatoria (AAAA-MM-DD)' })
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener el formato AAAA-MM-DD')
-      .refine(isRealCalendarDay, { message: 'La fecha no existe en el calendario' }),
-  })
-  .strict();
+const dateField = z
+  .string({ error: 'La fecha es obligatoria (AAAA-MM-DD)' })
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener el formato AAAA-MM-DD')
+  .refine(isRealCalendarDay, { message: 'La fecha no existe en el calendario' });
+
+export const cashCloseQuerySchema = z.object({ date: dateField }).strict();
+
+// POST (GC-RPT-0002): la fecha viaja en el cuerpo y no se aceptan campos extra. El cliente nunca envia totales
+// (R4): el consolidado lo calcula el servidor.
+export const cashCloseBodySchema = z.object({ date: dateField }).strict();
