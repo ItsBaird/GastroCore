@@ -1,8 +1,12 @@
 import { prisma } from '../config/prisma.js';
+import { businessDateOf } from '../services/businessDay.js';
+import { isBusinessDayClosed, lockBusinessDay } from './dayLock.js';
 
 const LIVE_ITEM_STATUSES = ['pendiente', 'en_preparacion', 'listo'];
 
 // GC-ORD-0008. Cierre de la venta en una sola transaccion: o queda todo o nada.
+//   0. Bloqueo post-cierre (GC-155): con el candado del dia de negocio, si ese dia ya tiene cierre confirmado el cobro
+//      se rechaza -> { dayClosed: true }. El cierre y el cobro se serializan: no hay pagos 'colados' en un dia cerrado.
 //   1. EN_COBRO -> CERRADA con closedAt, condicionado a lo que el servicio leyo y valido: que siga en cobro,
 //      sin pago, con el mismo descuento (el total cobrado es el que se calculo) y sin items vivos. Dos
 //      cobros simultaneos: uno cambia la fila (count 1) y el otro no (count 0) -> un solo pago.
@@ -14,10 +18,15 @@ const LIVE_ITEM_STATUSES = ['pendiente', 'en_preparacion', 'listo'];
 //      (CHECK chk_service_calls_resolution: attended_by y _at).
 //   5. Auditoria PAYMENT_REGISTERED.
 // Contrato de /pay (docs/gc-ord-0008-pago-limpieza, aprobado por Oscar).
-// Devuelve { payment, rejectedQrRequests, attendedServiceCalls } o null si la orden ya no estaba como se leyo.
+// Devuelve { payment, rejectedQrRequests, attendedServiceCalls }, null si la orden ya no estaba como se leyo o
+// { dayClosed: true } si el dia de negocio de este cobro ya fue cerrado.
 export async function closeOrderWithPayment({ orderId, tableId, payment, userId, auditDetails }) {
   return prisma.$transaction(async (tx) => {
     const now = new Date();
+    const businessDate = businessDateOf(now);
+    await lockBusinessDay(tx, businessDate);
+    if (await isBusinessDayClosed(tx, businessDate)) return { dayClosed: true };
+
     const closed = await tx.order.updateMany({
       where: {
         orderId,

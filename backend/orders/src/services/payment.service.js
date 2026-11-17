@@ -125,6 +125,15 @@ export async function registerPayment(orderId, { paymentMethodId, amountReceived
     },
   });
 
+  if (result?.dayClosed) {
+    throw new AppError({
+      status: 409,
+      code: 'DAY_CLOSED',
+      message:
+        'El cierre de caja de hoy ya fue confirmado: no se pueden registrar más cobros hasta mañana',
+    });
+  }
+
   if (!result) {
     // Otro dispositivo cobro, cancelo el cobro o cambio el descuento entre la lectura y la escritura
     const fresh = await findOrderForBill(orderId);
