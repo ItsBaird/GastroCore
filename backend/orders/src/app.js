@@ -14,6 +14,7 @@ import { qrRequestRouter } from './routes/qrRequest.routes.js';
 import { serviceCallRouter } from './routes/serviceCall.routes.js';
 import { qrRouter } from './routes/qr.routes.js';
 import { dashboardRouter } from './routes/dashboard.routes.js';
+import { historyRouter } from './routes/history.routes.js';
 import { paymentCorrectionRouter } from './routes/paymentCorrection.routes.js';
 import { reportsRouter } from './routes/reports.routes.js';
 import { roundRouter } from './routes/round.routes.js';
@@ -41,6 +42,7 @@ router.use('/items', itemRouter);
 router.use('/kitchen', kitchenRouter);
 router.use('/reports', reportsRouter);
 router.use('/reports', dashboardRouter); // GC-RPT-0004
+router.use('/history', historyRouter); // GC-RPT-0003: antes de orderRouter (GET /:orderId la capturaria)
 router.use('/', paymentCorrectionRouter); // GC-RPT-0002 (GC-157)
 router.use('/', orderRouter);
 router.use('/:orderId/rounds', roundRouter);

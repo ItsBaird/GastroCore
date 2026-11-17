@@ -12,6 +12,17 @@ export function businessDayRange(date) {
   return { start, end: new Date(start.getTime() + DAY_MS) };
 }
 
+// Rango [inicio de `from`, fin de `to`) de varios dias de negocio, ambos incluidos (GC-RPT-0003). Con from === to
+// es el mismo rango que businessDayRange.
+export function businessRange(from, to) {
+  return { start: businessDayRange(from).start, end: businessDayRange(to).end };
+}
+
+// Cuantos dias de negocio hay de `from` a `to`, contando ambos (14-nov a 14-nov = 1)
+export function daysInRange(from, to) {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS) + 1;
+}
+
 // Dia de negocio (AAAA-MM-DD, Colombia UTC-5) al que pertenece un instante. Es la inversa de businessDayRange:
 // un cobro a las 20:00 de Neiva (01:00 UTC del dia siguiente) sigue siendo del dia que termina.
 export function businessDateOf(instant) {
