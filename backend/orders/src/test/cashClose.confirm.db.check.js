@@ -15,6 +15,7 @@ import { prisma } from '../config/prisma.js';
 import { closeOrderWithPayment } from '../repositories/payment.repository.js';
 import { businessDateOf } from '../services/businessDay.js';
 import { confirmCashClose, getCashClosePreview } from '../services/cashClose.service.js';
+import { correctOrderPaymentMethod } from '../services/paymentCorrection.service.js';
 
 const ADMIN = { userId: randomUUID(), role: 'ADMIN', permissions: [] };
 const W1 = randomUUID();
@@ -361,6 +362,155 @@ describe('GC-155: cobros concurrentes con el cierre', () => {
     }
     console.log(
       `25 rondas: ${acceptedTotal} cobros entraron antes del cierre, ${rejectedTotal} fueron rechazados`,
+    );
+  });
+});
+
+// GC-157: correccion del metodo de pago de una venta de un dia YA cerrado. El cierre guardado no se toca (snapshot);
+// la correccion queda en audit_log con quien, cuando, que y cuanto.
+describe('GC-157: correccion post-cierre del metodo de pago (BD real)', () => {
+  let day;
+  let sale;
+  let closureBefore;
+
+  it('efectivo -> tarjeta en un dia cerrado: cambia el pago, audita y NO modifica el cierre guardado', async () => {
+    day = dayOffset(-20);
+    sale = await closedSale({ openedBy: W1, method: 'cash', closedAt: at(`${day} 13:00`), qty: 2 });
+    await confirmCashClose(day, ADMIN);
+    closureBefore = await prisma.cashClosure.findUnique({
+      where: { closureDate: new Date(`${day}T00:00:00Z`) },
+      include: { paymentBreakdown: true },
+    });
+
+    const out = await correctOrderPaymentMethod(
+      sale.orderId,
+      { paymentMethodId: methods.card, reason: 'Se cobro con tarjeta, se registro efectivo' },
+      ADMIN,
+    );
+    assert.equal(out.paymentMethodId, methods.card);
+    assert.equal(out.total, 60000);
+    assert.equal(out.amountReceived, null);
+    assert.equal(out.changeGiven, null);
+
+    const row = await prisma.payment.findUnique({ where: { orderId: sale.orderId } });
+    assert.equal(row.paymentMethodId, methods.card);
+    assert.equal(row.total, 60000);
+    assert.equal(row.subtotal, 60000);
+
+    const audit = await prisma.auditLog.findMany({
+      where: { actionType: 'PAYMENT_METHOD_CORRECTED', entityId: sale.orderId },
+    });
+    assert.equal(audit.length, 1);
+    assert.equal(audit[0].entityType, 'order');
+    assert.equal(audit[0].performedBy, ADMIN.userId);
+    assert.ok(audit[0].performedAt instanceof Date);
+    assert.deepEqual(audit[0].details, {
+      paymentId: row.paymentId,
+      previousMethodId: methods.cash,
+      previousMethod: 'Efectivo',
+      newMethodId: methods.card,
+      newMethod: 'Tarjeta',
+      total: 60000,
+      previousAmountReceived: null,
+      previousChangeGiven: null,
+      amountReceived: null,
+      changeGiven: null,
+      reason: 'Se cobro con tarjeta, se registro efectivo',
+      postClosure: true,
+      closureDate: day,
+    });
+
+    // Snapshot inmutable: el cierre sigue diciendo lo que se confirmo ese dia
+    const closureAfter = await prisma.cashClosure.findUnique({
+      where: { closureDate: new Date(`${day}T00:00:00Z`) },
+      include: { paymentBreakdown: true },
+    });
+    assert.deepEqual(closureAfter, closureBefore);
+    assert.deepEqual(
+      closureAfter.paymentBreakdown.map((p) => [p.paymentMethodId, p.totalAmount]),
+      [[methods.cash, 60000]],
+    );
+  });
+
+  it('tarjeta -> efectivo: pide lo recibido, el servidor calcula el cambio y lo audita', async () => {
+    const out = await correctOrderPaymentMethod(
+      sale.orderId,
+      { paymentMethodId: methods.cash, amountReceived: 70000, reason: 'Corregido de nuevo' },
+      ADMIN,
+    );
+    assert.equal(out.amountReceived, 70000);
+    assert.equal(out.changeGiven, 10000);
+    const [last] = await prisma.auditLog.findMany({
+      where: { actionType: 'PAYMENT_METHOD_CORRECTED', entityId: sale.orderId },
+      orderBy: { auditId: 'desc' },
+      take: 1,
+    });
+    assert.equal(last.details.previousMethod, 'Tarjeta');
+    assert.equal(last.details.newMethod, 'Efectivo');
+    assert.equal(last.details.changeGiven, 10000);
+  });
+
+  it('reglas: mismo metodo, efectivo sin monto o insuficiente y orden sin cerrar no cambian ni auditan nada', async () => {
+    const audits = () =>
+      prisma.auditLog.count({ where: { actionType: 'PAYMENT_METHOD_CORRECTED' } });
+    const before = await audits();
+    await assert.rejects(
+      correctOrderPaymentMethod(
+        sale.orderId,
+        { paymentMethodId: methods.cash, amountReceived: 70000, reason: 'Sin cambios' },
+        ADMIN,
+      ),
+      { status: 400, code: 'VALIDATION_ERROR' },
+    );
+    await assert.rejects(
+      correctOrderPaymentMethod(
+        sale.orderId,
+        { paymentMethodId: methods.card, amountReceived: 1, reason: 'Con monto' },
+        ADMIN,
+      ),
+      { status: 400, code: 'VALIDATION_ERROR' },
+    );
+    const billing = await billingOrder();
+    await assert.rejects(
+      correctOrderPaymentMethod(
+        billing.orderId,
+        { paymentMethodId: methods.card, reason: 'Sin pago aun' },
+        ADMIN,
+      ),
+      { status: 404 },
+    );
+    assert.equal(await audits(), before);
+  });
+
+  it('dos correcciones simultaneas: una gana, la otra recibe 409 y solo queda una auditoria nueva', async () => {
+    const racing = await closedSale({ openedBy: W2, method: 'cash', closedAt: at(`${day} 15:00`) });
+    const results = await Promise.allSettled([
+      correctOrderPaymentMethod(
+        racing.orderId,
+        { paymentMethodId: methods.card, reason: 'Primera correccion' },
+        ADMIN,
+      ),
+      correctOrderPaymentMethod(
+        racing.orderId,
+        { paymentMethodId: methods.card, reason: 'Segunda correccion' },
+        ADMIN,
+      ),
+      correctOrderPaymentMethod(
+        racing.orderId,
+        { paymentMethodId: methods.card, reason: 'Tercera correccion' },
+        ADMIN,
+      ),
+    ]);
+    const won = results.filter((r) => r.status === 'fulfilled').length;
+    assert.equal(won, 1);
+    for (const r of results.filter((x) => x.status === 'rejected')) {
+      assert.ok([400, 409].includes(r.reason.status), `inesperado: ${r.reason}`);
+    }
+    assert.equal(
+      await prisma.auditLog.count({
+        where: { actionType: 'PAYMENT_METHOD_CORRECTED', entityId: racing.orderId },
+      }),
+      1,
     );
   });
 });

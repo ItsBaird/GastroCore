@@ -29,7 +29,7 @@ function liveItems(order) {
 }
 
 // Payment del contrato
-function toPayment(payment) {
+export function toPayment(payment) {
   return {
     paymentId: payment.paymentId,
     orderId: payment.orderId,
