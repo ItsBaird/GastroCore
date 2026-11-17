@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { formatLongDate, isValidDay, nameOf, todayLocal } from './cashClose.js'
+import {
+  formatLongDate,
+  isValidDay,
+  nameOf,
+  todayLocal,
+  formatDateTime,
+  formatShortDate,
+  isFutureDay,
+} from './cashClose.js'
 
 describe('todayLocal', () => {
   it('usa el dia LOCAL, no el UTC: a las 11:30 p. m. sigue siendo el mismo dia', () => {
@@ -22,12 +30,20 @@ describe('isValidDay', () => {
     expect(isValidDay(value)).toBe(true)
   })
 
-  it.each(['', 'ayer', '2026-1-5', '14-11-2026', '2026-02-30', '2026-13-01', '2026-02-29', null, undefined, 20261114])(
-    '%s no lo es',
-    (value) => {
-      expect(isValidDay(value)).toBe(false)
-    },
-  )
+  it.each([
+    '',
+    'ayer',
+    '2026-1-5',
+    '14-11-2026',
+    '2026-02-30',
+    '2026-13-01',
+    '2026-02-29',
+    null,
+    undefined,
+    20261114,
+  ])('%s no lo es', (value) => {
+    expect(isValidDay(value)).toBe(false)
+  })
 })
 
 describe('formatLongDate', () => {
@@ -51,5 +67,32 @@ describe('nameOf', () => {
   it('devuelve el texto de respaldo si el id no aparece', () => {
     expect(nameOf(list, 'id', 'name', 'zzz', 'Desconocido')).toBe('Desconocido')
     expect(nameOf([], 'id', 'name', 'a', 'Desconocido')).toBe('Desconocido')
+  })
+})
+
+describe('formatShortDate', () => {
+  it('pasa AAAA-MM-DD a DD/MM/AAAA sin correr el dia por zona horaria', () => {
+    expect(formatShortDate('2026-11-14')).toBe('14/11/2026')
+    expect(formatShortDate('2026-01-01')).toBe('01/01/2026')
+  })
+})
+
+describe('formatDateTime', () => {
+  it('muestra fecha y hora del instante confirmado', () => {
+    const text = formatDateTime('2026-11-14T23:30:00.000Z')
+    expect(text).toMatch(/2026/)
+    expect(text).toMatch(/nov/i)
+    expect(text).toMatch(/\d{1,2}:\d{2}/)
+  })
+})
+
+describe('isFutureDay', () => {
+  const now = new Date(2026, 10, 14, 23, 30) // 14-nov, 11:30 p. m. hora local
+  it('hoy y los dias pasados no son futuros', () => {
+    expect(isFutureDay('2026-11-14', now)).toBe(false)
+    expect(isFutureDay('2026-11-13', now)).toBe(false)
+  })
+  it('el dia siguiente si, aunque en UTC ya sea ese dia', () => {
+    expect(isFutureDay('2026-11-15', now)).toBe(true)
   })
 })

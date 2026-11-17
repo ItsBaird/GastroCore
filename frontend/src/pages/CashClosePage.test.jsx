@@ -4,9 +4,10 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { listPaymentMethods } from '../api/paymentMethods.js'
 import { ApiError } from '../api/errors.js'
-import { getCashClosePreview } from '../api/reports.js'
+import { getCashClosePreview, getCashClosure, listCashClosures } from '../api/reports.js'
 import { listEmployees } from '../api/staff.js'
 import { AuthContext } from '../auth/authContext.js'
+import { ToastProvider } from '../components/Toast.jsx'
 import CashClosePage from './CashClosePage.jsx'
 
 vi.mock('../api/reports.js')
@@ -52,7 +53,9 @@ function renderPage() {
   return render(
     <MemoryRouter>
       <AuthContext.Provider value={auth}>
-        <CashClosePage />
+        <ToastProvider>
+          <CashClosePage />
+        </ToastProvider>
       </AuthContext.Provider>
     </MemoryRouter>,
   )
@@ -64,6 +67,9 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date(2026, 10, 14, 23, 30)) // 14-nov, 11:30 p. m. hora local
   getCashClosePreview.mockResolvedValue(PREVIEW)
+  // Por defecto el dia esta ABIERTO (404) y no hay cierres en el historial
+  getCashClosure.mockRejectedValue(new ApiError(404, 'NOT_FOUND', 'x'))
+  listCashClosures.mockResolvedValue({ items: [], page: 1, pageSize: 10, total: 0 })
   listPaymentMethods.mockResolvedValue([
     { paymentMethodId: CASH, name: 'Efectivo', isCash: true, isActive: true },
     { paymentMethodId: CARD, name: 'Tarjeta débito', isCash: false, isActive: true },
@@ -204,7 +210,9 @@ describe('CashClosePage · errores', () => {
   it('403: dice que no tiene permiso', async () => {
     getCashClosePreview.mockRejectedValue(new ApiError(403, 'FORBIDDEN', 'x'))
     renderPage()
-    expect(await screen.findByRole('alert')).toHaveTextContent('No tienes permiso para ver el cierre de caja.')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No tienes permiso para ver el cierre de caja.',
+    )
   })
 
   it('400: dice que la fecha no es valida', async () => {
@@ -222,7 +230,9 @@ describe('CashClosePage · fecha', () => {
 
     fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2026-11-10' } })
 
-    expect(await screen.findByText('No se cerró ninguna cuenta el 10 de noviembre de 2026.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('No se cerró ninguna cuenta el 10 de noviembre de 2026.'),
+    ).toBeInTheDocument()
     expect(getCashClosePreview).toHaveBeenLastCalledWith('2026-11-10')
   })
 
