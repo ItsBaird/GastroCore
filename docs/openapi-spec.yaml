@@ -1143,6 +1143,71 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
+  /api/orders/{orderId}/payment:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    patch:
+      tags: [Orders - Cobro]
+      summary: Corregir el metodo de pago de una venta ya cobrada (solo ADMIN)
+      description: |
+        GC-RPT-0002 (GC-157), REQ-F10-04. Correccion posterior al cobro o al cierre de caja: el ADMIN cambia el
+        metodo con el que quedo registrada una venta (por ejemplo, se cobro con tarjeta y se registro efectivo).
+        Solo `ADMIN`; cualquier otro rol `403 FORBIDDEN`. Es la unica correccion permitida: `subtotal`,
+        `discountAmount` y `total` no cambian (R3/R4: el cliente nunca los envia), ni se puede anular el pago.
+        Orden: debe existir y tener pago (`404 NOT_FOUND`) y estar `CERRADA` (`409 INVALID_TRANSITION`).
+        Metodo: debe existir (`404 NOT_FOUND`), estar activo (`409 PAYMENT_METHOD_INACTIVE`) y ser distinto del
+        actual (`400 VALIDATION_ERROR`, `details.field = paymentMethodId`). `reason` es obligatorio (5 a 200
+        caracteres, sin espacios sobrantes): queda en la auditoria.
+        Monto (R4/R5): con un metodo en efectivo `amountReceived` es obligatorio y `>= total` (`400
+        INSUFFICIENT_AMOUNT`), y el backend calcula `changeGiven`; con otro metodo enviarlo es `400
+        VALIDATION_ERROR` y el pago queda con `amountReceived` y `changeGiven` en null.
+        Efectos, en una sola transaccion: se actualiza el metodo (y recibido/cambio) del pago y se audita
+        `PAYMENT_METHOD_CORRECTED` (entidad `order`) con quien (`performedBy`), cuando (`performedAt`), que
+        (metodo anterior y nuevo, con su nombre), cuanto (`total`), el motivo, `paymentId`, y si el dia de la
+        venta ya tenia cierre confirmado (`postClosure`, con su `closureDate`).
+        El cierre de caja ya guardado NO se modifica: `cash_closures` es un snapshot inmutable y sus desgloses
+        reflejan lo que se confirmo ese dia; la correccion queda en `audit_log`. Los reportes en vivo (vista
+        previa de un dia sin cerrar, dashboard, historial) si reflejan el metodo corregido. La correccion y la
+        confirmacion del cierre del mismo dia se serializan.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paymentMethodId, reason]
+              additionalProperties: false
+              properties:
+                paymentMethodId: { type: string, format: uuid }
+                amountReceived:
+                  type: integer
+                  minimum: 0
+                  description: Pesos enteros. Obligatorio si el nuevo metodo es efectivo; prohibido con otros metodos
+                reason:
+                  type: string
+                  minLength: 5
+                  maxLength: 200
+      responses:
+        '200':
+          description: Pago corregido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '400':
+          description: Datos invalidos (`VALIDATION_ERROR`) o efectivo insuficiente (`INSUFFICIENT_AMOUNT`, con `details.total`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Orden no `CERRADA` (`INVALID_TRANSITION`) o metodo inactivo (`PAYMENT_METHOD_INACTIVE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
   # ───────────── Orders - QR (F09) ─────────────
   /api/orders/qr/{token}:
     parameters:
