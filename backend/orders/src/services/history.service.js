@@ -1,6 +1,25 @@
-import { aggregateHistory, findHistoryPage } from '../repositories/history.repository.js';
+import { AppError } from '../errors/AppError.js';
+import {
+  aggregateHistory,
+  findHistoryOrder,
+  findHistoryPage,
+} from '../repositories/history.repository.js';
 import { businessDateOf, businessRange } from './businessDay.js';
-import { buildHistorySummary, toHistoryOrder } from './history.js';
+import { buildHistorySummary, toHistoryOrder, toHistoryOrderDetail } from './history.js';
+
+// GC-189. GET /api/orders/history/{orderId}: el detalle de una venta. Si la orden no existe o todavia no esta
+// CERRADA (abierta o en cobro) no es una venta del historial: 404 ORDER_NOT_FOUND (codigo del contrato).
+export async function getSalesHistoryOrder(orderId) {
+  const order = await findHistoryOrder(orderId);
+  if (!order) {
+    throw new AppError({
+      status: 404,
+      code: 'ORDER_NOT_FOUND',
+      message: 'La venta no existe o la cuenta todavía no está cerrada',
+    });
+  }
+  return toHistoryOrderDetail(order);
+}
 
 // GC-RPT-0003 (GC-188). GET /api/orders/history: ventas cerradas de los dias de negocio `from`..`to` (ambos
 // incluidos), con filtros y paginacion; `summary` es de TODO el filtro. Sin fechas, el dia de negocio actual.

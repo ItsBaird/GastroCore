@@ -46,6 +46,48 @@ export async function findHistoryPage({ skip, take, paymentMethodId, ...filters 
   });
 }
 
+// GC-189. Una venta del historial con sus lineas: la orden CERRADA con pago, o null (no existe, o sigue abierta o
+// en cobro). Las lineas son los items vendidos (sin cancelados, R3) con el nombre y el precio que tenian al
+// pedirse, en el orden en que se pidieron: por ronda y, dentro de la ronda, por item.
+export async function findHistoryOrder(orderId) {
+  return prisma.order.findFirst({
+    where: { orderId, status: 'CERRADA', payment: { isNot: null } },
+    select: {
+      orderId: true,
+      tableId: true,
+      openedBy: true,
+      openedAt: true,
+      closedAt: true,
+      table: { select: { tableNumber: true } },
+      payment: {
+        select: {
+          subtotal: true,
+          discountAmount: true,
+          total: true,
+          paymentMethodId: true,
+          amountReceived: true,
+          changeGiven: true,
+        },
+      },
+      rounds: {
+        orderBy: { createdAt: 'asc' },
+        select: {
+          items: {
+            where: { status: { not: 'cancelado' } },
+            orderBy: [{ createdAt: 'asc' }, { itemId: 'asc' }],
+            select: {
+              productId: true,
+              productNameSnapshot: true,
+              unitPriceSnapshot: true,
+              quantity: true,
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
 // Totales de TODO el filtro (no de la pagina): cuantas ventas y cuanto se cobro. Se cuenta sobre payments (1:1 con
 // la orden cerrada) para sumar `total`, que es lo cobrado despues del descuento.
 export async function aggregateHistory({ paymentMethodId, ...filters }) {

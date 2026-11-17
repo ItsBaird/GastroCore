@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 import { prisma } from '../config/prisma.js';
 import { getCashClosePreview } from '../services/cashClose.service.js';
-import { getSalesHistory } from '../services/history.service.js';
+import { getSalesHistory, getSalesHistoryOrder } from '../services/history.service.js';
 
 const W1 = randomUUID();
 const W2 = randomUUID();
@@ -293,5 +293,66 @@ describe('GC-188: historial de ventas (BD real)', () => {
       select: { orderId: true },
     });
     for (const { orderId } of ids) assert.ok(!page.items.some((i) => i.orderId === orderId));
+  });
+});
+
+describe('GC-189: detalle de una venta (BD real)', () => {
+  it('hecho cuando: en TODAS las ventas las lineas suman el subtotal y total = subtotal - descuento', async () => {
+    const page = await getSalesHistory(q({ from: '2026-11-01', to: '2026-11-30' }), NOW);
+    assert.ok(page.items.length >= 6);
+    for (const row of page.items) {
+      const detail = await getSalesHistoryOrder(row.orderId);
+      const sum = detail.lines.reduce((s, l) => s + l.lineTotal, 0);
+      assert.equal(sum, detail.subtotal, `lineas != subtotal en ${detail.reference}`);
+      assert.equal(detail.total, detail.subtotal - detail.discountAmount);
+      for (const l of detail.lines) assert.equal(l.lineTotal, l.unitPrice * l.quantity);
+      // El detalle repite exactamente la fila del listado
+      const { lines, cashReceived, changeGiven, ...asRow } = detail;
+      assert.ok(Array.isArray(lines) && cashReceived !== undefined && changeGiven !== undefined);
+      assert.deepEqual(asRow, row);
+    }
+  });
+
+  it('las lineas usan el snapshot R3 y NO incluyen los items cancelados', async () => {
+    const [row] = (
+      await getSalesHistory(
+        q({ from: '2026-11-14', to: '2026-11-14', tableId: tables[1].tableId }),
+        NOW,
+      )
+    ).items;
+    const detail = await getSalesHistoryOrder(row.orderId);
+    assert.deepEqual(detail.lines, [
+      { productId: PIZZA, productName: 'Pizza', quantity: 1, unitPrice: 30000, lineTotal: 30000 },
+    ]);
+    assert.ok(!detail.lines.some((l) => l.productId === AGUA), 'el Agua cancelada no es una linea');
+  });
+
+  it('en efectivo trae recibido y cambio; con tarjeta van en null', async () => {
+    const day = (await getSalesHistory(q({ from: '2026-11-14', to: '2026-11-14' }), NOW)).items;
+    const cash = day.find((i) => i.discountAmount > 0); // 80.000 en efectivo
+    await prisma.payment.update({
+      where: { orderId: cash.orderId },
+      data: { amountReceived: 100000, changeGiven: 20000 },
+    });
+    const withCash = await getSalesHistoryOrder(cash.orderId);
+    assert.equal(withCash.cashReceived, 100000);
+    assert.equal(withCash.changeGiven, 20000);
+
+    const card = day.find((i) => i.paymentMethodId === methods.card);
+    const withCard = await getSalesHistoryOrder(card.orderId);
+    assert.equal(withCard.cashReceived, null);
+    assert.equal(withCard.changeGiven, null);
+  });
+
+  it('una mesa abierta (todavia no es venta) o un id que no existe -> 404 ORDER_NOT_FOUND', async () => {
+    const open = await prisma.order.findFirst({ where: { status: 'ABIERTA' } });
+    await assert.rejects(getSalesHistoryOrder(open.orderId), {
+      status: 404,
+      code: 'ORDER_NOT_FOUND',
+    });
+    await assert.rejects(getSalesHistoryOrder(randomUUID()), {
+      status: 404,
+      code: 'ORDER_NOT_FOUND',
+    });
   });
 });

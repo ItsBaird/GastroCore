@@ -3,11 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../repositories/history.repository.js', () => ({
   findHistoryPage: vi.fn(),
+  findHistoryOrder: vi.fn(),
   aggregateHistory: vi.fn(),
 }));
 
 const repo = await import('../repositories/history.repository.js');
-const { getSalesHistory } = await import('./history.service.js');
+const { getSalesHistory, getSalesHistoryOrder } = await import('./history.service.js');
 
 const NOW = new Date('2026-11-15T01:00:00Z'); // 8:00 p. m. del 14-nov en Colombia (01:00 UTC del 15)
 const base = { page: 1, pageSize: 20 };
@@ -102,5 +103,52 @@ describe('getSalesHistory: respuesta (HistoryPage)', () => {
   it('un error de la base se propaga', async () => {
     repo.aggregateHistory.mockRejectedValue(new Error('db down'));
     await expect(getSalesHistory(base, NOW)).rejects.toThrow('db down');
+  });
+});
+
+describe('getSalesHistoryOrder (GC-189)', () => {
+  it('devuelve el detalle de la venta con sus lineas', async () => {
+    repo.findHistoryOrder.mockResolvedValue({
+      ...row('bbbbbbbb-0000-4000-8000-000000000002'),
+      payment: {
+        subtotal: 30000,
+        discountAmount: 0,
+        total: 30000,
+        paymentMethodId: 'm-1',
+        amountReceived: null,
+        changeGiven: null,
+      },
+      rounds: [
+        {
+          items: [
+            {
+              productId: 'p1',
+              productNameSnapshot: 'Pizza',
+              unitPriceSnapshot: 15000,
+              quantity: 2,
+            },
+          ],
+        },
+      ],
+    });
+    const out = await getSalesHistoryOrder('bbbbbbbb-0000-4000-8000-000000000002');
+    expect(repo.findHistoryOrder).toHaveBeenCalledWith('bbbbbbbb-0000-4000-8000-000000000002');
+    expect(out).toMatchObject({
+      reference: 'BBBBBB',
+      itemsCount: 2,
+      cashReceived: null,
+      changeGiven: null,
+    });
+    expect(out.lines).toEqual([
+      { productId: 'p1', productName: 'Pizza', quantity: 2, unitPrice: 15000, lineTotal: 30000 },
+    ]);
+  });
+
+  it('si no existe o no esta CERRADA (el repositorio da null): 404 ORDER_NOT_FOUND', async () => {
+    repo.findHistoryOrder.mockResolvedValue(null);
+    await expect(getSalesHistoryOrder('x')).rejects.toMatchObject({
+      status: 404,
+      code: 'ORDER_NOT_FOUND',
+    });
   });
 });
