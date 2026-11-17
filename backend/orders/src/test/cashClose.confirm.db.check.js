@@ -15,6 +15,7 @@ import { prisma } from '../config/prisma.js';
 import { closeOrderWithPayment } from '../repositories/payment.repository.js';
 import { businessDateOf } from '../services/businessDay.js';
 import { confirmCashClose, getCashClosePreview } from '../services/cashClose.service.js';
+import { getCashClosureByDate, listCashClosures } from '../services/cashClosures.service.js';
 import { correctOrderPaymentMethod } from '../services/paymentCorrection.service.js';
 
 const ADMIN = { userId: randomUUID(), role: 'ADMIN', permissions: [] };
@@ -511,6 +512,88 @@ describe('GC-157: correccion post-cierre del metodo de pago (BD real)', () => {
         where: { actionType: 'PAYMENT_METHOD_CORRECTED', entityId: racing.orderId },
       }),
       1,
+    );
+  });
+});
+
+// GC-158: historial de cierres y cierre por dia, leidos de la base real
+describe('GC-158: historial y cierre por dia (BD real)', () => {
+  it('el historial lista los cierres del mas reciente al mas antiguo, con total y pagina', async () => {
+    const all = await prisma.cashClosure.findMany({ orderBy: { closureDate: 'desc' } });
+    assert.ok(all.length >= 4, 'los chequeos anteriores dejaron varios cierres');
+
+    const first = await listCashClosures({ page: 1, pageSize: 3 });
+    assert.equal(first.total, all.length);
+    assert.equal(first.items.length, 3);
+    assert.deepEqual(
+      first.items.map((i) => i.date),
+      all.slice(0, 3).map((c) => c.closureDate.toISOString().slice(0, 10)),
+    );
+    for (let i = 1; i < first.items.length; i++)
+      assert.ok(first.items[i - 1].date > first.items[i].date);
+
+    const second = await listCashClosures({ page: 2, pageSize: 3 });
+    assert.deepEqual(
+      second.items.map((i) => i.closureId),
+      all.slice(3, 6).map((c) => c.closureId),
+    );
+    const past = await listCashClosures({ page: 99, pageSize: 3 });
+    assert.deepEqual(past.items, []);
+    assert.equal(past.total, all.length);
+  });
+
+  it('cada fila del historial trae el resumen guardado y quien confirmo', async () => {
+    const { items } = await listCashClosures({ page: 1, pageSize: 50 });
+    for (const item of items) {
+      const row = await prisma.cashClosure.findUnique({ where: { closureId: item.closureId } });
+      assert.equal(item.totalSales, row.totalSales);
+      assert.equal(item.tablesServed, row.tablesServed);
+      assert.equal(item.averageTicket, row.averageTicket);
+      assert.equal(item.confirmedBy, row.confirmedBy);
+      assert.deepEqual(Object.keys(item).sort(), [
+        'averageTicket',
+        'closureId',
+        'confirmedAt',
+        'confirmedBy',
+        'date',
+        'tablesServed',
+        'totalSales',
+      ]);
+    }
+  });
+
+  it('el cierre por dia devuelve el SNAPSHOT guardado, igual al que respondio el POST, con desgloses ordenados', async () => {
+    const day = dayOffset(-30);
+    await closedSale({ openedBy: W1, method: 'card', closedAt: at(`${day} 10:00`), qty: 3 });
+    await closedSale({
+      openedBy: W2,
+      method: 'cash',
+      closedAt: at(`${day} 11:00`),
+      product: PASTA,
+    });
+    const posted = await confirmCashClose(day, ADMIN);
+    const read = await getCashClosureByDate(day);
+    assert.deepEqual(JSON.parse(JSON.stringify(read)), JSON.parse(JSON.stringify(posted)));
+    assert.deepEqual(
+      read.paymentBreakdown.map((p) => p.totalAmount),
+      [90000, 25000],
+    );
+    assert.deepEqual(
+      read.topProducts.map((p) => p.rank),
+      [1, 2],
+    );
+  });
+
+  it('un dia sin cierre -> 404 NOT_FOUND', async () => {
+    await assert.rejects(getCashClosureByDate(dayOffset(-400)), { status: 404, code: 'NOT_FOUND' });
+  });
+
+  it('despues de una correccion post-cierre el cierre por dia sigue mostrando lo CONFIRMADO (no se recalcula)', async () => {
+    const day = dayOffset(-20); // cerrado y corregido en el bloque de GC-157
+    const read = await getCashClosureByDate(day);
+    assert.deepEqual(
+      read.paymentBreakdown.map((p) => [p.paymentMethodId, p.totalAmount]),
+      [[methods.cash, 60000]],
     );
   });
 });
