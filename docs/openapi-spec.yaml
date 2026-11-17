@@ -1471,6 +1471,50 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/orders/reports/cash-closures:
+    get:
+      tags: [Orders - Reportes]
+      summary: Historial de cierres de caja confirmados (ADMIN)
+      description: |
+        GC-RPT-0002 (GC-158). Lista los cierres ya confirmados (`cash_closures`), del dia cerrado mas reciente al
+        mas antiguo, paginados. Solo trae el resumen de cada cierre; el detalle (desgloses) se pide por dia en
+        `GET /api/orders/reports/cash-closures/{date}`. Sin cierres no es un error: `items` vacio y `total` 0.
+        Cualquier parametro que no exista es `400 VALIDATION_ERROR`. Los montos son enteros COP (R5).
+      x-roles: [ADMIN]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+      responses:
+        '200':
+          description: Pagina del historial
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashClosuresPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/orders/reports/cash-closures/{date}:
+    parameters:
+      - { name: date, in: path, required: true, schema: { type: string, format: date } }
+    get:
+      tags: [Orders - Reportes]
+      summary: Cierre de caja confirmado de un dia (ADMIN)
+      description: |
+        GC-RPT-0002 (GC-158). Devuelve el cierre CONFIRMADO de ese dia de negocio tal como se guardo (snapshot
+        inmutable: no se recalcula, aunque despues se corrija un pago), con `closureId`, `confirmedBy` y
+        `confirmedAt`. Un dia que todavia no se ha cerrado responde `404 NOT_FOUND`: la pantalla lo usa para saber
+        si el dia esta abierto o cerrado.
+      x-roles: [ADMIN]
+      responses:
+        '200':
+          description: Cierre confirmado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashClose' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/orders/reports/dashboard:
     get:
       tags: [Orders - Reportes]
@@ -2491,6 +2535,27 @@ components:
               paymentMethodId: { type: string, format: uuid }
               totalAmount: { type: integer, minimum: 0 }
               paymentCount: { type: integer, minimum: 0 }
+    CashClosureSummary:
+      type: object
+      required: [closureId, date, totalSales, tablesServed, averageTicket, confirmedBy, confirmedAt]
+      properties:
+        closureId: { type: string, format: uuid }
+        date: { type: string, format: date, description: 'Dia de negocio que se cerro' }
+        totalSales: { type: integer, minimum: 0 }
+        tablesServed: { type: integer, minimum: 0 }
+        averageTicket: { type: integer, minimum: 0 }
+        confirmedBy: { type: string, format: uuid }
+        confirmedAt: { type: string, format: date-time }
+    CashClosuresPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CashClosureSummary' }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1 }
+        total: { type: integer, minimum: 0, description: 'Cierres confirmados en total (todas las paginas)' }
     CashClose:
       allOf:
         - $ref: '#/components/schemas/CashClosePreview'
