@@ -1104,6 +1104,10 @@ paths:
         `order:updated` con `status: CERRADA` (o recarga `GET /api/orders/qr-requests`).
         Tras el commit emite `table:status_changed` (mesa `libre`) a la sala `waiters` y `order:updated`
         (`status: CERRADA`) a `waiter:{waiterId}` del mesero actual.
+        Bloqueo post-cierre (GC-RPT-0002): si el dia de negocio del cobro (hora de Colombia, UTC-5) ya tiene el
+        cierre de caja confirmado, el cobro se rechaza con `409 DAY_CLOSED` y no cambia nada: la orden sigue
+        `EN_COBRO` y podra cobrarse desde el dia siguiente. El cobro y la confirmacion del cierre se serializan,
+        asi que ningun pago concurrente queda dentro de un dia cerrado sin estar en el consolidado.
       x-roles: [WAITER, ADMIN]
       requestBody:
         required: true
@@ -1134,7 +1138,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Orden no `EN_COBRO`, ya pagada o con items sin entregar (`INVALID_TRANSITION`), o metodo inactivo (`PAYMENT_METHOD_INACTIVE`)
+          description: Orden no `EN_COBRO`, ya pagada o con items sin entregar (`INVALID_TRANSITION`), metodo inactivo (`PAYMENT_METHOD_INACTIVE`), o el dia de negocio de este cobro ya tiene el cierre de caja confirmado (`DAY_CLOSED`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
