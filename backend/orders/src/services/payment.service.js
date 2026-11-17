@@ -29,7 +29,7 @@ function liveItems(order) {
 }
 
 // Payment del contrato
-function toPayment(payment) {
+export function toPayment(payment) {
   return {
     paymentId: payment.paymentId,
     orderId: payment.orderId,
@@ -124,6 +124,15 @@ export async function registerPayment(orderId, { paymentMethodId, amountReceived
       changeGiven: settled.changeGiven,
     },
   });
+
+  if (result?.dayClosed) {
+    throw new AppError({
+      status: 409,
+      code: 'DAY_CLOSED',
+      message:
+        'El cierre de caja de hoy ya fue confirmado: no se pueden registrar más cobros hasta mañana',
+    });
+  }
 
   if (!result) {
     // Otro dispositivo cobro, cancelo el cobro o cambio el descuento entre la lectura y la escritura

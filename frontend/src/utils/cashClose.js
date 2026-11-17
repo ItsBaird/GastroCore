@@ -29,3 +29,25 @@ export function formatLongDate(value) {
 export function nameOf(list, idKey, nameKey, id, fallback) {
   return list.find((item) => item[idKey] === id)?.[nameKey] ?? fallback
 }
+
+// '2026-11-14' -> '14/11/2026' (fecha de calendario de una tabla; sin conversion de zona)
+export function formatShortDate(value) {
+  const [year, month, day] = value.split('-')
+  return `${day}/${month}/${year}`
+}
+
+// Instante ISO -> '14 nov 2026, 6:30 p. m.' en la hora local del navegador (cuando se confirmo el cierre)
+export function formatDateTime(iso) {
+  return new Date(iso).toLocaleString('es-CO', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+// Un dia que todavia no empieza (hora local): el servidor tampoco lo deja cerrar
+export function isFutureDay(value, now = new Date()) {
+  return value > todayLocal(now)
+}

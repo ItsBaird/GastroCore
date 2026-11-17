@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { businessDayRange } from './businessDay.js';
+import { businessDateOf, businessDayRange } from './businessDay.js';
 
 describe('businessDayRange', () => {
   it('el dia de negocio es UTC-5: del 14-nov va de las 05:00 UTC del 14 a las 05:00 UTC del 15', () => {
@@ -36,5 +36,24 @@ describe('businessDayRange', () => {
   it('funciona con el cambio de ano y con el 29 de febrero', () => {
     expect(businessDayRange('2026-12-31').end.toISOString()).toBe('2027-01-01T05:00:00.000Z');
     expect(businessDayRange('2028-02-29').end.toISOString()).toBe('2028-03-01T05:00:00.000Z');
+  });
+});
+
+describe('businessDateOf', () => {
+  it.each([
+    ['2026-11-14T05:00:00Z', '2026-11-14'], // medianoche en Colombia: ya es el dia 14
+    ['2026-11-14T04:59:59Z', '2026-11-13'], // un segundo antes: todavia el 13
+    ['2026-11-15T01:00:00Z', '2026-11-14'], // 20:00 en Neiva = 01:00 UTC del dia siguiente
+    ['2026-11-15T04:59:59Z', '2026-11-14'],
+    ['2026-11-15T05:00:00Z', '2026-11-15'],
+  ])('%s es del dia de negocio %s', (iso, expected) => {
+    expect(businessDateOf(new Date(iso))).toBe(expected);
+  });
+
+  it('es la inversa de businessDayRange: inicio y ultimo instante del dia dan ese dia', () => {
+    const { start, end } = businessDayRange('2026-12-31');
+    expect(businessDateOf(start)).toBe('2026-12-31');
+    expect(businessDateOf(new Date(end.getTime() - 1))).toBe('2026-12-31');
+    expect(businessDateOf(end)).toBe('2027-01-01');
   });
 });

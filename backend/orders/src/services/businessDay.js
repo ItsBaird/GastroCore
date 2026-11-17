@@ -11,3 +11,9 @@ export function businessDayRange(date) {
   const start = new Date(`${date}T00:00:00${BUSINESS_UTC_OFFSET}`);
   return { start, end: new Date(start.getTime() + DAY_MS) };
 }
+
+// Dia de negocio (AAAA-MM-DD, Colombia UTC-5) al que pertenece un instante. Es la inversa de businessDayRange:
+// un cobro a las 20:00 de Neiva (01:00 UTC del dia siguiente) sigue siendo del dia que termina.
+export function businessDateOf(instant) {
+  return new Date(instant.getTime() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}

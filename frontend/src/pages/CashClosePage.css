@@ -216,3 +216,162 @@
     min-width: 0;
   }
 }
+
+/* ---------- Confirmar y listar cierres (GC-158) ---------- */
+
+/* "Cerrar Caja" va al final de la barra de herramientas; el motivo de por que no se puede es texto visible */
+.cc-toolbar__close {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-1);
+  margin-left: auto;
+}
+
+.cc-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: right;
+}
+
+/* Estado de la caja: franja plana de 1px, el color solo en el punto y el texto (verde abierta, neutro cerrada) */
+.cc-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-6);
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-size: 15px;
+}
+
+.cc-banner--open {
+  background: var(--green-50);
+  border-color: var(--green-600);
+  color: var(--green-700);
+}
+
+.cc-banner--closed {
+  background: var(--n-50);
+  color: var(--n-700);
+}
+
+.cc-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--n-500);
+}
+
+.cc-banner--open .cc-dot {
+  background: var(--green-600);
+}
+
+/* ---------- Historial de cierres ---------- */
+.cc-history {
+  margin-top: var(--sp-4);
+}
+
+.cc-history td {
+  white-space: nowrap;
+}
+
+.cc-history__row--on td {
+  background: var(--n-50);
+}
+
+.cc-history__state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+  color: var(--text-muted);
+}
+
+/* La fecha de cada fila es un boton con aspecto de enlace: abre ese cierre */
+.cc-link {
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline;
+  text-decoration-color: var(--n-300);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.cc-link:hover {
+  text-decoration-color: var(--text);
+}
+
+.cc-link:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.cc-link[aria-current='date'] {
+  font-weight: 700;
+}
+
+/* Pastilla de estado: neutra, como en el mockup (el rojo queda para marcas pequenas de alerta) */
+.cc-pill--closed {
+  background: var(--n-100);
+  color: var(--n-700);
+}
+
+.cc-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--n-100);
+}
+
+.cc-pager__info {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ---------- Dialogo de confirmacion ---------- */
+.cc-modal__lead {
+  font-size: 15px;
+}
+
+.cc-modal__note {
+  margin-top: var(--sp-4);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.cc-modal__error {
+  margin-top: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--red-50);
+  border-radius: var(--radius-md);
+  color: var(--red-700);
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .cc-toolbar__close {
+    align-items: stretch;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .cc-hint {
+    text-align: left;
+  }
+
+  .cc-history td:nth-child(2) {
+    white-space: normal;
+  }
+}

@@ -371,3 +371,17 @@ describe('registerPayment: reglas', () => {
     expect(events.emitOrderUpdated).not.toHaveBeenCalled();
   });
 });
+
+describe('registerPayment: dia ya cerrado (GC-155)', () => {
+  it('si el repositorio dice que el dia de negocio ya tiene cierre: 409 DAY_CLOSED, sin eventos', async () => {
+    billRepo.findOrderForBill.mockResolvedValue(makeOrder());
+    methodRepo.findPaymentMethodById.mockResolvedValue(CARD);
+    paymentRepo.closeOrderWithPayment.mockResolvedValue({ dayClosed: true });
+
+    await expect(
+      registerPayment('order-1', { paymentMethodId: 'm-card' }, WAITER),
+    ).rejects.toMatchObject({ status: 409, code: 'DAY_CLOSED' });
+    expect(events.emitTableStatusChanged).not.toHaveBeenCalled();
+    expect(events.emitOrderUpdated).not.toHaveBeenCalled();
+  });
+});

@@ -1,8 +1,10 @@
 // El cierre de la orden, el pago, el rechazo de solicitudes QR y la auditoria van en una sola transaccion:
 // si algo falla el error sale del callback de $transaction y Prisma hace ROLLBACK.
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const tx = {
+  $executeRaw: vi.fn(),
+  cashClosure: { findUnique: vi.fn() },
   order: { updateMany: vi.fn() },
   payment: { create: vi.fn() },
   qrRequest: { updateMany: vi.fn() },
@@ -34,6 +36,8 @@ const input = {
 beforeEach(() => {
   vi.resetAllMocks();
   prisma.$transaction.mockImplementation((fn) => fn(tx));
+  tx.$executeRaw.mockResolvedValue(1);
+  tx.cashClosure.findUnique.mockResolvedValue(null);
   tx.order.updateMany.mockResolvedValue({ count: 1 });
   tx.payment.create.mockImplementation(async ({ data }) => ({ paymentId: 'pay-1', ...data }));
   tx.qrRequest.updateMany.mockResolvedValue({ count: 0 });
@@ -130,4 +134,41 @@ describe('closeOrderWithPayment', () => {
       await expect(closeOrderWithPayment(input)).rejects.toThrow('chk_payments_change');
     },
   );
+});
+
+describe('closeOrderWithPayment: bloqueo post-cierre (GC-155)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('toma el candado del dia de negocio ANTES de mirar el cierre y de escribir', async () => {
+    const order = [];
+    tx.$executeRaw.mockImplementation(async () => order.push('lock'));
+    tx.cashClosure.findUnique.mockImplementation(async () => {
+      order.push('check');
+      return null;
+    });
+    tx.order.updateMany.mockImplementation(async () => {
+      order.push('write');
+      return { count: 1 };
+    });
+    await closeOrderWithPayment(input);
+    expect(order).toEqual(['lock', 'check', 'write']);
+  });
+
+  it('el dia es el de negocio (UTC-5): un cobro a las 20:00 de Neiva del 14 consulta el cierre del 14', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-15T01:00:00Z')); // 20:00 del 14-nov en Colombia
+    await closeOrderWithPayment(input);
+    expect(tx.cashClosure.findUnique).toHaveBeenCalledWith({
+      where: { closureDate: new Date('2026-11-14T00:00:00Z') },
+      select: { closureId: true },
+    });
+  });
+
+  it('con el dia ya cerrado devuelve { dayClosed: true } y no cierra la orden, ni cobra, ni audita', async () => {
+    tx.cashClosure.findUnique.mockResolvedValue({ closureId: 'c1' });
+    expect(await closeOrderWithPayment(input)).toEqual({ dayClosed: true });
+    expect(tx.order.updateMany).not.toHaveBeenCalled();
+    expect(tx.payment.create).not.toHaveBeenCalled();
+    expect(tx.auditLog.create).not.toHaveBeenCalled();
+  });
 });
