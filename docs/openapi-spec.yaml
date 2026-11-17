@@ -1104,6 +1104,10 @@ paths:
         `order:updated` con `status: CERRADA` (o recarga `GET /api/orders/qr-requests`).
         Tras el commit emite `table:status_changed` (mesa `libre`) a la sala `waiters` y `order:updated`
         (`status: CERRADA`) a `waiter:{waiterId}` del mesero actual.
+        Bloqueo post-cierre (GC-RPT-0002): si el dia de negocio del cobro (hora de Colombia, UTC-5) ya tiene el
+        cierre de caja confirmado, el cobro se rechaza con `409 DAY_CLOSED` y no cambia nada: la orden sigue
+        `EN_COBRO` y podra cobrarse desde el dia siguiente. El cobro y la confirmacion del cierre se serializan,
+        asi que ningun pago concurrente queda dentro de un dia cerrado sin estar en el consolidado.
       x-roles: [WAITER, ADMIN]
       requestBody:
         required: true
@@ -1134,7 +1138,72 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Orden no `EN_COBRO`, ya pagada o con items sin entregar (`INVALID_TRANSITION`), o metodo inactivo (`PAYMENT_METHOD_INACTIVE`)
+          description: Orden no `EN_COBRO`, ya pagada o con items sin entregar (`INVALID_TRANSITION`), metodo inactivo (`PAYMENT_METHOD_INACTIVE`), o el dia de negocio de este cobro ya tiene el cierre de caja confirmado (`DAY_CLOSED`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/orders/{orderId}/payment:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    patch:
+      tags: [Orders - Cobro]
+      summary: Corregir el metodo de pago de una venta ya cobrada (solo ADMIN)
+      description: |
+        GC-RPT-0002 (GC-157), REQ-F10-04. Correccion posterior al cobro o al cierre de caja: el ADMIN cambia el
+        metodo con el que quedo registrada una venta (por ejemplo, se cobro con tarjeta y se registro efectivo).
+        Solo `ADMIN`; cualquier otro rol `403 FORBIDDEN`. Es la unica correccion permitida: `subtotal`,
+        `discountAmount` y `total` no cambian (R3/R4: el cliente nunca los envia), ni se puede anular el pago.
+        Orden: debe existir y tener pago (`404 NOT_FOUND`) y estar `CERRADA` (`409 INVALID_TRANSITION`).
+        Metodo: debe existir (`404 NOT_FOUND`), estar activo (`409 PAYMENT_METHOD_INACTIVE`) y ser distinto del
+        actual (`400 VALIDATION_ERROR`, `details.field = paymentMethodId`). `reason` es obligatorio (5 a 200
+        caracteres, sin espacios sobrantes): queda en la auditoria.
+        Monto (R4/R5): con un metodo en efectivo `amountReceived` es obligatorio y `>= total` (`400
+        INSUFFICIENT_AMOUNT`), y el backend calcula `changeGiven`; con otro metodo enviarlo es `400
+        VALIDATION_ERROR` y el pago queda con `amountReceived` y `changeGiven` en null.
+        Efectos, en una sola transaccion: se actualiza el metodo (y recibido/cambio) del pago y se audita
+        `PAYMENT_METHOD_CORRECTED` (entidad `order`) con quien (`performedBy`), cuando (`performedAt`), que
+        (metodo anterior y nuevo, con su nombre), cuanto (`total`), el motivo, `paymentId`, y si el dia de la
+        venta ya tenia cierre confirmado (`postClosure`, con su `closureDate`).
+        El cierre de caja ya guardado NO se modifica: `cash_closures` es un snapshot inmutable y sus desgloses
+        reflejan lo que se confirmo ese dia; la correccion queda en `audit_log`. Los reportes en vivo (vista
+        previa de un dia sin cerrar, dashboard, historial) si reflejan el metodo corregido. La correccion y la
+        confirmacion del cierre del mismo dia se serializan.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paymentMethodId, reason]
+              additionalProperties: false
+              properties:
+                paymentMethodId: { type: string, format: uuid }
+                amountReceived:
+                  type: integer
+                  minimum: 0
+                  description: Pesos enteros. Obligatorio si el nuevo metodo es efectivo; prohibido con otros metodos
+                reason:
+                  type: string
+                  minLength: 5
+                  maxLength: 200
+      responses:
+        '200':
+          description: Pago corregido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '400':
+          description: Datos invalidos (`VALIDATION_ERROR`) o efectivo insuficiente (`INSUFFICIENT_AMOUNT`, con `details.total`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Orden no `CERRADA` (`INVALID_TRANSITION`) o metodo inactivo (`PAYMENT_METHOD_INACTIVE`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -1402,6 +1471,50 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/orders/reports/cash-closures:
+    get:
+      tags: [Orders - Reportes]
+      summary: Historial de cierres de caja confirmados (ADMIN)
+      description: |
+        GC-RPT-0002 (GC-158). Lista los cierres ya confirmados (`cash_closures`), del dia cerrado mas reciente al
+        mas antiguo, paginados. Solo trae el resumen de cada cierre; el detalle (desgloses) se pide por dia en
+        `GET /api/orders/reports/cash-closures/{date}`. Sin cierres no es un error: `items` vacio y `total` 0.
+        Cualquier parametro que no exista es `400 VALIDATION_ERROR`. Los montos son enteros COP (R5).
+      x-roles: [ADMIN]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+      responses:
+        '200':
+          description: Pagina del historial
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashClosuresPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/orders/reports/cash-closures/{date}:
+    parameters:
+      - { name: date, in: path, required: true, schema: { type: string, format: date } }
+    get:
+      tags: [Orders - Reportes]
+      summary: Cierre de caja confirmado de un dia (ADMIN)
+      description: |
+        GC-RPT-0002 (GC-158). Devuelve el cierre CONFIRMADO de ese dia de negocio tal como se guardo (snapshot
+        inmutable: no se recalcula, aunque despues se corrija un pago), con `closureId`, `confirmedBy` y
+        `confirmedAt`. Un dia que todavia no se ha cerrado responde `404 NOT_FOUND`: la pantalla lo usa para saber
+        si el dia esta abierto o cerrado.
+      x-roles: [ADMIN]
+      responses:
+        '200':
+          description: Cierre confirmado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashClose' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/orders/reports/dashboard:
     get:
       tags: [Orders - Reportes]
@@ -2422,6 +2535,27 @@ components:
               paymentMethodId: { type: string, format: uuid }
               totalAmount: { type: integer, minimum: 0 }
               paymentCount: { type: integer, minimum: 0 }
+    CashClosureSummary:
+      type: object
+      required: [closureId, date, totalSales, tablesServed, averageTicket, confirmedBy, confirmedAt]
+      properties:
+        closureId: { type: string, format: uuid }
+        date: { type: string, format: date, description: 'Dia de negocio que se cerro' }
+        totalSales: { type: integer, minimum: 0 }
+        tablesServed: { type: integer, minimum: 0 }
+        averageTicket: { type: integer, minimum: 0 }
+        confirmedBy: { type: string, format: uuid }
+        confirmedAt: { type: string, format: date-time }
+    CashClosuresPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CashClosureSummary' }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1 }
+        total: { type: integer, minimum: 0, description: 'Cierres confirmados en total (todas las paginas)' }
     CashClose:
       allOf:
         - $ref: '#/components/schemas/CashClosePreview'
