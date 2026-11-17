@@ -2,10 +2,17 @@ import { Router } from 'express';
 import {
   cashClosePreviewController,
   confirmCashCloseController,
+  getCashClosureController,
+  listCashClosuresController,
 } from '../controllers/reports.controller.js';
 import { authenticate, requireRole } from '../middlewares/authenticate.js';
 import { validate } from '../middlewares/validate.js';
-import { cashCloseBodySchema, cashCloseQuerySchema } from '../schemas/cashClose.schema.js';
+import {
+  cashCloseBodySchema,
+  cashClosureDateParamsSchema,
+  cashCloseQuerySchema,
+  cashClosuresQuerySchema,
+} from '../schemas/cashClose.schema.js';
 
 export const reportsRouter = Router();
 
@@ -24,4 +31,21 @@ reportsRouter.post(
   requireRole('ADMIN'),
   validate({ body: cashCloseBodySchema }),
   confirmCashCloseController,
+);
+
+// GC-158. Historial de cierres confirmados y consulta de uno por su dia.
+reportsRouter.get(
+  '/cash-closures',
+  authenticate,
+  requireRole('ADMIN'),
+  validate({ query: cashClosuresQuerySchema }),
+  listCashClosuresController,
+);
+
+reportsRouter.get(
+  '/cash-closures/:date',
+  authenticate,
+  requireRole('ADMIN'),
+  validate({ params: cashClosureDateParamsSchema }),
+  getCashClosureController,
 );
