@@ -2378,7 +2378,7 @@ components:
               totalAmount: { type: integer }
     HistoryOrder:
       type: object
-      required: [orderId, reference, tableId, waiterId, openedAt, closedAt, itemsCount, subtotal, discountAmount, total, paymentMethodId]
+      required: [orderId, reference, tableId, tableNumber, waiterId, openedAt, closedAt, itemsCount, subtotal, discountAmount, total, paymentMethodId]
       properties:
         orderId: { type: string, format: uuid }
         reference:
@@ -2386,6 +2386,11 @@ components:
           description: Primeros 6 caracteres del `orderId` en mayusculas, para mostrar. No se garantiza unico; el identificador real es `orderId`.
           example: 3F9A1C
         tableId: { type: string, format: uuid }
+        tableNumber:
+          type: integer
+          minimum: 1
+          description: Numero ACTUAL de la mesa (dining_tables.table_number), leido al consultar; no es un snapshot. Si la mesa se renumero despues de la venta, se muestra el numero nuevo.
+          example: 7
         waiterId: { type: string, format: uuid, description: 'Quien abrio la mesa (orders.opened_by)' }
         openedAt: { type: string, format: date-time }
         closedAt: { type: string, format: date-time }
