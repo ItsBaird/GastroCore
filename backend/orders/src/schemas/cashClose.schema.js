@@ -10,7 +10,7 @@ function isRealCalendarDay(value) {
 
 // `date` es obligatoria y con el formato AAAA-MM-DD (2026-1-5 es 400). Cualquier otro parametro tambien es 400:
 // un filtro que no existe no se ignora en silencio.
-const dateField = z
+export const dateField = z
   .string({ error: 'La fecha es obligatoria (AAAA-MM-DD)' })
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener el formato AAAA-MM-DD')
   .refine(isRealCalendarDay, { message: 'La fecha no existe en el calendario' });

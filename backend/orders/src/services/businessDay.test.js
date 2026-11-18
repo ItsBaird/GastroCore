@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { businessDateOf, businessDayRange } from './businessDay.js';
+import { businessDateOf, businessDayRange, businessRange, daysInRange } from './businessDay.js';
 
 describe('businessDayRange', () => {
   it('el dia de negocio es UTC-5: del 14-nov va de las 05:00 UTC del 14 a las 05:00 UTC del 15', () => {
@@ -55,5 +55,29 @@ describe('businessDateOf', () => {
     expect(businessDateOf(start)).toBe('2026-12-31');
     expect(businessDateOf(new Date(end.getTime() - 1))).toBe('2026-12-31');
     expect(businessDateOf(end)).toBe('2027-01-01');
+  });
+});
+
+describe('businessRange (varios dias, GC-RPT-0003)', () => {
+  it('va del inicio de from al FIN de to (ambos incluidos), en hora de Colombia', () => {
+    const { start, end } = businessRange('2026-11-01', '2026-11-14');
+    expect(start.toISOString()).toBe('2026-11-01T05:00:00.000Z');
+    expect(end.toISOString()).toBe('2026-11-15T05:00:00.000Z');
+  });
+
+  it('con from === to es exactamente el rango de ese dia', () => {
+    expect(businessRange('2026-11-14', '2026-11-14')).toEqual(businessDayRange('2026-11-14'));
+  });
+});
+
+describe('daysInRange', () => {
+  it.each([
+    ['2026-11-14', '2026-11-14', 1],
+    ['2026-11-01', '2026-11-14', 14],
+    ['2026-01-01', '2026-12-31', 365],
+    ['2028-01-01', '2028-12-31', 366], // bisiesto
+    ['2026-12-31', '2027-01-01', 2],
+  ])('de %s a %s son %i dias', (from, to, days) => {
+    expect(daysInRange(from, to)).toBe(days);
   });
 });
