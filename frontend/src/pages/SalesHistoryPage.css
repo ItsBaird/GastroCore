@@ -297,3 +297,163 @@
     justify-content: space-between;
   }
 }
+
+/* ---------- Detalle y exportacion (GC-194) ---------- */
+
+/* La referencia abre el detalle: boton con aspecto de enlace (mismo trato que las fechas del historial de cierres) */
+.sales-link {
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: var(--n-300);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.sales-link:hover {
+  text-decoration-color: var(--text);
+}
+
+.sales-link:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Aviso de exportacion (por ejemplo, demasiadas ventas): usa .alert del sistema y se puede cerrar */
+.sales-export-error {
+  align-items: center;
+}
+
+.sales-export-error span {
+  flex: 1;
+}
+
+.sales-alert-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sales-alert-close:hover {
+  background: var(--red-100);
+}
+
+/* Modal de detalle */
+.sale-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.sale-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.sale-meta dt {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.sale-meta dd {
+  margin-top: var(--sp-1);
+  font-weight: 600;
+}
+
+.sale-lines {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sale-lines th {
+  padding: 0 var(--sp-2) var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.sale-lines td {
+  padding: var(--sp-2);
+  border-bottom: 1px solid var(--n-100);
+}
+
+.sale-lines th:first-child,
+.sale-lines td:first-child {
+  padding-left: 0;
+}
+
+.sale-lines th:last-child,
+.sale-lines td:last-child {
+  padding-right: 0;
+}
+
+.sale-lines .sales-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sale-totals__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-2) 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.sale-totals__row dt {
+  color: var(--n-700);
+}
+
+.sale-totals__row--strong {
+  margin-top: var(--sp-1);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.sale-totals__row--strong dt {
+  color: var(--text);
+}
+
+/* El descuento resta: marca pequena en rojo (unico uso del rojo en el detalle) */
+.sale-totals__neg {
+  color: var(--red-600);
+}
+
+.sale-detail__state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-6) 0;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.sale-detail__state svg {
+  color: var(--red-600);
+}
+
+@media (max-width: 640px) {
+  .sale-meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
