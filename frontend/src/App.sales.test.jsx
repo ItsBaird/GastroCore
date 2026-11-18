@@ -102,3 +102,20 @@ describe('ruta /admin/ventas', () => {
     expect(document.querySelector('a[href="/admin/ventas"]')).toBeNull()
   })
 })
+
+describe('ruta /admin/ventas sin sesion', () => {
+  it('lleva al login y no consulta el historial', async () => {
+    const value = { status: 'anonymous', user: null, expired: false, login: vi.fn(), logout: vi.fn() }
+    render(
+      <MemoryRouter initialEntries={['/admin/ventas']}>
+        <AuthContext.Provider value={value}>
+          <ToastProvider>
+            <App />
+          </ToastProvider>
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('heading', { name: 'Iniciar Sesión' })).toBeInTheDocument()
+    expect(historyApi.listSalesHistory).not.toHaveBeenCalled()
+  })
+})
