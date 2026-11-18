@@ -80,3 +80,59 @@ export function saveFile(blob, fileName, doc = document) {
   link.remove()
   URL.revokeObjectURL(url)
 }
+
+// Atajos de rango (mockup: Hoy, Ayer, Esta semana, Este mes). La semana va de lunes a domingo, como el dashboard.
+// `today` es AAAA-MM-DD (hora local). Las fechas se calculan en UTC para no correr un dia por la zona horaria.
+const shift = (day, days) =>
+  new Date(Date.parse(`${day}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10)
+
+export const HISTORY_PRESETS = [
+  { id: 'today', label: 'Hoy', range: (today) => ({ from: today, to: today }) },
+  { id: 'yesterday', label: 'Ayer', range: (today) => ({ from: shift(today, -1), to: shift(today, -1) }) },
+  {
+    id: 'week',
+    label: 'Esta semana',
+    range: (today) => {
+      const weekday = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7 // lunes = 0
+      return { from: shift(today, -weekday), to: shift(today, 6 - weekday) }
+    },
+  },
+  {
+    id: 'month',
+    label: 'Este mes',
+    range: (today) => {
+      const [year, month] = today.split('-').map(Number)
+      const last = new Date(Date.UTC(year, month, 0)).getUTCDate()
+      return { from: `${today.slice(0, 7)}-01`, to: `${today.slice(0, 7)}-${String(last).padStart(2, '0')}` }
+    },
+  },
+]
+
+// El atajo que corresponde al rango elegido, o null si es un rango propio
+export function presetOf({ from, to }, today) {
+  return (
+    HISTORY_PRESETS.find((p) => {
+      const r = p.range(today)
+      return r.from === from && r.to === to
+    })?.id ?? null
+  )
+}
+
+// Fecha y hora de cierre en la hora LOCAL del navegador (la del restaurante): '14/11/2026, 8:00 p. m.'
+export function formatClosedAt(iso) {
+  return new Date(iso).toLocaleString('es-CO', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+// "Mostrando 21–40 de 45"
+export function rangeLabel(page, pageSize, total) {
+  if (total === 0) return 'Sin ventas'
+  const first = (page - 1) * pageSize + 1
+  const last = Math.min(page * pageSize, total)
+  return `Mostrando ${first}–${last} de ${total}`
+}

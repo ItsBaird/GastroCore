@@ -3,7 +3,11 @@ import {
   daysBetween,
   defaultHistoryFilters,
   filterOptions,
+  formatClosedAt,
   formatReference,
+  HISTORY_PRESETS,
+  presetOf,
+  rangeLabel,
   historyRangeError,
   methodName,
   sameFilters,
@@ -151,5 +155,46 @@ describe('saveFile', () => {
     expect(document.querySelector('a[download]')).toBeNull() // no queda en la pagina
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:x')
     click.mockRestore()
+  })
+})
+
+describe('HISTORY_PRESETS y presetOf (GC-193)', () => {
+  const range = (id, today) => HISTORY_PRESETS.find((p) => p.id === id).range(today)
+
+  it('Hoy y Ayer (Ayer cruza el mes y el año sin correrse)', () => {
+    expect(range('today', '2026-11-14')).toEqual({ from: '2026-11-14', to: '2026-11-14' })
+    expect(range('yesterday', '2026-11-14')).toEqual({ from: '2026-11-13', to: '2026-11-13' })
+    expect(range('yesterday', '2027-01-01')).toEqual({ from: '2026-12-31', to: '2026-12-31' })
+  })
+
+  it('Esta semana va de lunes a domingo (sabado 14 -> 9 al 15; lunes 9 -> 9 al 15; domingo 15 -> 9 al 15)', () => {
+    for (const day of ['2026-11-14', '2026-11-09', '2026-11-15']) {
+      expect(range('week', day)).toEqual({ from: '2026-11-09', to: '2026-11-15' })
+    }
+  })
+
+  it('Este mes va del 1 al ultimo dia (febrero bisiesto incluido)', () => {
+    expect(range('month', '2026-11-14')).toEqual({ from: '2026-11-01', to: '2026-11-30' })
+    expect(range('month', '2028-02-10')).toEqual({ from: '2028-02-01', to: '2028-02-29' })
+  })
+
+  it('presetOf reconoce el atajo del rango, o null si es propio', () => {
+    expect(presetOf({ from: '2026-11-14', to: '2026-11-14' }, '2026-11-14')).toBe('today')
+    expect(presetOf({ from: '2026-11-09', to: '2026-11-15' }, '2026-11-14')).toBe('week')
+    expect(presetOf({ from: '2026-11-02', to: '2026-11-14' }, '2026-11-14')).toBeNull()
+  })
+})
+
+describe('formatClosedAt y rangeLabel (GC-193)', () => {
+  it('fecha y hora de cierre en hora local', () => {
+    const text = formatClosedAt(new Date(2026, 10, 14, 20, 5).toISOString())
+    expect(text).toMatch(/14\/11\/2026/)
+    expect(text).toMatch(/8:05/)
+  })
+
+  it('cuantas ventas se muestran de cuantas hay', () => {
+    expect(rangeLabel(1, 20, 45)).toBe('Mostrando 1–20 de 45')
+    expect(rangeLabel(3, 20, 45)).toBe('Mostrando 41–45 de 45')
+    expect(rangeLabel(1, 20, 0)).toBe('Sin ventas')
   })
 })
