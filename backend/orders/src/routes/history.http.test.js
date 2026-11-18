@@ -8,6 +8,7 @@ vi.mock('../config/prisma.js', () => ({ prisma: {} }));
 vi.mock('../repositories/history.repository.js', () => ({
   findHistoryPage: vi.fn(),
   findHistoryOrder: vi.fn(),
+  findHistoryForExport: vi.fn(),
   aggregateHistory: vi.fn(),
 }));
 

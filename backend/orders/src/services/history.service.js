@@ -7,6 +7,23 @@ import {
 import { businessDateOf, businessRange } from './businessDay.js';
 import { buildHistorySummary, toHistoryOrder, toHistoryOrderDetail } from './history.js';
 
+// Dias y filtros de una consulta del historial (listado y exportacion). Sin fechas, el dia de negocio actual.
+export function resolveHistoryFilters(query, now = new Date()) {
+  const today = businessDateOf(now);
+  const from = query.from ?? today;
+  const to = query.to ?? today;
+  return {
+    from,
+    to,
+    filters: {
+      ...businessRange(from, to),
+      waiterId: query.waiterId,
+      tableId: query.tableId,
+      paymentMethodId: query.paymentMethodId,
+    },
+  };
+}
+
 // GC-189. GET /api/orders/history/{orderId}: el detalle de una venta. Si la orden no existe o todavia no esta
 // CERRADA (abierta o en cobro) no es una venta del historial: 404 ORDER_NOT_FOUND (codigo del contrato).
 export async function getSalesHistoryOrder(orderId) {
@@ -26,16 +43,8 @@ export async function getSalesHistoryOrder(orderId) {
 // La validacion (fechas reales, from <= to, maximo 366 dias, UUIDs, paginacion) ya la hizo history.schema.js.
 // `now` se inyecta para probar el limite de la medianoche.
 export async function getSalesHistory(query, now = new Date()) {
-  const today = businessDateOf(now);
-  const from = query.from ?? today;
-  const to = query.to ?? today;
+  const { filters } = resolveHistoryFilters(query, now);
   const { page, pageSize } = query;
-  const filters = {
-    ...businessRange(from, to),
-    waiterId: query.waiterId,
-    tableId: query.tableId,
-    paymentMethodId: query.paymentMethodId,
-  };
 
   const [orders, totals] = await Promise.all([
     findHistoryPage({ ...filters, skip: (page - 1) * pageSize, take: pageSize }),

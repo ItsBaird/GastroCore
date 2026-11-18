@@ -9,11 +9,13 @@
 // estable, unidades sin cancelados, y que el resumen coincide con el cierre de caja del mismo dia.
 // Vacia las tablas al empezar y al terminar.
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 import { prisma } from '../config/prisma.js';
 import { getCashClosePreview } from '../services/cashClose.service.js';
 import { getSalesHistory, getSalesHistoryOrder } from '../services/history.service.js';
+import { exportSalesHistory } from '../services/historyExport.service.js';
 
 const W1 = randomUUID();
 const W2 = randomUUID();
@@ -354,5 +356,33 @@ describe('GC-189: detalle de una venta (BD real)', () => {
       status: 404,
       code: 'ORDER_NOT_FOUND',
     });
+  });
+});
+
+// GC-190. Genera el .xlsx con la base real y lo deja en /tmp para abrirlo con un lector de Excel independiente
+// (openpyxl) desde fuera del contenedor: docker compose cp orders:/tmp/<archivo> .
+describe('GC-190: exportacion a Excel (BD real)', () => {
+  it('genera el archivo del rango con el nombre ventas_desde_hasta.xlsx y los datos del filtro', async () => {
+    const query = { from: '2026-11-13', to: '2026-11-14' };
+    const { fileName, buffer } = await exportSalesHistory(query, NOW);
+    assert.equal(fileName, 'ventas_2026-11-13_2026-11-14.xlsx');
+    assert.equal(buffer.subarray(0, 2).toString(), 'PK');
+    writeFileSync(`/tmp/${fileName}`, buffer);
+
+    // Lo que la pantalla mostraria para el mismo filtro: la verificacion de openpyxl lo compara con el archivo
+    const page = await getSalesHistory(q(query), NOW);
+    writeFileSync(
+      '/tmp/ventas_esperado.json',
+      JSON.stringify({ summary: page.summary, references: page.items.map((i) => i.reference) }),
+    );
+  });
+
+  it('con un filtro sin ventas el archivo tiene solo el encabezado y totales en cero', async () => {
+    const { fileName, buffer } = await exportSalesHistory(
+      { from: '2026-11-14', to: '2026-11-14', waiterId: randomUUID() },
+      NOW,
+    );
+    writeFileSync(`/tmp/vacio_${fileName}`, buffer);
+    assert.ok(buffer.length > 0);
   });
 });

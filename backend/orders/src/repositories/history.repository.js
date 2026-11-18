@@ -46,6 +46,40 @@ export async function findHistoryPage({ skip, take, paymentMethodId, ...filters 
   });
 }
 
+// GC-190. Todas las ventas del filtro para la exportacion a Excel (el servicio ya comprobo que no pasan del
+// maximo), en el mismo orden que el listado. Trae ademas el nombre del metodo de pago, que vive en esta base.
+export async function findHistoryForExport({ paymentMethodId, ...filters }) {
+  return prisma.order.findMany({
+    where: {
+      ...orderWhere(filters),
+      payment: paymentMethodId ? { is: { paymentMethodId } } : { isNot: null },
+    },
+    orderBy: [{ closedAt: 'desc' }, { orderId: 'asc' }],
+    select: {
+      orderId: true,
+      tableId: true,
+      openedBy: true,
+      openedAt: true,
+      closedAt: true,
+      table: { select: { tableNumber: true } },
+      payment: {
+        select: {
+          subtotal: true,
+          discountAmount: true,
+          total: true,
+          paymentMethodId: true,
+          paymentMethod: { select: { name: true } },
+        },
+      },
+      rounds: {
+        select: {
+          items: { where: { status: { not: 'cancelado' } }, select: { quantity: true } },
+        },
+      },
+    },
+  });
+}
+
 // GC-189. Una venta del historial con sus lineas: la orden CERRADA con pago, o null (no existe, o sigue abierta o
 // en cobro). Las lineas son los items vendidos (sin cancelados, R3) con el nombre y el precio que tenian al
 // pedirse, en el orden en que se pidieron: por ronda y, dentro de la ronda, por item.

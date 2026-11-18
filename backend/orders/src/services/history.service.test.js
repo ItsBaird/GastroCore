@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../repositories/history.repository.js', () => ({
   findHistoryPage: vi.fn(),
   findHistoryOrder: vi.fn(),
+  findHistoryForExport: vi.fn(),
   aggregateHistory: vi.fn(),
 }));
 
