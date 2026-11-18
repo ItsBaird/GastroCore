@@ -2,6 +2,8 @@ import {
   ChevronLeft,
   ChevronRight,
   DollarSign,
+  Download,
+  LoaderCircle,
   ReceiptText,
   RefreshCw,
   SearchX,
@@ -13,6 +15,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { listPaymentMethods } from '../api/paymentMethods.js'
 import { listEmployees } from '../api/staff.js'
 import { listTables } from '../api/tables.js'
+import { useToast } from '../components/Toast.jsx'
 import { useSalesHistory } from '../hooks/useSalesHistory.js'
 import { AdminPage } from '../layouts/AdminLayout.jsx'
 import { todayLocal } from '../utils/cashClose.js'
@@ -29,6 +32,7 @@ import {
   waiterName,
 } from '../utils/salesHistory.js'
 import './CatalogPages.css'
+import { SaleDetailModal } from './SaleDetailModal.jsx'
 import './SalesHistoryPage.css'
 
 // Listas para los filtros y los nombres de la tabla (el historial trae ids de meseros y metodos). Si alguna falla la
@@ -152,7 +156,7 @@ function Summary({ summary }) {
   )
 }
 
-function SalesTable({ items, lookups }) {
+function SalesTable({ items, lookups, onSelect }) {
   return (
     <div className="sales-scroll" tabIndex={0} role="region" aria-label="Ventas (desplazable)">
       <table className="sales-table">
@@ -175,7 +179,17 @@ function SalesTable({ items, lookups }) {
         <tbody>
           {items.map((row) => (
             <tr key={row.orderId}>
-              <td className="sales-ref">{formatReference(row.reference, row.orderId)}</td>
+              <td className="sales-ref">
+                {/* La referencia abre el detalle: un boton real (teclado y lector de pantalla), no la fila clicable */}
+                <button
+                  type="button"
+                  className="sales-link"
+                  onClick={() => onSelect(row)}
+                  aria-label={`Ver detalle de la venta ${formatReference(row.reference, row.orderId)}`}
+                >
+                  {formatReference(row.reference, row.orderId)}
+                </button>
+              </td>
               <td className="sales-muted">{formatClosedAt(row.closedAt)}</td>
               <td>{tableLabel(row.tableNumber)}</td>
               <td>{waiterName(lookups.employees, row.waiterId)}</td>
@@ -238,10 +252,58 @@ export default function SalesHistoryPage() {
   const lookups = useLookups()
   const options = useMemo(() => filterOptions(lookups), [lookups])
   const { status, data, error, refreshing, isEmpty, page, pages, setPage } = history
+  const toast = useToast()
+  const [selected, setSelected] = useState(null)
+  const [exportError, setExportError] = useState('')
+
+  // El archivo sale con los filtros ACTIVOS. El error (por ejemplo, demasiadas ventas) queda visible hasta el
+  // siguiente intento: con un toast se perderia antes de leer como acotar el rango.
+  async function onExport() {
+    setExportError('')
+    const result = await history.exportExcel()
+    if (result.ok) toast.success(`Descargado ${result.fileName}`)
+    else setExportError(result.message)
+  }
+
+  const exportBlocked = status !== 'ready' || isEmpty || Boolean(history.filterError)
 
   return (
-    <AdminPage title="Historial de Ventas">
+    <AdminPage
+      title="Historial de Ventas"
+      actions={
+        <button
+          type="button"
+          className="btn btn--primary"
+          onClick={onExport}
+          disabled={history.exporting || exportBlocked}
+          title={isEmpty ? 'No hay ventas para exportar con estos filtros' : undefined}
+          aria-label="Exportar a Excel"
+        >
+          {history.exporting ? (
+            <LoaderCircle className="spin" size={18} aria-hidden="true" />
+          ) : (
+            <Download size={18} aria-hidden="true" />
+          )}
+          <span className="btn__text">{history.exporting ? 'Generando…' : 'Exportar a Excel'}</span>
+        </button>
+      }
+    >
       <div className="sales" aria-busy={status === 'loading' || refreshing}>
+        {exportError && (
+          <div className="alert sales-export-error" role="alert">
+            <TriangleAlert size={18} aria-hidden="true" />
+            <span>{exportError}</span>
+            <button
+              type="button"
+              className="sales-alert-close"
+              onClick={() => setExportError('')}
+              aria-label="Cerrar aviso"
+            >
+              <X size={16} aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
         <Filters
           filters={history.filters}
           setFilters={history.setFilters}
@@ -275,7 +337,7 @@ export default function SalesHistoryPage() {
                 </div>
               ) : (
                 <>
-                  <SalesTable items={data.items} lookups={lookups} />
+                  <SalesTable items={data.items} lookups={lookups} onSelect={setSelected} />
                   <Pager
                     page={page}
                     pages={pages}
@@ -292,6 +354,8 @@ export default function SalesHistoryPage() {
 
         <p className="sales-foot">Cuentas cerradas por día de negocio, en hora de Colombia (UTC−5).</p>
       </div>
+
+      {selected && <SaleDetailModal row={selected} lookups={lookups} onClose={() => setSelected(null)} />}
     </AdminPage>
   )
 }

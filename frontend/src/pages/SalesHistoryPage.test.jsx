@@ -9,6 +9,7 @@ import { listPaymentMethods } from '../api/paymentMethods.js'
 import { listEmployees } from '../api/staff.js'
 import { listTables } from '../api/tables.js'
 import { AuthContext } from '../auth/authContext.js'
+import { ToastProvider } from '../components/Toast.jsx'
 import SalesHistoryPage from './SalesHistoryPage.jsx'
 
 vi.mock('../api/history.js', () => ({ listSalesHistory: vi.fn(), downloadSalesHistory: vi.fn() }))
@@ -55,7 +56,9 @@ function renderPage() {
   return render(
     <MemoryRouter>
       <AuthContext.Provider value={auth}>
-        <SalesHistoryPage />
+        <ToastProvider>
+          <SalesHistoryPage />
+        </ToastProvider>
       </AuthContext.Provider>
     </MemoryRouter>,
   )
