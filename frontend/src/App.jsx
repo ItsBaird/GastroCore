@@ -15,6 +15,7 @@ import LoginPage from './pages/LoginPage.jsx'
 import MyShiftPage from './pages/MyShiftPage.jsx'
 import PaymentMethodsPage from './pages/PaymentMethodsPage.jsx'
 import ProductsPage from './pages/ProductsPage.jsx'
+import SalesHistoryPage from './pages/SalesHistoryPage.jsx'
 import ShiftsPage from './pages/ShiftsPage.jsx'
 import { NotFoundPage, UnderConstructionPage } from './pages/StatusPages.jsx'
 import TablesPage from './pages/TablesPage.jsx'
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="mesas" element={<TablesPage />} />
           <Route path="productos" element={<ProductsPage />} />
           <Route path="categorias" element={<CategoriesPage />} />
+          <Route path="ventas" element={<SalesHistoryPage />} />
           <Route path="cierre-caja" element={<CashClosePage />} />
           <Route path="dashboard" element={<DashboardPage />} />
         </Route>
