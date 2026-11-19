@@ -21,7 +21,8 @@ import { roundRouter } from './routes/round.routes.js';
 import { tableRouter } from './routes/table.routes.js';
 
 const app = express();
-app.set('trust proxy', 1);
+// Proxies de confianza para leer la IP real (limites por IP): TRUST_PROXY, 1 por defecto (nginx en local)
+app.set('trust proxy', env.trustProxy);
 app.use(helmet());
 app.use(cors({ origin: env.corsOrigin, credentials: true }));
 app.use(createRateLimiter());
