@@ -1,7 +1,6 @@
 // Categorias y alta de productos con la app real (rutas, validacion, autenticacion, multer, errores).
 // Solo los repositorios van simulados: no hace falta base de datos.
 import { Prisma } from '@prisma/client';
-import fs from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { categoryRepository } from '../repositories/category.repository.js';
 import { productRepository } from '../repositories/product.repository.js';
@@ -18,7 +17,12 @@ import {
   startApp,
   tokenFor,
 } from '../test/helpers.js';
+import { photoStore, storedPhotos } from '../test/photoStore.js';
 
+vi.mock(
+  '../repositories/photo.repository.js',
+  async () => (await import('../test/photoStore.js')).photoMock,
+);
 vi.mock('../repositories/category.repository.js', () => ({
   categoryRepository: { findAll: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn() },
 }));
@@ -28,7 +32,7 @@ vi.mock('../repositories/product.repository.js', () => ({
 
 let app;
 const admin = () => tokenFor('ADMIN');
-const uploaded = () => fs.readdirSync(process.env.UPLOADS_DIR, { withFileTypes: true });
+const uploaded = () => storedPhotos();
 const prismaError = (code) =>
   new Prisma.PrismaClientKnownRequestError('x', { code, clientVersion: 'test' });
 
@@ -38,7 +42,7 @@ beforeAll(async () => {
 afterAll(() => app.close());
 beforeEach(() => {
   vi.resetAllMocks();
-  fs.rmSync(process.env.UPLOADS_DIR, { recursive: true, force: true });
+  photoStore.clear();
 });
 
 describe('acceso', () => {
@@ -70,7 +74,7 @@ describe('acceso', () => {
     expect(res.body.error.code).toBe('FORBIDDEN');
     expect(categoryRepository.create).not.toHaveBeenCalled();
     expect(productRepository.create).not.toHaveBeenCalled();
-    expect(fs.existsSync(process.env.UPLOADS_DIR)).toBe(false);
+    expect(storedPhotos()).toEqual([]);
   });
 });
 
@@ -200,7 +204,7 @@ describe('POST /api/catalog/products (multipart)', () => {
     const res = await post(productForm({ photoName: '../../etc/passwd.jpg' }));
     expect(res.status).toBe(201);
     expect(res.body.photoUrl).not.toMatch(/passwd|\.\./);
-    expect(uploaded().map((f) => f.name)).toEqual([res.body.photoUrl.split('/').pop()]);
+    expect(uploaded()).toEqual([res.body.photoUrl.split('/').pop()]);
   });
 
   it('la foto guardada se sirve publicamente (sin token) con su contenido', async () => {
@@ -250,7 +254,7 @@ describe('POST /api/catalog/products (multipart)', () => {
     expect(res.status).toBe(400);
     expect(res.body.error.details.fields[0].path).toBe('photo');
     expect(productRepository.create).not.toHaveBeenCalled();
-    expect(fs.existsSync(process.env.UPLOADS_DIR)).toBe(false);
+    expect(storedPhotos()).toEqual([]);
   });
 
   it('GIF (formato no permitido) -> 400', async () => {
@@ -266,7 +270,7 @@ describe('POST /api/catalog/products (multipart)', () => {
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
     expect(res.body.error.details.fields[0].message).toMatch(/2 MB/);
     expect(productRepository.create).not.toHaveBeenCalled();
-    expect(fs.existsSync(process.env.UPLOADS_DIR)).toBe(false);
+    expect(storedPhotos()).toEqual([]);
   });
 
   it('una foto de exactamente 2 MB si se acepta', async () => {
@@ -306,7 +310,7 @@ describe('POST /api/catalog/products (multipart)', () => {
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
     expect(res.body.error.details.fields.map((f) => f.path)).toContain(field);
     expect(productRepository.create).not.toHaveBeenCalled();
-    expect(fs.existsSync(process.env.UPLOADS_DIR)).toBe(false);
+    expect(storedPhotos()).toEqual([]);
   });
 
   it('el cliente no puede fijar la foto ni otros campos por el cuerpo', async () => {
@@ -321,7 +325,7 @@ describe('POST /api/catalog/products (multipart)', () => {
     const res = await post(productForm());
     expect(res.status).toBe(400);
     expect(res.body.error.details.fields[0].path).toBe('categoryId');
-    expect(fs.existsSync(process.env.UPLOADS_DIR)).toBe(false);
+    expect(storedPhotos()).toEqual([]);
   });
 
   it('nombre repetido en la categoria -> 409 y se borra la foto ya escrita', async () => {
