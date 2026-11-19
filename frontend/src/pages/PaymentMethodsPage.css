@@ -1,0 +1,153 @@
+/* Metodos de pago (GC-ADM-0001). Reutiliza el formulario de Catalogo, las pastillas y los link-btn de Usuarios. */
+.pm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--sp-5);
+}
+
+.pm-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+.pm-card--skeleton {
+  height: 170px;
+  background: linear-gradient(90deg, var(--n-100) 25%, var(--n-50) 50%, var(--n-100) 75%);
+  background-size: 200% 100%;
+  animation: pm-shimmer 1.4s ease-in-out infinite;
+}
+
+.pm-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+.pm-card__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+}
+
+.pm-card__icon--green {
+  background: var(--green-50);
+  color: var(--green-600);
+}
+
+.pm-card__icon--blue {
+  background: var(--blue-50);
+  color: var(--blue-600);
+}
+
+.pm-card__icon--purple {
+  background: var(--purple-50);
+  color: var(--purple-600);
+}
+
+.pm-card__icon--orange {
+  background: var(--orange-50);
+  color: var(--orange-500);
+}
+
+.pm-card__icon--red {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+
+/* Un metodo inactivo se ve apagado, pero sigue siendo legible y editable */
+.pm-card--off .pm-card__icon {
+  background: var(--n-100);
+  color: var(--n-400);
+}
+
+.pm-card--off .pm-card__name {
+  color: var(--n-500);
+}
+
+.pm-card__text {
+  min-width: 0;
+}
+
+.pm-card__name {
+  font-size: 18px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.pm-card__kind {
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.pm-card__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--n-100);
+}
+
+.link-btn--blue {
+  color: var(--blue-600);
+}
+
+.link-btn--warn {
+  color: var(--orange-500);
+}
+
+/* ---------- Casillas del formulario ---------- */
+.pm-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  cursor: pointer;
+}
+
+.pm-check input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: var(--red-600);
+}
+
+.pm-check__title {
+  display: block;
+  font-weight: 600;
+}
+
+.pm-check__hint {
+  display: block;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+@keyframes pm-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-card--skeleton {
+    animation: none;
+  }
+}
+
+@media (width <= 640px) {
+  .pm-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pm-card {
+    padding: var(--sp-5);
+  }
+}

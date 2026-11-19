@@ -1,0 +1,294 @@
+.user-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+/* ---------- Tarjetas de resumen ---------- */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-5);
+  margin-bottom: var(--sp-5);
+}
+
+.stat {
+  padding: var(--sp-5) var(--sp-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+.stat__label {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.stat__value {
+  margin-top: var(--sp-2);
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.stat__value--total {
+  color: var(--text);
+}
+
+.stat__value--admin {
+  color: var(--purple-600);
+}
+
+.stat__value--waiter {
+  color: var(--blue-600);
+}
+
+.stat__value--cook {
+  color: var(--orange-500);
+}
+
+/* ---------- Tabla ---------- */
+.users-card {
+  min-height: 200px;
+  padding: var(--sp-3) var(--sp-6) var(--sp-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+.users-table-wrap {
+  overflow-x: auto;
+}
+
+.users-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+
+.users-table th {
+  padding: var(--sp-4) var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.users-table td {
+  padding: var(--sp-4) var(--sp-2);
+  border-bottom: 1px solid var(--n-100);
+  vertical-align: middle;
+}
+
+.users-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.user-cell__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.user-cell__name {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-weight: 600;
+}
+
+.user-cell__sub {
+  display: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.user-cell__me {
+  padding: 1px 8px;
+  background: var(--n-100);
+  border-radius: var(--radius-full);
+  color: var(--n-500);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.users-table__email {
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+}
+
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.link-btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.link-btn:disabled {
+  color: var(--n-300);
+}
+
+.link-btn--danger {
+  color: var(--red-600);
+}
+
+.link-btn--success {
+  color: var(--green-600);
+}
+
+/* ---------- Estados ---------- */
+.users-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.users-state svg {
+  color: var(--red-600);
+}
+
+.users-table__skeleton td {
+  padding: var(--sp-4) var(--sp-2);
+}
+
+.users-table__skeleton span {
+  display: block;
+  height: 40px;
+  background: linear-gradient(90deg, var(--n-100) 25%, var(--n-50) 50%, var(--n-100) 75%);
+  background-size: 200% 100%;
+  border-radius: var(--radius-md);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .users-table__skeleton span,
+  .spin {
+    animation: none;
+  }
+}
+
+/* ---------- Tablet ---------- */
+@media (width <= 900px) {
+  .col-email {
+    display: none;
+  }
+
+  .user-cell__sub {
+    display: block;
+  }
+
+  .users-table {
+    min-width: 520px;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--sp-4);
+  }
+}
+
+/* ---------- Mobile ---------- */
+@media (width <= 640px) {
+  .stat {
+    padding: var(--sp-4);
+  }
+
+  .stat__value {
+    font-size: 28px;
+  }
+
+  .users-card {
+    padding: var(--sp-2) var(--sp-4) var(--sp-4);
+    border-radius: var(--radius-lg);
+  }
+
+  /* Cada fila de la tabla pasa a ser una tarjeta: nombre y email arriba, rol, estado y acciones debajo */
+  .users-table {
+    min-width: 0;
+  }
+
+  .users-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .users-table,
+  .users-table tbody {
+    display: block;
+  }
+
+  .users-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2) var(--sp-3);
+    padding: var(--sp-4) 0;
+    border-bottom: 1px solid var(--n-100);
+  }
+
+  .users-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .users-table td {
+    padding: 0;
+    border: 0;
+  }
+
+  .users-table td:first-child {
+    flex: 1 1 100%;
+  }
+
+  .users-table td:last-child {
+    margin-left: auto;
+  }
+
+  .users-table__skeleton td {
+    flex: 1 1 100%;
+  }
+
+  .btn__text {
+    display: none;
+  }
+
+  .topbar__actions .btn {
+    width: 44px;
+    padding: 0;
+  }
+}

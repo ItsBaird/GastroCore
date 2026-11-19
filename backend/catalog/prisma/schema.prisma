@@ -1,0 +1,39 @@
+// GastroCore - modelo Prisma. La fuente de verdad del DDL es db/init/schema/catalog.sql:
+// los CHECK, los triggers set_updated_at y los indices parciales unicos viven alli (Prisma no los modela).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  categoryId   String   @id @default(dbgenerated("gen_random_uuid()")) @map("category_id") @db.Uuid
+  name         String   @unique(map: "uq_categories_name") @db.VarChar(80)
+  displayOrder Int?     @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  products Product[]
+
+  @@map("categories")
+}
+
+// price: COP entero, impuestos incluidos (R5)
+model Product {
+  productId   String   @id @default(dbgenerated("gen_random_uuid()")) @map("product_id") @db.Uuid
+  categoryId  String   @map("category_id") @db.Uuid
+  name        String   @db.VarChar(120)
+  description String?
+  price       Int
+  photoUrl    String   @map("photo_url") @db.VarChar(255)
+  isAvailable Boolean  @default(true) @map("is_available")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  category Category @relation(fields: [categoryId], references: [categoryId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([categoryId, name], map: "uq_products_category_name")
+  @@map("products")
+}

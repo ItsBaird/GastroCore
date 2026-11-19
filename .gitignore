@@ -1,0 +1,34 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno y secretos
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Claves y certificados privados
+*.pem
+*.key
+*.p12
+*.pfx
+keys/
+**/keys/
+
+# Archivos generados
+dist/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Claude Code (local, no se sube al repo)
+.claude/
+CLAUDE.md

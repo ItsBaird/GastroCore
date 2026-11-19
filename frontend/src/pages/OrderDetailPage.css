@@ -1,0 +1,721 @@
+.od-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  white-space: nowrap;
+}
+
+.od-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text);
+  padding: 0;
+}
+
+/* Figma 32:21: 90x28, radio 14, 12px semibold */
+.od-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 90px;
+  height: 28px;
+  padding: 0 var(--sp-4);
+  border-radius: var(--radius-full);
+  background: var(--blue-50, #eff6ff);
+  color: var(--blue-600);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Figma 35:21: 90x28, radio 14, #fff7ed / #f97316, 12px semibold */
+.od-status-badge--en-cobro {
+  background: var(--orange-50);
+  color: var(--orange-500);
+}
+
+.od-status-badge--cerrada {
+  background: var(--n-100);
+  color: var(--text-muted);
+}
+
+.od-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--n-600);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Layout */
+.od-layout {
+  display: flex;
+  gap: var(--sp-6);
+}
+
+.od-items-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.od-summary {
+  width: 380px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-5);
+  height: fit-content;
+  position: sticky;
+  top: calc(64px + var(--sp-4));
+}
+
+/* Items table */
+.od-table-header {
+  display: grid;
+  grid-template-columns: 1fr 60px 100px 100px 80px;
+  gap: var(--sp-3);
+  padding: 13px 15px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: var(--sp-2);
+}
+
+.od-th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: none;
+}
+
+.od-item-row {
+  display: grid;
+  grid-template-columns: 1fr 60px 100px 100px 80px;
+  gap: var(--sp-3);
+  padding: 17px 15px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: var(--sp-2);
+  align-items: center;
+}
+
+.od-item-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Anulado: sigue a la vista para dejar rastro, pero fuera de la cuenta.
+   El tachado va en el span del nombre, no en .od-item-name: la linea del padre se propaga
+   a los descendientes y el hijo no puede quitarsela, asi que el motivo saldria tachado. */
+.od-item-row--cancelado .od-item-name,
+.od-item-row--cancelado .od-item-qty,
+.od-item-row--cancelado .od-item-price {
+  color: var(--text-muted);
+}
+
+.od-item-row--cancelado .od-item-name__text,
+.od-item-row--cancelado .od-item-qty,
+.od-item-row--cancelado .od-item-price {
+  text-decoration: line-through;
+}
+
+.od-item-reason {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.od-item-qty {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+}
+
+.od-item-price {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  text-align: right;
+}
+
+/* Status pills. Figma 32:36: 90x26, radio 13, 11px semibold */
+.od-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 90px;
+  height: 26px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.od-pill--pendiente {
+  background: #fefce8;
+  color: #ca8a04;
+}
+
+.od-pill--preparando {
+  background: #fff7ed;
+  color: var(--orange-500);
+}
+
+.od-pill--listo {
+  background: #f0fdf4;
+  color: var(--green-600);
+}
+
+.od-pill--entregado {
+  background: var(--page);
+  color: var(--text-muted);
+}
+
+.od-pill--cancelado {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+
+/* Acciones por fila. La geometria y el lenguaje salen del boton "Entregar" del Figma
+   (32:39: 70x28, radio 8, relleno solido del color semantico, texto blanco 11px semibold);
+   aqui el color semantico es el de peligro porque la accion es destructiva. */
+/* Un ADMIN ve Entregar y Anular en un item listo: se apilan dentro de la columna */
+.od-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-1);
+}
+
+/* Figma 32:39: 70x28, radio 8, #16a34a, texto blanco 11px semibold */
+.od-btn-entregar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 70px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--green-600);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.od-btn-entregar:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.od-btn-entregar:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.od-btn-entregar:focus-visible {
+  outline: 2px solid var(--green-600);
+  outline-offset: 2px;
+}
+
+.od-label-tablet {
+  display: none;
+}
+
+.od-btn-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.od-btn-anular {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 70px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--red-600);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.od-btn-anular:hover {
+  background: var(--red-700);
+}
+
+.od-btn-anular:focus-visible {
+  outline: 2px solid var(--red-600);
+  outline-offset: 2px;
+}
+
+/* Summary panel */
+.od-summary__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 var(--sp-3);
+}
+
+.od-summary__divider {
+  height: 1px;
+  background: var(--border);
+  margin: var(--sp-3) 0;
+}
+
+.od-summary__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.od-summary__row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.od-summary__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.od-summary__value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.od-summary__value--cancelado {
+  color: var(--red-600);
+}
+
+.od-summary__label-lg {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--n-600);
+}
+
+.od-summary__value-lg {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.od-summary__row--total {
+  margin-top: var(--sp-1);
+}
+
+.od-summary__total-label {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.od-summary__total-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* Buttons */
+.od-btn-add {
+  width: 100%;
+  height: 44px;
+  margin-top: var(--sp-5);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--blue-600);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  transition: opacity 0.15s;
+}
+
+.od-btn-add:hover {
+  opacity: 0.9;
+}
+
+.od-btn-cobro {
+  width: 100%;
+  height: 44px;
+  margin-top: var(--sp-3);
+  border: 1.5px solid var(--orange-500);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--orange-500);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.od-btn-cobro:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Loading / Error */
+.od-loading,
+.od-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: var(--sp-8) 0;
+  font-size: 14px;
+}
+
+.od-error {
+  text-align: center;
+  color: var(--text);
+  padding: var(--sp-8) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+/* Modal de anulacion */
+.ci-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.ci-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3);
+  background: var(--page);
+  border-radius: var(--radius-md);
+}
+
+.ci-item__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ci-item__meta,
+.ci-item__note {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ci-textarea {
+  resize: vertical;
+  min-height: 76px;
+  font-family: inherit;
+  line-height: 1.4;
+  padding: var(--sp-3);
+}
+
+.ci-counter {
+  margin: calc(var(--sp-3) * -1) 0 0;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Tablet */
+@media (width <= 1100px) {
+  .od-layout {
+    flex-direction: column;
+  }
+
+  .od-summary {
+    width: 100%;
+    position: static;
+  }
+
+  .od-table-header,
+  .od-item-row {
+    grid-template-columns: 1fr 50px 90px 80px 76px;
+  }
+
+  /* Figma tablet 37:25 y mobile 41:19: el boton de fila baja a 66x26 */
+  .od-btn-anular {
+    width: 66px;
+    height: 26px;
+  }
+
+  /* Figma 37:25: 66x26, texto 10px */
+  .od-btn-entregar {
+    width: 66px;
+    height: 26px;
+    font-size: 10px;
+  }
+
+  /* Figma 37:22: 80x24, texto 10px */
+  .od-pill {
+    min-width: 80px;
+    height: 24px;
+    font-size: 10px;
+  }
+
+  /* Figma 37:8: 76x24 */
+  .od-status-badge {
+    min-width: 76px;
+    height: 24px;
+    padding: 0 var(--sp-3);
+    font-size: 11px;
+  }
+}
+
+/* "Listos para entregar:" solo en tablet (37:56); titulo 16px (37:7) */
+@media (640px < width <= 1100px) {
+  .od-label-tablet {
+    display: inline;
+  }
+
+  .od-title-row {
+    font-size: 16px;
+  }
+}
+
+/* Mobile */
+@media (width <= 640px) {
+  .od-table-header {
+    display: none;
+  }
+
+  /* Figma 41:13: tarjeta 358x68, radio 12. Arriba el nombre (14 semibold) con la pildora y la accion a
+     la derecha; abajo "×1" (12 medium, gris) y el precio (14 bold). */
+  .od-item-row {
+    grid-template-columns: auto 1fr auto minmax(66px, auto);
+    grid-template-areas:
+      'name name pill actions'
+      'qty price price price';
+    column-gap: var(--sp-2);
+    row-gap: 6px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+  }
+
+  .od-item-name {
+    grid-area: name;
+    font-weight: 600;
+  }
+
+  .od-item-row > .od-pill {
+    grid-area: pill;
+  }
+
+  .od-item-actions {
+    grid-area: actions;
+  }
+
+  .od-item-qty {
+    grid-area: qty;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-align: left;
+  }
+
+  .od-item-qty::before {
+    content: '×';
+  }
+
+  .od-item-price {
+    grid-area: price;
+    font-weight: 700;
+    text-align: left;
+  }
+
+  .od-item-row::before {
+    display: none;
+  }
+
+  /* Figma 41:8: la insignia sigue visible en movil, 68x22, texto 10px */
+  .od-status-badge {
+    min-width: 68px;
+    height: 22px;
+    padding: 0 var(--sp-2);
+    font-size: 10px;
+  }
+
+  /* Figma 41:17: 76x22 */
+  .od-pill {
+    min-width: 76px;
+    height: 22px;
+  }
+
+  /* Figma 41:7: en movil el titulo es solo "Mesa N", 16px; el reloj (41:10) baja a 12px */
+  .od-title-suffix {
+    display: none;
+  }
+
+  .od-title-row {
+    gap: var(--sp-2);
+    font-size: 16px;
+  }
+
+  .od-timer {
+    font-size: 12px;
+  }
+
+  /* Objetivo tactil en movil: 44px de alto (Figma 41:19 dibuja 66x26), mismo criterio que cocina (K7) */
+  .od-btn-anular,
+  .od-btn-entregar {
+    width: auto;
+    min-width: 66px;
+    height: 44px;
+    padding: 0 var(--sp-3);
+    font-size: 10px;
+  }
+}
+
+/* ---------- Resumen (GC-ORD-0006: ajuste a los frames de tablet y movil) ---------- */
+.od-summary__actions {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Tablet, Figma 37:51: tarjeta 736 de ancho, radio 12, padding 24. Filas a la izquierda (13px, valor en una
+   columna fija), "Total:" 20/700 y a la derecha los botones de 260x44, radio 10, separados 12. */
+@media (640px < width <= 1100px) {
+  .od-summary {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    column-gap: var(--sp-6);
+    align-items: start;
+    padding: var(--sp-6);
+    border-radius: var(--radius-md);
+  }
+
+  .od-summary__actions {
+    gap: var(--sp-3);
+    padding-top: 5px;
+  }
+
+  .od-summary__actions .od-btn-add,
+  .od-summary__actions .od-btn-cobro {
+    margin-top: 0;
+    border-radius: 10px;
+  }
+}
+
+/* Tablet y movil: sin titulo, sin divisores, sin Mesa, En preparacion ni Subtotal (37:51, 41:45) */
+@media (width <= 1100px) {
+  .od-summary__title,
+  .od-summary__divider,
+  .od-summary__row--desktop {
+    display: none;
+  }
+
+  .od-summary__row {
+    justify-content: flex-start;
+  }
+
+  .od-summary__rows .od-summary__label {
+    width: 196px;
+    flex: none;
+  }
+
+  .od-summary__row--total {
+    gap: 31px;
+    margin-top: 30px;
+  }
+
+  .od-summary__total-label,
+  .od-summary__total-value {
+    font-size: 20px;
+  }
+}
+
+/* Movil, Figma 41:45: tarjeta compacta (radio 12, padding 16) y los botones fuera, a lo ancho (41:54/41:56) */
+@media (width <= 640px) {
+  .od-summary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    padding: 0;
+    background: none;
+    border: none;
+  }
+
+  .od-summary__card {
+    padding: 14px var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .od-summary__rows {
+    gap: var(--sp-2);
+  }
+
+  .od-summary__rows .od-summary__label,
+  .od-summary__rows .od-summary__value {
+    font-size: 12px;
+  }
+
+  .od-summary__rows .od-summary__label {
+    width: 154px;
+  }
+
+  .od-summary__row--no-mobile {
+    display: none;
+  }
+
+  .od-summary__row--total {
+    gap: var(--sp-6);
+    margin-top: 15px;
+  }
+
+  .od-summary__total-label,
+  .od-summary__total-value {
+    font-size: 18px;
+  }
+
+  .od-summary__actions {
+    gap: var(--sp-3);
+  }
+
+  .od-summary__actions .od-btn-add,
+  .od-summary__actions .od-btn-cobro {
+    margin-top: 0;
+    border-radius: 10px;
+  }
+}
+
+/* Figma 32:34, 32:83, 37:53, 41:47: el texto de Detalle es #171717 (--n-900), no #0a0a0a (--text) */
+.od-item-name,
+.od-item-price,
+.od-summary__title,
+.od-summary__value,
+.od-summary__value-lg,
+.od-summary__total-label {
+  color: var(--n-900);
+}
+
+@media (width > 640px) {
+  .od-item-qty {
+    color: var(--n-900);
+  }
+}

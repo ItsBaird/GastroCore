@@ -1,0 +1,33 @@
+import { z } from 'zod';
+
+const schema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().positive(),
+  SERVICE_NAME: z.string().min(1),
+  CORS_ORIGIN: z.string().min(1).default('http://localhost'),
+  DATABASE_URL: z.string().min(1),
+  JWT_PUBLIC_KEY_PATH: z.string().min(1).default('/run/keys/public/jwt_public.pem'),
+  // Red interna de Docker: Staff consulta a Auth directamente, sin pasar por el gateway
+  AUTH_URL: z.string().url().default('http://auth:3001'),
+  ORDERS_URL: z.string().url().default('http://orders:3004'),
+  // Autenticacion entre servicios en /internal/* (cabecera X-Service-Token)
+  SERVICE_TOKEN: z.string().default(''),
+});
+
+const parsed = schema.safeParse(process.env);
+if (!parsed.success) {
+  const detail = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+  throw new Error(`Variables de entorno invalidas: ${detail}`);
+}
+
+export const env = {
+  nodeEnv: parsed.data.NODE_ENV,
+  port: parsed.data.PORT,
+  serviceName: parsed.data.SERVICE_NAME,
+  corsOrigin: parsed.data.CORS_ORIGIN,
+  databaseUrl: parsed.data.DATABASE_URL,
+  jwtPublicKeyPath: parsed.data.JWT_PUBLIC_KEY_PATH,
+  authUrl: parsed.data.AUTH_URL,
+  ordersUrl: parsed.data.ORDERS_URL,
+  serviceToken: parsed.data.SERVICE_TOKEN,
+};

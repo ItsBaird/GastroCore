@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+.env
+.env.*
+Dockerfile
+.dockerignore
+vitest.config.js
+src/test
+src/**/*.test.js

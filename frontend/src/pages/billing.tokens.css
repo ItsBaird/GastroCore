@@ -1,0 +1,6 @@
+/* Tokens que el Figma de Detalle Mesa y Cobro usa y frontend/src/styles/tokens.css (protegido) no define.
+   Propuesta para Oscar: moverlos a tokens.css. Hasta entonces viven aqui, con el mismo nombre de escala. */
+:root {
+  /* Figma 35:57, 35:59, 35:75: etiquetas de Subtotal, Total a Pagar y Monto recibido */
+  --n-600: #525252;
+}

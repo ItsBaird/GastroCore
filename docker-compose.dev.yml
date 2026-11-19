@@ -1,0 +1,6 @@
+# Solo para desarrollo local: expone pgAdmin en 127.0.0.1:5050 (nunca en produccion).
+# Uso: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+services:
+  pgadmin:
+    ports:
+      - '127.0.0.1:5050:5050'

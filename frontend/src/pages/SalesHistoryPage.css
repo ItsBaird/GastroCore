@@ -1,0 +1,459 @@
+/* GC-RPT-0003 (GC-193). Historial de ventas. Mockup "Admin — Ventas" adaptado al design system, con la misma
+   familia visual que el dashboard y el cierre de caja: tarjetas planas de 24px con borde de 1px y sin sombra sobre
+   --page, el resumen como franja tipografica partida por lineas (no un mosaico de tarjetas), tabla con reglas y
+   numeros alineados a la derecha, atajos de periodo como botones fantasma (el seleccionado con borde de tinta), un
+   solo boton primario en la pantalla (Exportar, GC-194) y el rojo solo en marcas pequenas. Cuadricula de 8 px: solo
+   --sp-2/4/6/8 en margenes y rellenos (las excepciones son las del sistema: 4 px entre etiqueta y cifra, como el
+   dashboard). Solo tokens de tokens.css. Reutiliza .btn, .field, .pill y .catalog-state. */
+
+.sales {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  min-width: 0;
+}
+
+.sales[aria-busy='true'] .sales-card {
+  transition: opacity 0.2s;
+  opacity: 0.6;
+}
+
+.sales-card {
+  min-width: 0;
+  padding: var(--sp-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+/* ---------- Filtros ---------- */
+.sales-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+.sales-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.sales-preset {
+  padding: 0 var(--sp-4);
+  font-weight: 500;
+}
+
+/* Seleccionado: borde de tinta y fondo neutro (igual que los periodos del dashboard) */
+.sales-preset--on {
+  border-color: var(--n-950);
+  background: var(--n-100);
+}
+
+.sales-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-4);
+}
+
+.sales-filter {
+  flex: 1 1 176px;
+  min-width: 0;
+}
+
+.sales-filter--date {
+  flex: 0 1 168px;
+}
+
+.sales-clear {
+  margin-left: auto;
+}
+
+.sales-range-error {
+  margin-top: calc(-1 * var(--sp-2));
+}
+
+/* ---------- Resumen: franja tipografica ---------- */
+.sales-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sales-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: 0 var(--sp-6);
+  border-left: 1px solid var(--border);
+}
+
+.sales-kpi:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.sales-kpi__label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--n-700);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sales-kpi__label svg {
+  color: var(--n-500);
+}
+
+.sales-kpi__value {
+  font-size: clamp(24px, 2.4vw, 30px);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* La cifra que responde la pantalla (lo vendido) manda */
+.sales-kpi--lead .sales-kpi__value {
+  font-size: clamp(30px, 3.2vw, 40px);
+  letter-spacing: -0.02em;
+}
+
+.sales-kpi--lead .sales-kpi__label svg {
+  color: var(--red-600);
+}
+
+/* ---------- Tabla ---------- */
+.sales-list {
+  padding-top: var(--sp-2);
+}
+
+/* En pantallas angostas la tabla se desplaza dentro de su tarjeta (no la pagina); se puede enfocar con el teclado
+   para desplazarla con las flechas */
+.sales-scroll {
+  overflow-x: auto;
+}
+
+.sales-scroll:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.sales-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+
+.sales-table th {
+  padding: var(--sp-4) var(--sp-2) var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sales-table td {
+  padding: var(--sp-4) var(--sp-2);
+  border-bottom: 1px solid var(--n-100);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.sales-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.sales-table .sales-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sales-ref {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.sales-strong {
+  font-weight: 700;
+}
+
+.sales-muted {
+  color: var(--text-muted);
+}
+
+/* El metodo es un dato, no un estado: pastilla neutra (el color queda para los estados del sistema) */
+.sales-pill {
+  background: var(--n-100);
+  color: var(--n-700);
+}
+
+/* ---------- Paginacion ---------- */
+.sales-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--n-100);
+}
+
+.sales-pager__info,
+.sales-pager__page {
+  color: var(--text-muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sales-pager__buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+/* ---------- Carga ---------- */
+.sales-skeleton {
+  margin-bottom: var(--sp-6);
+  background: linear-gradient(90deg, var(--n-100) 25%, var(--n-50) 50%, var(--n-100) 75%);
+  background-size: 200% 100%;
+  animation: sales-shimmer 1.4s ease-in-out infinite;
+}
+
+.sales-skeleton--strip {
+  height: 112px;
+}
+
+.sales-skeleton--table {
+  height: 400px;
+}
+
+@keyframes sales-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sales-skeleton {
+    animation: none;
+  }
+}
+
+.sales-foot {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ---------- Tablet y movil ---------- */
+@media (max-width: 900px) {
+  .sales-kpis {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-4);
+  }
+
+  .sales-kpi {
+    padding: var(--sp-4) 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .sales-kpi:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .sales-card,
+  .sales-filters {
+    padding: var(--sp-4);
+  }
+
+  .sales-filter,
+  .sales-filter--date {
+    flex: 1 1 100%;
+  }
+
+  .sales-clear {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .sales-pager__buttons {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* ---------- Detalle y exportacion (GC-194) ---------- */
+
+/* La referencia abre el detalle: boton con aspecto de enlace (mismo trato que las fechas del historial de cierres) */
+.sales-link {
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: var(--n-300);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.sales-link:hover {
+  text-decoration-color: var(--text);
+}
+
+.sales-link:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Aviso de exportacion (por ejemplo, demasiadas ventas): usa .alert del sistema y se puede cerrar */
+.sales-export-error {
+  align-items: center;
+}
+
+.sales-export-error span {
+  flex: 1;
+}
+
+.sales-alert-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sales-alert-close:hover {
+  background: var(--red-100);
+}
+
+/* Modal de detalle */
+.sale-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.sale-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.sale-meta dt {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.sale-meta dd {
+  margin-top: var(--sp-1);
+  font-weight: 600;
+}
+
+.sale-lines {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sale-lines th {
+  padding: 0 var(--sp-2) var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.sale-lines td {
+  padding: var(--sp-2);
+  border-bottom: 1px solid var(--n-100);
+}
+
+.sale-lines th:first-child,
+.sale-lines td:first-child {
+  padding-left: 0;
+}
+
+.sale-lines th:last-child,
+.sale-lines td:last-child {
+  padding-right: 0;
+}
+
+.sale-lines .sales-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sale-totals__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-2) 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.sale-totals__row dt {
+  color: var(--n-700);
+}
+
+.sale-totals__row--strong {
+  margin-top: var(--sp-1);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.sale-totals__row--strong dt {
+  color: var(--text);
+}
+
+/* El descuento resta: marca pequena en rojo (unico uso del rojo en el detalle) */
+.sale-totals__neg {
+  color: var(--red-600);
+}
+
+.sale-detail__state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-6) 0;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.sale-detail__state svg {
+  color: var(--red-600);
+}
+
+@media (max-width: 640px) {
+  .sale-meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

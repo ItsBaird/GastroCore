@@ -1,0 +1,329 @@
+/* Productos y Categorias (GC-CAT-0001). Usa los tokens del Design System. */
+.catalog-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.catalog-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+}
+
+.field__textarea {
+  height: auto;
+  padding: var(--sp-3) 14px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+/* ---------- Selector de foto ---------- */
+.photo-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+.photo-picker__preview {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  overflow: hidden;
+  background: var(--n-100);
+  border-radius: var(--radius-md);
+  color: var(--n-400);
+}
+
+.photo-picker__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-picker__input {
+  min-width: 0;
+  flex: 1;
+  font-size: 14px;
+}
+
+/* ---------- Filtros y tarjeta contenedora ---------- */
+.catalog-filters {
+  display: flex;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+  padding: var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.catalog-filters .field__input {
+  max-width: 320px;
+}
+
+.catalog-filters .field__select {
+  width: auto;
+  min-width: 200px;
+}
+
+.catalog-card {
+  min-height: 200px;
+  padding: var(--sp-3) var(--sp-6) var(--sp-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+.catalog-table-wrap {
+  overflow-x: auto;
+}
+
+.catalog-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+
+.catalog-table th {
+  padding: var(--sp-4) var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.catalog-table td {
+  padding: var(--sp-4) var(--sp-2);
+  border-bottom: 1px solid var(--n-100);
+  vertical-align: middle;
+}
+
+.catalog-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.catalog-table__muted {
+  color: var(--n-700);
+}
+
+.catalog-table__price {
+  font-size: 17px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.product-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.product-thumb {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  background: var(--n-100);
+  border-radius: var(--radius-md);
+  color: var(--n-400);
+}
+
+.product-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.product-cell__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.product-cell__name {
+  font-weight: 600;
+}
+
+.product-cell__desc,
+.product-cell__cat {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.product-cell__cat {
+  display: none;
+}
+
+/* La pastilla de disponibilidad es un boton: un clic alterna disponible / agotado */
+.pill--toggle {
+  border: 0;
+  cursor: pointer;
+}
+
+.pill--toggle:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.pill--toggle:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* ---------- Categorias ---------- */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--sp-5);
+}
+
+.category-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--accent-bar, var(--red-600));
+  border-radius: var(--radius-xl);
+}
+
+.category-card--skeleton {
+  height: 150px;
+  background: linear-gradient(90deg, var(--n-100) 25%, var(--n-50) 50%, var(--n-100) 75%);
+  background-size: 200% 100%;
+  animation: catalog-shimmer 1.4s ease-in-out infinite;
+}
+
+.category-card__name {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.category-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 22px;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.category-card__order {
+  padding: 1px 8px;
+  background: var(--n-100);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+}
+
+.category-card__actions {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--n-100);
+}
+
+/* ---------- Estados ---------- */
+.catalog-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.catalog-state--card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+.catalog-state svg {
+  color: var(--red-600);
+}
+
+.catalog-table__skeleton td {
+  padding: var(--sp-4) var(--sp-2);
+}
+
+.catalog-table__skeleton span {
+  display: block;
+  height: 48px;
+  background: linear-gradient(90deg, var(--n-100) 25%, var(--n-50) 50%, var(--n-100) 75%);
+  background-size: 200% 100%;
+  border-radius: var(--radius-md);
+  animation: catalog-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes catalog-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-table__skeleton span,
+  .category-card--skeleton {
+    animation: none;
+  }
+}
+
+/* ---------- Tablet ---------- */
+@media (width <= 900px) {
+  .col-category {
+    display: none;
+  }
+
+  .product-cell__cat {
+    display: block;
+  }
+
+  .catalog-table {
+    min-width: 520px;
+  }
+}
+
+/* ---------- Mobile ---------- */
+@media (width <= 640px) {
+  .catalog-form__row {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-filters {
+    flex-direction: column;
+  }
+
+  .catalog-filters .field__input,
+  .catalog-filters .field__select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .catalog-card {
+    padding: var(--sp-2) var(--sp-4) var(--sp-4);
+    border-radius: var(--radius-lg);
+  }
+
+  .catalog-table {
+    min-width: 440px;
+  }
+
+  .category-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .btn__text {
+    display: none;
+  }
+
+  .topbar__actions .btn {
+    width: 44px;
+    padding: 0;
+  }
+}

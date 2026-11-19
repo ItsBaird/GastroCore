@@ -1,0 +1,108 @@
+/* QR imprimible de una mesa (propuesta sin Figma, con los tokens del proyecto y el rojo de marca). */
+
+.qr-print-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  background: var(--orange-50);
+  color: var(--orange-600);
+  font-size: 13px;
+}
+
+.qr-print-warning svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.qr-print-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-5);
+  max-width: 320px;
+  border: 1px solid var(--n-200);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  text-align: center;
+}
+
+.qr-print-card__brand {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--red-600);
+}
+
+.qr-print-card__table {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--n-950);
+}
+
+.qr-print-card__img {
+  display: block;
+  width: 240px;
+  height: 240px;
+  image-rendering: pixelated;
+}
+
+.qr-print-card__loading {
+  display: grid;
+  place-items: center;
+  width: 240px;
+  height: 240px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.qr-print-card__hint {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--n-700);
+}
+
+.qr-print-url {
+  margin: var(--sp-4) 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.qr-print-url code {
+  font-size: 12px;
+}
+
+/* Impresion: solo la tarjeta del QR, centrada y mas grande */
+@media print {
+  body.printing-qr * {
+    visibility: hidden;
+  }
+
+  body.printing-qr .qr-print-card,
+  body.printing-qr .qr-print-card * {
+    visibility: visible;
+  }
+
+  body.printing-qr .qr-print-card {
+    position: fixed;
+    top: 2cm;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: none;
+    width: 12cm;
+    border: none;
+  }
+
+  body.printing-qr .qr-print-card__img {
+    width: 9cm;
+    height: 9cm;
+  }
+
+  body.printing-qr .qr-print-card__table {
+    font-size: 40pt;
+  }
+}

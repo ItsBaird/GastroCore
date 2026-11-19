@@ -1,0 +1,232 @@
+// GastroCore - modelo Prisma. La fuente de verdad del DDL es db/init/schema/orders.sql:
+// los CHECK, los triggers set_updated_at y los indices parciales unicos
+// (uix_orders_one_open_per_table, uix_service_calls_one_pending) viven alli (Prisma no los modela).
+// Los campos *_by / waiter_id / product_id son FK logicas a otras bases (R2).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Sin columna status: el estado de la mesa se deriva de orders
+model DiningTable {
+  tableId     String   @id @default(dbgenerated("gen_random_uuid()")) @map("table_id") @db.Uuid
+  tableNumber Int      @unique(map: "uq_tables_number") @map("table_number")
+  qrToken     String   @unique(map: "uq_tables_qr") @map("qr_token") @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  orders       Order[]
+  serviceCalls ServiceCall[]
+
+  @@map("dining_tables")
+}
+
+// status (CHECK): ABIERTA | EN_COBRO | CERRADA
+model Order {
+  orderId           String    @id @default(dbgenerated("gen_random_uuid()")) @map("order_id") @db.Uuid
+  tableId           String    @map("table_id") @db.Uuid
+  openedBy          String    @map("opened_by") @db.Uuid
+  waiterId          String    @map("waiter_id") @db.Uuid
+  status            String    @default("ABIERTA") @db.VarChar(10)
+  openedAt          DateTime  @default(now()) @map("opened_at") @db.Timestamptz(6)
+  closedAt          DateTime? @map("closed_at") @db.Timestamptz(6)
+  discountAmount    Int       @default(0) @map("discount_amount")
+  discountAppliedBy String?   @map("discount_applied_by") @db.Uuid
+  discountAppliedAt DateTime? @map("discount_applied_at") @db.Timestamptz(6)
+
+  table      DiningTable @relation(fields: [tableId], references: [tableId], onDelete: Restrict, onUpdate: NoAction)
+  payment    Payment?
+  qrRequests QrRequest[]
+  rounds     Round[]
+
+  @@map("orders")
+}
+
+model PaymentMethod {
+  paymentMethodId String   @id @default(dbgenerated("gen_random_uuid()")) @map("payment_method_id") @db.Uuid
+  name            String   @unique(map: "uq_payment_methods_name") @db.VarChar(50)
+  isCash          Boolean  @default(false) @map("is_cash")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  payments          Payment[]
+  closureBreakdowns CashClosurePaymentBreakdown[]
+
+  @@map("payment_methods")
+}
+
+// Montos en COP enteros (R5). total = subtotal - discount_amount; change_given = amount_received - total (R4)
+model Payment {
+  paymentId         String   @id @default(dbgenerated("gen_random_uuid()")) @map("payment_id") @db.Uuid
+  orderId           String   @unique(map: "uq_payments_order") @map("order_id") @db.Uuid
+  paymentMethodId   String   @map("payment_method_id") @db.Uuid
+  subtotal          Int
+  discountAmount    Int      @default(0) @map("discount_amount")
+  total             Int
+  amountReceived    Int?     @map("amount_received")
+  changeGiven       Int?     @map("change_given")
+  discountAppliedBy String?  @map("discount_applied_by") @db.Uuid
+  registeredBy      String   @map("registered_by") @db.Uuid
+  paidAt            DateTime @default(now()) @map("paid_at") @db.Timestamptz(6)
+
+  order         Order         @relation(fields: [orderId], references: [orderId], onDelete: Restrict, onUpdate: NoAction)
+  paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [paymentMethodId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@map("payments")
+}
+
+// status (CHECK): pendiente | confirmada | rechazada
+model QrRequest {
+  qrRequestId String    @id @default(dbgenerated("gen_random_uuid()")) @map("qr_request_id") @db.Uuid
+  orderId     String    @map("order_id") @db.Uuid
+  status      String    @default("pendiente") @db.VarChar(10)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt  DateTime? @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy  String?   @map("resolved_by") @db.Uuid
+
+  order Order           @relation(fields: [orderId], references: [orderId], onDelete: Restrict, onUpdate: NoAction)
+  items QrRequestItem[]
+  round Round?
+
+  @@map("qr_requests")
+}
+
+model QrRequestItem {
+  qrRequestItemId String  @id @default(dbgenerated("gen_random_uuid()")) @map("qr_request_item_id") @db.Uuid
+  qrRequestId     String  @map("qr_request_id") @db.Uuid
+  productId       String  @map("product_id") @db.Uuid
+  quantity        Int
+  note            String? @db.VarChar(255)
+
+  qrRequest QrRequest @relation(fields: [qrRequestId], references: [qrRequestId], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("qr_request_items")
+}
+
+// source (CHECK): WAITER | QR. Si es QR, qr_request_id es obligatorio
+model Round {
+  roundId     String   @id @default(dbgenerated("gen_random_uuid()")) @map("round_id") @db.Uuid
+  orderId     String   @map("order_id") @db.Uuid
+  source      String   @db.VarChar(6)
+  createdBy   String   @map("created_by") @db.Uuid
+  qrRequestId String?  @unique(map: "uq_rounds_qr_request") @map("qr_request_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order     Order       @relation(fields: [orderId], references: [orderId], onDelete: Restrict, onUpdate: NoAction)
+  qrRequest QrRequest?  @relation(fields: [qrRequestId], references: [qrRequestId], onDelete: NoAction, onUpdate: NoAction)
+  items     OrderItem[]
+
+  @@map("rounds")
+}
+
+// Tabla items. status (CHECK): pendiente | en_preparacion | listo | entregado | cancelado
+// product_name_snapshot / unit_price_snapshot: copia al crear la ronda (R3)
+model OrderItem {
+  itemId               String    @id @default(dbgenerated("gen_random_uuid()")) @map("item_id") @db.Uuid
+  roundId              String    @map("round_id") @db.Uuid
+  productId            String    @map("product_id") @db.Uuid
+  productNameSnapshot  String    @map("product_name_snapshot") @db.VarChar(120)
+  unitPriceSnapshot    Int       @map("unit_price_snapshot")
+  quantity             Int
+  note                 String?   @db.VarChar(255)
+  status               String    @default("pendiente") @db.VarChar(15)
+  preparationStartedAt DateTime? @map("preparation_started_at") @db.Timestamptz(6)
+  readyAt              DateTime? @map("ready_at") @db.Timestamptz(6)
+  deliveredAt          DateTime? @map("delivered_at") @db.Timestamptz(6)
+  cancelledReason      String?   @map("cancelled_reason") @db.VarChar(255)
+  cancelledBy          String?   @map("cancelled_by") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  round Round @relation(fields: [roundId], references: [roundId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@map("items")
+}
+
+// type (CHECK): call_waiter | request_bill. status: pendiente | atendido
+model ServiceCall {
+  serviceCallId String    @id @default(dbgenerated("gen_random_uuid()")) @map("service_call_id") @db.Uuid
+  tableId       String    @map("table_id") @db.Uuid
+  type          String    @db.VarChar(15)
+  status        String    @default("pendiente") @db.VarChar(10)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  attendedAt    DateTime? @map("attended_at") @db.Timestamptz(6)
+  attendedBy    String?   @map("attended_by") @db.Uuid
+
+  table DiningTable @relation(fields: [tableId], references: [tableId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@map("service_calls")
+}
+
+// Snapshot inmutable del cierre diario (denormalizacion deliberada, supuesto A5)
+model CashClosure {
+  closureId     String   @id @default(dbgenerated("gen_random_uuid()")) @map("closure_id") @db.Uuid
+  closureDate   DateTime @unique(map: "uq_closures_date") @map("closure_date") @db.Date
+  totalSales    Int      @map("total_sales")
+  tablesServed  Int      @map("tables_served")
+  averageTicket Int      @map("average_ticket")
+  confirmedBy   String   @map("confirmed_by") @db.Uuid
+  confirmedAt   DateTime @default(now()) @map("confirmed_at") @db.Timestamptz(6)
+
+  paymentBreakdown CashClosurePaymentBreakdown[]
+  topProducts      CashClosureTopProduct[]
+  waiterBreakdown  CashClosureWaiterBreakdown[]
+
+  @@map("cash_closures")
+}
+
+model CashClosurePaymentBreakdown {
+  closureId       String @map("closure_id") @db.Uuid
+  paymentMethodId String @map("payment_method_id") @db.Uuid
+  totalAmount     Int    @map("total_amount")
+  paymentCount    Int    @map("payment_count")
+
+  closure       CashClosure   @relation(fields: [closureId], references: [closureId], onDelete: Cascade, onUpdate: NoAction)
+  paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [paymentMethodId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@id([closureId, paymentMethodId])
+  @@map("cash_closure_payment_breakdown")
+}
+
+model CashClosureTopProduct {
+  closureId           String @map("closure_id") @db.Uuid
+  rank                Int    @db.SmallInt
+  productId           String @map("product_id") @db.Uuid
+  productNameSnapshot String @map("product_name_snapshot") @db.VarChar(120)
+  quantitySold        Int    @map("quantity_sold")
+
+  closure CashClosure @relation(fields: [closureId], references: [closureId], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([closureId, rank])
+  @@map("cash_closure_top_products")
+}
+
+model CashClosureWaiterBreakdown {
+  closureId   String @map("closure_id") @db.Uuid
+  waiterId    String @map("waiter_id") @db.Uuid
+  totalAmount Int    @map("total_amount")
+
+  closure CashClosure @relation(fields: [closureId], references: [closureId], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([closureId, waiterId])
+  @@map("cash_closure_waiter_breakdown")
+}
+
+// Append-only. BIGSERIAL: nunca se expone como ID de negocio (supuesto A6)
+model AuditLog {
+  auditId     BigInt   @id @default(autoincrement()) @map("audit_id")
+  actionType  String   @map("action_type") @db.VarChar(40)
+  entityType  String   @map("entity_type") @db.VarChar(30)
+  entityId    String   @map("entity_id") @db.Uuid
+  performedBy String   @map("performed_by") @db.Uuid
+  performedAt DateTime @default(now()) @map("performed_at") @db.Timestamptz(6)
+  details     Json?
+
+  @@index([entityType, entityId], map: "idx_audit_entity")
+  @@index([performedAt], map: "idx_audit_performed_at")
+  @@map("audit_log")
+}

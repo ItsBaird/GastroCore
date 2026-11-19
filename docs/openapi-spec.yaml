@@ -1,0 +1,2572 @@
+openapi: 3.0.3
+info:
+  title: GastroCore API
+  version: 0.1.0
+  description: |
+    Contrato de la API de GastroCore (fuente de verdad, RNF-10). Todas las rutas entran por el gateway
+    (Nginx) y conservan su prefijo completo: `/api/<servicio>/...`.
+
+    Convenciones: JSON en camelCase (R6), IDs UUID v4, fechas en UTC (ISO 8601), dinero en pesos
+    colombianos enteros (R5). El cliente nunca envia precios ni totales (R4): los calcula el backend.
+
+    Formato de error uniforme en todos los servicios:
+    `{ "error": { "code": "NOT_FOUND", "message": "Recurso no encontrado", "details": {} } }`.
+
+    Las rutas `/internal/*` solo son accesibles dentro de la red de Docker (el gateway las bloquea) y
+    exigen la cabecera `X-Service-Token`; las llamadas entre servicios tienen timeout de 3 s y, si el
+    servicio consultado no responde, el consumidor devuelve `503 DEPENDENCY_UNAVAILABLE`.
+
+    Los detalles marcados como (propuesto) no estan fijados en la documentacion y deben validarse con el equipo.
+servers:
+  - url: http://localhost
+    description: Desarrollo local (gateway)
+tags:
+  - name: Health
+  - name: Auth
+  - name: Staff
+  - name: Catalog
+  - name: Orders - Mesas
+  - name: Orders - Pedidos
+  - name: Orders - Cocina
+  - name: Orders - Cobro
+  - name: Orders - Metodos de pago
+  - name: Orders - QR
+  - name: Orders - Reportes
+  - name: Internal
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ───────────── Health ─────────────
+  /api/auth/health:
+    get:
+      tags: [Health]
+      summary: Estado del servicio auth
+      security: []
+      responses:
+        '200': { $ref: '#/components/responses/Health' }
+  /api/staff/health:
+    get:
+      tags: [Health]
+      summary: Estado del servicio staff
+      security: []
+      responses:
+        '200': { $ref: '#/components/responses/Health' }
+  /api/catalog/health:
+    get:
+      tags: [Health]
+      summary: Estado del servicio catalog
+      security: []
+      responses:
+        '200': { $ref: '#/components/responses/Health' }
+  /api/orders/health:
+    get:
+      tags: [Health]
+      summary: Estado del servicio orders
+      security: []
+      responses:
+        '200': { $ref: '#/components/responses/Health' }
+
+  # ───────────── Auth (F01) ─────────────
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Crear una cuenta de usuario (ADMIN)
+      description: GC-AUTH-0001. Contrasena temporal de minimo 10 caracteres; se guarda con argon2id.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateUserRequest' }
+      responses:
+        '201':
+          description: Usuario creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: El email ya esta registrado (`EMAIL_ALREADY_EXISTS`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/auth/users:
+    get:
+      tags: [Auth]
+      summary: Listar usuarios (ADMIN)
+      x-roles: [ADMIN]
+      responses:
+        '200':
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/auth/users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Auth]
+      summary: Obtener un usuario (ADMIN)
+      x-roles: [ADMIN]
+      responses:
+        '200':
+          description: Usuario
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Auth]
+      summary: Cambiar rol o bloquear/desbloquear un usuario (ADMIN)
+      description: |
+        REQ-F01-07. Solo cambia `role` e `isActive`; email y contrasena no se editan aqui. Con
+        `isActive=false` se revocan los refresh tokens del usuario; con `isActive=true` se limpia el
+        bloqueo por intentos fallidos. Un ADMIN no puede quitarse el rol ni desactivarse a si mismo (403).
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUserRequest' }
+      responses:
+        '200':
+          description: Usuario actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Auth]
+      summary: Desactivar un usuario (ADMIN)
+      description: |
+        Desactivacion logica (`isActive=false`); no borra el registro y revoca los refresh tokens.
+        Es idempotente. Un ADMIN no puede desactivarse a si mismo (403).
+      x-roles: [ADMIN]
+      responses:
+        '204': { description: Usuario desactivado }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesion
+      description: |
+        GC-AUTH-0002. Emite un access token JWT RS256 (15 min) en el cuerpo y un refresh token
+        (7 dias) en cookie `refreshToken` con `httpOnly; Secure; SameSite=Strict; Path=/api/auth`. Bloqueo de 15 minutos tras 5 intentos
+        fallidos (configurable). Cuenta desactivada: mismo 401. Limite del gateway: 5 por minuto por IP. El 401 no revela cual dato es incorrecto.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Sesion iniciada
+          headers:
+            Set-Cookie:
+              description: Refresh token (httpOnly; Secure; SameSite=Strict)
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '423':
+          description: Cuenta bloqueada temporalmente (`ACCOUNT_LOCKED`); `details.lockedUntil` indica cuando termina
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Renovar el access token (rota el refresh token)
+      description: |
+        Se identifica por la cookie `refreshToken` (httpOnly), no por el access token, que puede estar
+        vencido. Emite un access token nuevo y rota el refresh token: el anterior queda invalidado y
+        encadenado al nuevo (`replaced_by`). Si se presenta un token que ya fue rotado, se asume
+        reutilizacion y se cierran todas las sesiones del usuario. Un usuario desactivado tampoco puede renovar.
+      security: []
+      parameters:
+        - name: refreshToken
+          in: cookie
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Sesion renovada
+          headers:
+            Set-Cookie:
+              description: Nuevo refresh token (httpOnly; Secure; SameSite=Strict; Path=/api/auth; 7 dias)
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401':
+          description: Sin cookie, token desconocido, vencido, revocado o ya rotado (`UNAUTHENTICATED`). La cookie se limpia.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Cerrar sesion (revoca el refresh token)
+      description: |
+        Revoca el refresh token de la cookie y la limpia. No exige access token (puede estar vencido) y es
+        idempotente: responde 204 aunque no haya sesion. Solo cierra esa sesion, no las demas del usuario.
+      security: []
+      parameters:
+        - name: refreshToken
+          in: cookie
+          required: false
+          schema: { type: string }
+      responses:
+        '204': { description: Sesion cerrada }
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Datos de la sesion actual
+      responses:
+        '200':
+          description: Sesion
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  # ───────────── Staff (F02) ─────────────
+  /api/staff/employees:
+    get:
+      tags: [Staff]
+      summary: Listar empleados (ADMIN)
+      x-roles: [ADMIN]
+      responses:
+        '200':
+          description: Empleados
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Employee' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Staff]
+      summary: Registrar el perfil laboral de un empleado (ADMIN)
+      description: GC-STAFF-0001. El userId debe existir en Auth; el documento es unico.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateEmployeeRequest' }
+      responses:
+        '201':
+          description: Empleado creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Employee' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/staff/employees/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    get:
+      tags: [Staff]
+      summary: Obtener un empleado (ADMIN)
+      x-roles: [ADMIN]
+      responses:
+        '200':
+          description: Empleado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Employee' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Staff]
+      summary: Editar un empleado (ADMIN)
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateEmployeeRequest' }
+      responses:
+        '200':
+          description: Empleado actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Employee' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/staff/shifts:
+    get:
+      tags: [Staff]
+      summary: Listar turnos por semana o empleado
+      parameters:
+        - name: week
+          in: query
+          description: Cualquier fecha de la semana a consultar
+          schema: { type: string, format: date }
+        - name: userId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Turnos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Shift' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      tags: [Staff]
+      summary: Programar un turno (ADMIN)
+      description: GC-STAFF-0002. El turno nace en estado `programado`; el fin debe ser posterior al inicio.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateShiftRequest' }
+      responses:
+        '201':
+          description: Turno creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Shift' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/staff/shifts/{id}/start:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Staff]
+      summary: Iniciar el turno (WAITER, COOK)
+      description: GC-STAFF-0003. Solo si la hora actual esta dentro del rango programado.
+      x-roles: [WAITER, COOK, ADMIN]
+      responses:
+        '200':
+          description: Turno activo (registra actualStart)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Shift' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
+  /api/staff/shifts/{id}/end:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Staff]
+      summary: Finalizar el turno (WAITER, COOK)
+      description: |
+        Staff consulta a Orders (`GET /internal/tables/open?waiterId=`). Si el mesero tiene mesas
+        abiertas responde `409 HAS_OPEN_TABLES`.
+      x-roles: [WAITER, COOK, ADMIN]
+      responses:
+        '200':
+          description: Turno finalizado (registra actualEnd)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Shift' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Mesas abiertas (`HAS_OPEN_TABLES`) o transicion invalida (`INVALID_TRANSITION`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+
+  # ───────────── Catalog (F03) ─────────────
+  /api/catalog/categories:
+    get:
+      tags: [Catalog]
+      summary: Listar categorias
+      responses:
+        '200':
+          description: Categorias
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Category' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      tags: [Catalog]
+      summary: Crear una categoria (ADMIN)
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '201':
+          description: Categoria creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/catalog/categories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Catalog]
+      summary: Editar una categoria (ADMIN)
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '200':
+          description: Categoria actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/catalog/products:
+    get:
+      tags: [Catalog]
+      summary: Listar productos (incluye no disponibles)
+      responses:
+        '200':
+          description: Productos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      tags: [Catalog]
+      summary: Crear un producto con foto (ADMIN)
+      description: |
+        GC-CAT-0001. `multipart/form-data`. La foto es obligatoria (JPG, PNG o WebP, maximo 2 MB; se
+        valida el tipo real y el servidor genera el nombre del archivo).
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/ProductForm' }
+      responses:
+        '201':
+          description: Producto creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/catalog/products/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Catalog]
+      summary: Obtener un producto
+      responses:
+        '200':
+          description: Producto
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Catalog]
+      summary: Editar un producto o cambiar su disponibilidad (ADMIN)
+      description: |
+        Cambiar el precio no altera los snapshots de ordenes existentes (R3). Con `isAvailable=false`
+        el producto sale del menu publico y no se puede agregar a nuevas rondas.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/ProductForm' }
+      responses:
+        '200':
+          description: Producto actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/catalog/public/menu:
+    get:
+      tags: [Catalog]
+      summary: Menu publico (sin login)
+      description: Productos disponibles con foto y precio, agrupados por categoria. Limite por IP en el gateway.
+      security: []
+      responses:
+        '200':
+          description: Menu
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MenuCategory' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  # ───────────── Orders - Metodos de pago (GC-ADM-0001) ─────────────
+  /api/orders/payment-methods:
+    get:
+      tags: [Orders - Metodos de pago]
+      summary: Listar metodos de pago
+      description: Los meseros solo necesitan los activos (`?active=true`).
+      parameters:
+        - name: active
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Metodos de pago
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PaymentMethod' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      tags: [Orders - Metodos de pago]
+      summary: Crear un metodo de pago (ADMIN)
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentMethodInput' }
+      responses:
+        '201':
+          description: Metodo creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentMethod' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orders/payment-methods/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Orders - Metodos de pago]
+      summary: Editar o desactivar un metodo de pago (ADMIN)
+      description: |
+        Un metodo desactivado no aparece al cobrar pero se conserva en los registros historicos.
+        Con pagos registrados (`payments`) NO se puede cambiar `name` ni `isCash`: el pago guarda solo el id del
+        metodo, asi que renombrarlo o cambiarle el tipo reescribiria el historial y el cierre de caja de dias
+        anteriores. Responde `409 CONFLICT` con `details.locked` (los campos que se intentaron cambiar). Repetir el
+        mismo valor se acepta y `isActive` siempre se puede cambiar. Para otro nombre o tipo: crear un metodo
+        nuevo y desactivar el viejo. Sin pagos, todo se edita como siempre.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentMethodInput' }
+      responses:
+        '200':
+          description: Metodo actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentMethod' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ───────────── Orders - Mesas (F04) ─────────────
+  /api/orders/tables:
+    get:
+      tags: [Orders - Mesas]
+      summary: Listar mesas
+      responses:
+        '200':
+          description: Mesas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DiningTable' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      tags: [Orders - Mesas]
+      summary: Crear una mesa (ADMIN)
+      description: GC-ADM-0002. El servidor genera un `qrToken` aleatorio de al menos 128 bits (no es el id de la mesa).
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TableInput' }
+      responses:
+        '201':
+          description: Mesa creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiningTable' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orders/tables/status:
+    get:
+      tags: [Orders - Mesas]
+      summary: Panel de mesas con su estado actual
+      description: |
+        GC-ORD-0001. Estado derivado de la orden abierta: `libre` (verde), `ocupada` (naranja) o
+        `en_cobro` (azul), con mesero asignado y llamados pendientes. Los cambios llegan por el evento
+        Socket.io `table:status_changed`.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Estado de todas las mesas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TableStatus' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/orders/tables/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Orders - Mesas]
+      summary: Editar una mesa (ADMIN)
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TableInput' }
+      responses:
+        '200':
+          description: Mesa actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiningTable' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/orders/tables/{id}/open:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Orders - Mesas]
+      summary: Abrir una mesa libre (WAITER con turno activo, ADMIN sin turno)
+      description: |
+        GC-ORD-0002. Para WAITER verifica el turno activo contra Staff (`GET /internal/shifts/active/:userId`);
+        el ADMIN abre sin turno y sin consultar Staff. Crea la orden `ABIERTA` con `openedBy` y `waiterId` de
+        quien abre, y marca como atendidos los llamados pendientes. Emite `table:status_changed` (payload
+        `TableStatus`) a la sala `waiters`. Una mesa abierta por un ADMIN sin perfil de empleado llega con
+        `waiterName: null`.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '201':
+          description: Orden creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: WAITER sin turno activo (`NO_ACTIVE_SHIFT`) o mesa ya abierta (`TABLE_ALREADY_OPEN`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/orders/tables/{id}/reassign:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Orders - Mesas]
+      summary: Reasignar una mesa abierta a otro mesero (ADMIN)
+      description: |
+        GC-ADM-0003. Actualiza `waiterId`; `openedBy` no cambia. Queda en auditoria (`TABLE_REASSIGNED`).
+        Aplica a mesas `ocupada` y `en_cobro`. El mesero destino debe tener turno activo en Staff.
+        Emite `table:status_changed` (payload `TableStatus`) a `waiters`, `waiter:{anterior}` y `waiter:{nuevo}`.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [waiterId]
+              properties:
+                waiterId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Orden reasignada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Mesa libre (`TABLE_NOT_OPEN`), destino sin turno (`NO_ACTIVE_SHIFT`) o destino igual al mesero actual (`INVALID_TRANSITION`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+
+  # ───────────── Orders - Pedidos (F05, F07, F11) ─────────────
+  /api/orders/{orderId}:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    get:
+      tags: [Orders - Pedidos]
+      summary: Detalle de una orden con sus rondas e items
+      description: |
+        GC-ORD-0003. Incluye los items cancelados, con `cancelledReason` y `cancelledBy`. Los totales no
+        viajan aqui: la cuenta oficial la calcula `GET /api/orders/{orderId}/bill` (R4). Un mesero solo
+        puede consultar las ordenes que tiene asignadas; a cualquier otra recibe `403 FORBIDDEN`.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Detalle de la orden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderDetail' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/orders/{orderId}/rounds:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders - Pedidos]
+      summary: Crear una ronda de pedido (mesero asignado)
+      description: |
+        GC-ORD-0003. El cliente solo envia `productId`, `quantity` y `note` (R4). Orders consulta a Catalog,
+        copia nombre y precio (snapshot R3), crea los items en `pendiente` y emite `round:created` a la sala `kitchen`.
+        Un producto no disponible se informa y no se incluye en la ronda.
+      x-roles: [WAITER, ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRoundRequest' }
+      responses:
+        '201':
+          description: Ronda creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateRoundResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/orders/items/{id}/deliver:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Orders - Pedidos]
+      summary: Marcar un item listo como entregado (mesero asignado)
+      description: |
+        GC-ORD-0005. Unica transicion `listo` -> `entregado`; registra `deliveredAt` en el backend (sin cuerpo:
+        el cliente no envia estado ni fecha, R4). Aplica con la orden `ABIERTA` o `EN_COBRO` (entregar no
+        cambia la cuenta, que ya incluye todos los items no cancelados); con la orden `CERRADA`, o el item en
+        otro estado, responde `409 INVALID_TRANSITION`. Un mesero solo entrega items de sus mesas (`403`).
+        Tras confirmar emite `item:status_changed` (payload `ItemStatusChangedEvent`) a las salas `kitchen` y
+        `waiter:{waiterId}` (el mesero actual de la orden), una sola vez por socket; cocina lo retira.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Item entregado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Item' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
+  /api/orders/items/{id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Orders - Pedidos]
+      summary: Anular un item indicando el motivo
+      description: |
+        GC-ORD-0009. El mesero asignado solo puede anular items `pendiente`; los `en_preparacion` o `listo`
+        solo los anula el ADMIN (queda en auditoria). Un mesero fuera de ese caso recibe `403 FORBIDDEN`.
+        Tras confirmar la anulacion emite `item:status_changed` (payload `ItemStatusChangedEvent`) a las salas
+        `kitchen` y `waiter:{waiterId}`, y `table:status_changed` (payload `TableStatus`) a la sala `waiters`.
+      x-roles: [WAITER, ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, maxLength: 255 }
+      responses:
+        '200':
+          description: Item cancelado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Item' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
+
+  # ───────────── Orders - Cocina (F06) ─────────────
+  /api/orders/kitchen:
+    get:
+      tags: [Orders - Cocina]
+      summary: Kitchen display (COOK)
+      description: |
+        GC-ORD-0004. Rondas de ordenes no cerradas con items `pendiente`, `en_preparacion` o `listo`, la mas
+        antigua primero. Cada ronda trae solo esos items: `entregado` y `cancelado` salen de cocina.
+        El COOK necesita turno activo en Staff (`GET /internal/shifts/active/:userId`); sin turno responde
+        `409 NO_ACTIVE_SHIFT`. El ADMIN no lo necesita y no se consulta Staff.
+      x-roles: [COOK, ADMIN]
+      responses:
+        '200':
+          description: Rondas en cocina
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/KitchenRound' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: COOK sin turno activo (`NO_ACTIVE_SHIFT`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/orders/items/{id}/status:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Orders - Cocina]
+      summary: Avanzar el estado de un item (COOK)
+      description: |
+        `pendiente` -> `en_preparacion` (registra `preparationStartedAt`) -> `listo` (registra `readyAt`).
+        Emite `item:status_changed` (payload `ItemStatusChangedEvent`) a las salas `kitchen` y
+        `waiter:{waiterId}` (el mesero actual de la orden), una sola vez por socket. Cualquier otra transicion
+        entre estados reales, o una orden `CERRADA`, responde `409 INVALID_TRANSITION`; un estado que no existe
+        responde `400 VALIDATION_ERROR`. El COOK necesita turno activo en Staff; sin turno responde
+        `409 NO_ACTIVE_SHIFT` antes de mirar el item. El ADMIN no lo necesita.
+      x-roles: [COOK, ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [pendiente, en_preparacion, listo, entregado, cancelado]
+                  description: Solo `en_preparacion` y `listo` pueden aplicar; los demas responden 409.
+      responses:
+        '200':
+          description: Item actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Item' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Transicion no definida u orden cerrada (`INVALID_TRANSITION`), o COOK sin turno activo (`NO_ACTIVE_SHIFT`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+
+  # ───────────── Orders - Cobro (F08) ─────────────
+  /api/orders/{orderId}/bill:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    get:
+      tags: [Orders - Cobro]
+      summary: Ver la cuenta (mesero asignado)
+      description: |
+        GC-ORD-0006. Solo lectura: no cambia el estado de la orden ni emite eventos. Items no cancelados con los
+        precios del snapshot, `lineTotal` por linea, subtotal, descuento y total calculados en el backend (R4); la
+        cuenta no se persiste. Responde con la orden `ABIERTA` o `EN_COBRO`; con la orden `CERRADA`,
+        `409 INVALID_TRANSITION`. No acepta parametros de consulta. Un mesero solo ve la cuenta de sus mesas
+        (`403`). Para pasar la mesa a cobro se usa `POST /api/orders/{orderId}/start-billing`.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Cuenta
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Bill' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
+  /api/orders/{orderId}/start-billing:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders - Cobro]
+      summary: Solicitar el cobro (mesero asignado)
+      description: |
+        GC-ORD-0006. Sin cuerpo. Con la orden `ABIERTA` y al menos un item `entregado`, la pasa a `EN_COBRO` (mesa
+        `en_cobro`) con una actualizacion condicional y, tras el commit, emite `table:status_changed` (payload
+        `TableStatus`) a la sala `waiters`. Es idempotente: con la orden ya `EN_COBRO` responde 200 con la cuenta,
+        sin otra transicion ni otro evento; dos solicitudes simultaneas producen una sola transicion. Responde la
+        cuenta recalculada en el backend. Sin items entregados responde `409 NO_DELIVERED_ITEMS`; con la orden
+        `CERRADA`, `409 INVALID_TRANSITION`. Un mesero solo solicita el cobro de sus mesas (`403`).
+        Distinto de `POST /api/orders/qr/{token}/request-bill`, que es el aviso del cliente desde el QR.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Orden en cobro y su cuenta
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Bill' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Sin items entregados (`NO_DELIVERED_ITEMS`) u orden cerrada (`INVALID_TRANSITION`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/orders/{orderId}/cancel-bill:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders - Cobro]
+      summary: Cancelar el cobro (mesero asignado)
+      description: |
+        GC-ORD-0006. Sin cuerpo. Solo con la orden `EN_COBRO` y sin pago registrado: vuelve a `ABIERTA` (mesa
+        `ocupada`) con una actualizacion condicional y se pueden agregar mas rondas. Tras el commit emite
+        `table:status_changed` a la sala `waiters`. En otro estado responde `409 INVALID_TRANSITION`.
+        GC-ORD-0007: si la orden tenia descuento, se quita en la misma transaccion (auditoria `DISCOUNT_REMOVED`),
+        porque se autorizo contra el subtotal de ese cobro; el siguiente cobro necesita su propio descuento.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Orden de nuevo `ABIERTA`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
+  /api/orders/{orderId}/discount:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders - Cobro]
+      summary: Aplicar, cambiar o quitar el descuento de una orden en cobro
+      description: |
+        GC-ORD-0007 (MVP).
+        Quien puede: el permiso `discount:apply` en el JWT. El ADMIN puede aunque su token no lo traiga (en el MVP
+        nadie tiene el permiso asignado). Un WAITER necesita el permiso y ser el mesero asignado de la orden; si no,
+        `403 FORBIDDEN`. La asignacion del permiso a usuarios no forma parte de este MVP.
+        Estado: solo con la orden `EN_COBRO`; en otro estado `409 INVALID_TRANSITION`.
+        Monto: pesos enteros entre 0 y el subtotal de la cuenta calculado en el backend (`computeBill`, snapshot R3,
+        sin items cancelados). Si supera el subtotal, `400 VALIDATION_ERROR` con `details.subtotal`. Igual al
+        subtotal se permite (cortesia total: el total queda en 0).
+        Correccion de un error: un monto nuevo reemplaza al anterior, y `0` quita el descuento (los tres campos
+        vuelven a 0/null). Repetir el monto vigente responde 200 sin cambios, sin auditoria ni evento.
+        Efectos: actualiza `discountAmount`, `discountAppliedBy` (quien llama) y `discountAppliedAt` con una
+        actualizacion condicional (`EN_COBRO`), y en la misma transaccion inserta en la auditoria
+        `DISCOUNT_APPLIED` (o `DISCOUNT_REMOVED` con 0) con el monto anterior y el nuevo, el subtotal, el total y el
+        motivo. Si la auditoria falla, el descuento se revierte. Tras el commit emite `order:updated` (payload
+        `OrderUpdatedEvent`) a la sala `waiter:{waiterId}` del mesero actual.
+        Responde la cuenta recalculada (`Bill`).
+      x-roles: [WAITER, ADMIN]
+      x-permissions: ['discount:apply']
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [discountAmount]
+              additionalProperties: false
+              properties:
+                discountAmount:
+                  type: integer
+                  minimum: 0
+                  description: Pesos colombianos enteros; 0 quita el descuento
+                reason:
+                  type: string
+                  maxLength: 255
+                  description: Motivo opcional; queda en la auditoria
+      responses:
+        '200':
+          description: Cuenta recalculada con el descuento
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Bill' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
+  /api/orders/{orderId}/pay:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders - Cobro]
+      summary: Registrar el pago y cerrar la orden (mesero asignado)
+      description: |
+        GC-ORD-0008. Cierra el ciclo de venta.
+        Quien: el mesero asignado (dueno actual de la orden) o el ADMIN; otro mesero `403 FORBIDDEN`. La venta
+        sigue atribuida a `openedBy`; quien cobra queda en `registeredBy`.
+        Estado: solo con la orden `EN_COBRO` (cuenta solicitada con `start-billing`); `ABIERTA` o `CERRADA` ->
+        `409 INVALID_TRANSITION`. Tampoco se cierra con items vivos sin entregar (`pendiente`, `en_preparacion`,
+        `listo`): `409 INVALID_TRANSITION` con `details.items` (los `cancelado` y `entregado` no bloquean).
+        Metodo: debe existir (`404 NOT_FOUND`) y estar activo (`409 PAYMENT_METHOD_INACTIVE`).
+        Monto (R4/R5): el total se recalcula en el backend con la misma funcion de la cuenta (snapshot R3, sin
+        cancelados, menos el descuento vigente). Con un metodo en efectivo (`isCash`) `amountReceived` es
+        obligatorio y debe ser `>= total`; si no alcanza, `400 INSUFFICIENT_AMOUNT` con `details.total` (el
+        total vigente). El backend calcula `changeGiven = amountReceived - total` (0 si es igual). Con un metodo
+        que no es efectivo, enviar `amountReceived` es `400 VALIDATION_ERROR`, y el pago guarda
+        `amountReceived` y `changeGiven` en null. Un total 0 (descuento igual al subtotal) se puede pagar.
+        Efectos, en una sola transaccion: la orden pasa de `EN_COBRO` a `CERRADA` con `closedAt` (actualizacion
+        condicional); se registra el pago con el snapshot de `subtotal`, `discountAmount`, `discountAppliedBy` y
+        `total`; las solicitudes QR `pendiente` de la orden pasan a `rechazada` con `resolvedBy` = quien cobra
+        (la orden cerrada ya no admite rondas; se rechazan al pagar y no al pasar a `EN_COBRO` para no perderlas
+        si se cancela el cobro); los llamados `pendiente` de la mesa (`call_waiter` y `request_bill`) pasan a
+        `atendido` con `attendedBy` = quien cobra (si no, el indice de un pendiente por tipo y mesa dejaria al
+        siguiente cliente sin poder llamar); y se audita `PAYMENT_REGISTERED` con mesa, nombre del metodo, total,
+        descuento, cambio y cuantas solicitudes y llamados se cerraron. Si algo falla no queda nada. Un solo pago
+        por orden: un reintento responde `409 INVALID_TRANSITION`. La mesa queda `libre` porque ya no tiene
+        orden abierta. No se emite un evento por cada solicitud o llamado cerrado: `table:status_changed` ya
+        lleva `pendingCalls` vacio, y la pantalla de solicitudes quita las de esa orden al recibir
+        `order:updated` con `status: CERRADA` (o recarga `GET /api/orders/qr-requests`).
+        Tras el commit emite `table:status_changed` (mesa `libre`) a la sala `waiters` y `order:updated`
+        (`status: CERRADA`) a `waiter:{waiterId}` del mesero actual.
+        Bloqueo post-cierre (GC-RPT-0002): si el dia de negocio del cobro (hora de Colombia, UTC-5) ya tiene el
+        cierre de caja confirmado, el cobro se rechaza con `409 DAY_CLOSED` y no cambia nada: la orden sigue
+        `EN_COBRO` y podra cobrarse desde el dia siguiente. El cobro y la confirmacion del cierre se serializan,
+        asi que ningun pago concurrente queda dentro de un dia cerrado sin estar en el consolidado.
+      x-roles: [WAITER, ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paymentMethodId]
+              additionalProperties: false
+              properties:
+                paymentMethodId: { type: string, format: uuid }
+                amountReceived:
+                  type: integer
+                  minimum: 0
+                  description: Pesos enteros. Obligatorio con efectivo; prohibido con otros metodos
+      responses:
+        '201':
+          description: Pago registrado; la orden quedo `CERRADA`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '400':
+          description: Datos invalidos (`VALIDATION_ERROR`) o efectivo insuficiente (`INSUFFICIENT_AMOUNT`, con `details.total`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Orden no `EN_COBRO`, ya pagada o con items sin entregar (`INVALID_TRANSITION`), metodo inactivo (`PAYMENT_METHOD_INACTIVE`), o el dia de negocio de este cobro ya tiene el cierre de caja confirmado (`DAY_CLOSED`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/orders/{orderId}/payment:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    patch:
+      tags: [Orders - Cobro]
+      summary: Corregir el metodo de pago de una venta ya cobrada (solo ADMIN)
+      description: |
+        GC-RPT-0002 (GC-157), REQ-F10-04. Correccion posterior al cobro o al cierre de caja: el ADMIN cambia el
+        metodo con el que quedo registrada una venta (por ejemplo, se cobro con tarjeta y se registro efectivo).
+        Solo `ADMIN`; cualquier otro rol `403 FORBIDDEN`. Es la unica correccion permitida: `subtotal`,
+        `discountAmount` y `total` no cambian (R3/R4: el cliente nunca los envia), ni se puede anular el pago.
+        Orden: debe existir y tener pago (`404 NOT_FOUND`) y estar `CERRADA` (`409 INVALID_TRANSITION`).
+        Metodo: debe existir (`404 NOT_FOUND`), estar activo (`409 PAYMENT_METHOD_INACTIVE`) y ser distinto del
+        actual (`400 VALIDATION_ERROR`, `details.field = paymentMethodId`). `reason` es obligatorio (5 a 200
+        caracteres, sin espacios sobrantes): queda en la auditoria.
+        Monto (R4/R5): con un metodo en efectivo `amountReceived` es obligatorio y `>= total` (`400
+        INSUFFICIENT_AMOUNT`), y el backend calcula `changeGiven`; con otro metodo enviarlo es `400
+        VALIDATION_ERROR` y el pago queda con `amountReceived` y `changeGiven` en null.
+        Efectos, en una sola transaccion: se actualiza el metodo (y recibido/cambio) del pago y se audita
+        `PAYMENT_METHOD_CORRECTED` (entidad `order`) con quien (`performedBy`), cuando (`performedAt`), que
+        (metodo anterior y nuevo, con su nombre), cuanto (`total`), el motivo, `paymentId`, y si el dia de la
+        venta ya tenia cierre confirmado (`postClosure`, con su `closureDate`).
+        El cierre de caja ya guardado NO se modifica: `cash_closures` es un snapshot inmutable y sus desgloses
+        reflejan lo que se confirmo ese dia; la correccion queda en `audit_log`. Los reportes en vivo (vista
+        previa de un dia sin cerrar, dashboard, historial) si reflejan el metodo corregido. La correccion y la
+        confirmacion del cierre del mismo dia se serializan.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paymentMethodId, reason]
+              additionalProperties: false
+              properties:
+                paymentMethodId: { type: string, format: uuid }
+                amountReceived:
+                  type: integer
+                  minimum: 0
+                  description: Pesos enteros. Obligatorio si el nuevo metodo es efectivo; prohibido con otros metodos
+                reason:
+                  type: string
+                  minLength: 5
+                  maxLength: 200
+      responses:
+        '200':
+          description: Pago corregido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '400':
+          description: Datos invalidos (`VALIDATION_ERROR`) o efectivo insuficiente (`INSUFFICIENT_AMOUNT`, con `details.total`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Orden no `CERRADA` (`INVALID_TRANSITION`) o metodo inactivo (`PAYMENT_METHOD_INACTIVE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  # ───────────── Orders - QR (F09) ─────────────
+  /api/orders/qr/{token}:
+    parameters:
+      - $ref: '#/components/parameters/QrToken'
+    get:
+      tags: [Orders - QR]
+      summary: Estado de la mesa y capacidades del canal QR (publico)
+      description: |
+        GC-QR-0001. Valida el token y devuelve el estado de la mesa. Capacidades: `libre` -> menu y llamar al
+        mesero; `ocupada` -> ademas solicitudes de pedido y pedir la cuenta; `en_cobro` -> menu y llamar al mesero.
+      security: []
+      responses:
+        '200':
+          description: Mesa y capacidades
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QrTable' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/orders/qr/{token}/call:
+    parameters:
+      - $ref: '#/components/parameters/QrToken'
+    post:
+      tags: [Orders - QR]
+      summary: Llamar al mesero (publico)
+      description: |
+        GC-QR-0002. Crea un `service_call` `call_waiter` y emite `waiter:called` (payload `WaiterCalledEvent`) a la
+        sala `waiters` (mesa libre) o solo a `waiter:{waiterId}` (mesa ocupada o en cobro, el mesero de su orden).
+        Si ya hay uno pendiente del mismo tipo para la mesa responde `409 CONFLICT`. Sin cuerpo: el cliente no
+        elige mesa ni tipo. Un token desconocido responde `404`.
+      security: []
+      responses:
+        '201':
+          description: Llamado creado. Respuesta publica (`PublicServiceCall`), sin `tableId` ni datos de atencion.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicServiceCall' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/orders/qr/{token}/request:
+    parameters:
+      - $ref: '#/components/parameters/QrToken'
+    post:
+      tags: [Orders - QR]
+      summary: Enviar una solicitud de pedido (publico, mesa ocupada)
+      description: |
+        GC-QR-0003. Crea una `qr_request` `pendiente` con sus items y emite `qr_request:created` (payload
+        `QrRequestCreatedEvent`) SOLO a `waiter:{waiterId}`, el mesero de la orden. El cliente envia productos,
+        cantidades y notas; nunca precios (R4): el snapshot de precios (R3) se toma cuando el mesero confirma.
+        Limites: 20 items por solicitud, 99 unidades por item y 3 solicitudes pendientes por orden.
+        Mesa libre: `409 TABLE_NOT_OPEN`. Mesa en cobro: `409 INVALID_TRANSITION`. Producto inexistente:
+        `400 VALIDATION_ERROR` (indica la linea). Producto agotado: `409 CONFLICT` con la lista en
+        `details.unavailable`, y se rechaza la solicitud completa. Un token desconocido responde `404`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QrRequestInput' }
+      responses:
+        '201':
+          description: Solicitud creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QrRequest' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Mesa libre (`TABLE_NOT_OPEN`), mesa en cobro (`INVALID_TRANSITION`), 3 solicitudes pendientes o producto agotado (`CONFLICT`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/orders/qr/{token}/request-bill:
+    parameters:
+      - $ref: '#/components/parameters/QrToken'
+    post:
+      tags: [Orders - QR]
+      summary: Pedir la cuenta (publico, mesa ocupada)
+      description: |
+        GC-QR-0004. Crea un `service_call` `request_bill` `pendiente` y emite `bill:requested` (payload
+        `BillRequestedEvent`) SOLO a `waiter:{waiterId}`, el mesero de la orden. Sin cuerpo: el cliente no elige
+        mesa ni tipo. Solo con la mesa `ocupada` (`capabilities.requestBill` de `GET /api/orders/qr/{token}`).
+        Mesa libre: `409 TABLE_NOT_OPEN`. Mesa en cobro: `409 INVALID_TRANSITION`. Si ya hay una peticion
+        pendiente para la mesa: `409 CONFLICT` con `details.type = request_bill` (un pendiente por tipo y mesa,
+        independiente de un llamado `call_waiter`). Un token desconocido responde `404`. El mesero la cierra con
+        `PUT /api/orders/service-calls/{id}/attend`, y se cierra sola al abrir la mesa o al pagar.
+      security: []
+      responses:
+        '201':
+          description: Peticion creada. Respuesta publica (`PublicServiceCall`), sin `tableId` ni datos de atencion.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicServiceCall' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Mesa libre (`TABLE_NOT_OPEN`), mesa en cobro (`INVALID_TRANSITION`) o ya hay una peticion pendiente (`CONFLICT`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/orders/qr-requests:
+    get:
+      tags: [Orders - QR]
+      summary: Listar las solicitudes QR pendientes (respaldo del evento qr_request:created)
+      description: |
+        GC-QR-0003. Devuelve las solicitudes `pendiente` de ordenes no cerradas (incluye `EN_COBRO`), la mas
+        antigua primero, con el mismo formato que el payload de `qr_request:created` (`QrRequestWithTable`).
+        El mesero la consulta al abrir la pantalla y al reconectar el socket, para no perder solicitudes que
+        llegaron mientras no estaba conectado. WAITER ve solo las de sus mesas; ADMIN ve todas; COOK `403`.
+        No acepta parametros: cualquier query string responde `400`. Los items traen `productId`, sin nombre
+        (el nombre se resuelve con el catalogo) y su orden no esta garantizado.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Solicitudes pendientes (arreglo vacio si no hay)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/QrRequestWithTable' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/orders/qr-requests/{id}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Orders - QR]
+      summary: Confirmar una solicitud QR (mesero asignado)
+      description: Puede ajustar los items; crea una ronda con origen `QR` vinculada a la solicitud.
+      x-roles: [WAITER, ADMIN]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRoundRequest' }
+      responses:
+        '200':
+          description: Solicitud confirmada y ronda creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateRoundResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
+  /api/orders/qr-requests/{id}/reject:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Orders - QR]
+      summary: Rechazar una solicitud QR (mesero asignado)
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Solicitud rechazada (no se crea ronda)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QrRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
+  /api/orders/service-calls/{id}/attend:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [Orders - QR]
+      summary: Marcar un llamado como atendido (mesero)
+      description: |
+        GC-QR-0002 / GC-QR-0004. El mesero marca como `atendido` un llamado `pendiente` (`call_waiter` o
+        `request_bill`) sin esperar a que se abra o se pague la mesa. Sin esto, el indice de un solo pendiente
+        por tipo y mesa impide al cliente volver a llamar durante toda la visita.
+        Quien: el mesero asignado a la orden abierta de la mesa, o el ADMIN. Si la mesa esta libre (no hay
+        orden), cualquier WAITER puede (igual que `waiter:called` a la sala `waiters`, "cualquier mesero puede
+        atenderlo"). Otro mesero con la mesa ocupada o en cobro: `403 FORBIDDEN`; COOK: `403`.
+        Sin cuerpo. Es una actualizacion condicional (`status = 'pendiente'`): guarda `attendedBy` (quien lo
+        marca) y `attendedAt`. Un llamado ya `atendido` (por otro mesero, al abrir la mesa o al pagar) responde
+        `409 INVALID_TRANSITION`, sin cambios. Llamado inexistente: `404`.
+        Tras el commit emite `table:status_changed` (payload `TableStatus`, con `pendingCalls` ya sin ese
+        llamado) a la sala `waiters`, para que el panel de mesas lo quite; no hay otro evento. El cliente no
+        recibe aviso: el boton del QR deja de dar `409` la proxima vez que lo pulse.
+        No hay un listado aparte de llamados: los pendientes ya viajan en `pendingCalls` de
+        `GET /api/orders/tables/status` y del evento `table:status_changed`.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Llamado marcado como atendido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceCall' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
+
+  # ───────────── Orders - Reportes (F10) ─────────────
+  /api/orders/reports/cash-close:
+    get:
+      tags: [Orders - Reportes]
+      summary: Vista previa del cierre de caja (ADMIN)
+      description: |
+        GC-RPT-0001. Solo lectura: sirve tambien para un dia ya cerrado o futuro. Considera las ordenes `CERRADA`
+        cuyo cierre (`closedAt`) cae en el dia pedido, que es el dia del restaurante: de 00:00 a 24:00 en hora de
+        Colombia (UTC-5, sin horario de verano), no el dia UTC del servidor. `date` es obligatoria (AAAA-MM-DD, un
+        dia real del calendario); cualquier otro parametro responde `400`.
+        `totalSales` suma lo cobrado despues del descuento (`payments.total`). `tablesServed` cuenta las cuentas
+        cerradas del dia (una mesa atendida dos veces cuenta dos) y `averageTicket` es `totalSales` entre
+        `tablesServed`, redondeado al entero mas cercano (0 sin ordenes).
+        `paymentBreakdown` agrupa por metodo (solo los que tuvieron pagos), de mayor a menor monto; en efectivo
+        suma el total de la cuenta, no lo recibido. `topProducts` trae como mucho 5 platos por unidades vendidas
+        (items no cancelados; desempate por ingreso y luego por nombre), con el nombre del snapshot mas reciente.
+        `waiterBreakdown` atribuye lo cobrado al mesero que abrio la mesa (`openedBy`), de mayor a menor monto.
+      x-roles: [ADMIN]
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: 'Consolidado del dia (sin ordenes cerradas: todos los totales en 0 y listas vacias)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashClosePreview' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Orders - Reportes]
+      summary: Confirmar el cierre de caja (ADMIN)
+      description: |
+        GC-RPT-0002. Guarda el consolidado en `cash_closures` con sus desgloses, bloquea las ordenes del dia
+        y registra `confirmedBy` y `confirmedAt`. Si el dia ya fue cerrado responde `409 DAY_CLOSED`.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date]
+              properties:
+                date: { type: string, format: date }
+      responses:
+        '201':
+          description: Cierre registrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashClose' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: El dia ya fue cerrado (`DAY_CLOSED`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/orders/reports/cash-closures:
+    get:
+      tags: [Orders - Reportes]
+      summary: Historial de cierres de caja confirmados (ADMIN)
+      description: |
+        GC-RPT-0002 (GC-158). Lista los cierres ya confirmados (`cash_closures`), del dia cerrado mas reciente al
+        mas antiguo, paginados. Solo trae el resumen de cada cierre; el detalle (desgloses) se pide por dia en
+        `GET /api/orders/reports/cash-closures/{date}`. Sin cierres no es un error: `items` vacio y `total` 0.
+        Cualquier parametro que no exista es `400 VALIDATION_ERROR`. Los montos son enteros COP (R5).
+      x-roles: [ADMIN]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+      responses:
+        '200':
+          description: Pagina del historial
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashClosuresPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/orders/reports/cash-closures/{date}:
+    parameters:
+      - { name: date, in: path, required: true, schema: { type: string, format: date } }
+    get:
+      tags: [Orders - Reportes]
+      summary: Cierre de caja confirmado de un dia (ADMIN)
+      description: |
+        GC-RPT-0002 (GC-158). Devuelve el cierre CONFIRMADO de ese dia de negocio tal como se guardo (snapshot
+        inmutable: no se recalcula, aunque despues se corrija un pago), con `closureId`, `confirmedBy` y
+        `confirmedAt`. Un dia que todavia no se ha cerrado responde `404 NOT_FOUND`: la pantalla lo usa para saber
+        si el dia esta abierto o cerrado.
+      x-roles: [ADMIN]
+      responses:
+        '200':
+          description: Cierre confirmado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashClose' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/orders/reports/dashboard:
+    get:
+      tags: [Orders - Reportes]
+      summary: Dashboard de metricas operativas (ADMIN)
+      description: |
+        REQ-F10-05 / GC-RPT-0004. Metricas del periodo `from`..`to` (dias de negocio Colombia UTC-5, ambos incluidos)
+        comparadas con el periodo anterior de igual duracion que termina el dia previo a `from`. Sin `from`/`to`
+        se usa la semana en curso, de lunes a domingo (si la semana no termino, `to` es el domingo igual y los
+        dias futuros salen en cero). `from` y `to` van juntos o no van: enviar solo uno es 400. Rango maximo
+        92 dias contados con ambos extremos (`to` - `from` + 1 <= 92); `400 VALIDATION_ERROR` si se excede, si
+        `from` > `to`, si una fecha no existe o si llega un parametro desconocido. Responde `Cache-Control: no-store`.
+
+        Ventas (cuentas CERRADA cuyo `orders.closed_at` cae en el periodo, igual que el cierre de caja; montos
+        enteros COP, R5):
+        - `sales`: suma de `payments.total` (lo cobrado despues del descuento).
+        - `orders`: cuentas cerradas. `averageTicket` = sales / orders redondeado; 0 sin cuentas.
+        - `changePercent`: (value - previous) / previous x 100 con un decimal; `null` si `previous` es 0 o null.
+        - `salesByDay`: un elemento por cada dia del rango (incluye los de venta cero), por dia de `closed_at`.
+        - `salesByHour`: horas 0-23 (hora Colombia) de `closed_at`, es decir la hora de cobro, sumadas sobre todo
+          el periodo (siempre 24 elementos).
+        - `topProducts`: los 5 mas vendidos por unidades (mismo desempate que el cierre de caja). `revenue` es
+          precio snapshot x cantidad antes del descuento: su suma no tiene que dar `sales`.
+        - `waiterBreakdown` y `paymentBreakdown`: igual que el cierre de caja, sobre el periodo. Cada uno suma
+          `sales`. Solo ids: los nombres se resuelven aparte (Staff y metodos de pago).
+
+        Preparacion (mide la cocina, no el cobro: NO exige que la orden este CERRADA):
+        - `preparationMinutes` y `preparation`: promedio de (`items.ready_at` - `rounds.created_at`) de los items
+          no cancelados con `ready_at` dentro del periodo (dia de negocio de `ready_at`), en minutos con un
+          decimal. `rounds.created_at` es cuando la ronda llego a cocina (el mesero la envio o confirmo la
+          solicitud QR) y `ready_at` cuando cocina marco el item listo. Un item con `ready_at` anterior a la ronda
+          se descarta. Sin items medidos, `value`/`averageMinutes` es `null`.
+      x-roles: [ADMIN]
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Metricas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/orders/history:
+    get:
+      tags: [Orders - Reportes]
+      summary: Historial de ventas con filtros y paginacion (ADMIN)
+      description: |
+        REQ-F10-06 / GC-RPT-0003. Lista las cuentas CERRADA cuyo cierre cae en el rango de dias de negocio
+        `from`..`to` (ambos incluidos, dia Colombia UTC-5; internamente [from 00:00, to+1 00:00)). Orden fijo:
+        `closedAt` descendente, desempate por `orderId`. Sin `from`/`to` se usa el dia de negocio actual.
+        El rango maximo es de 366 dias (`400 VALIDATION_ERROR` si se excede o si `from` > `to`).
+        `summary` agrega TODO el resultado filtrado (no solo la pagina). Los montos son enteros COP (R5).
+        El filtro `waiterId` se aplica sobre quien ABRIO la mesa (`orders.opened_by`), igual que el cierre de caja.
+      x-roles: [ADMIN]
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: waiterId, in: query, schema: { type: string, format: uuid } }
+        - { name: tableId, in: query, schema: { type: string, format: uuid } }
+        - { name: paymentMethodId, in: query, schema: { type: string, format: uuid } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: Pagina de ventas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HistoryPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/orders/history/export:
+    get:
+      tags: [Orders - Reportes]
+      summary: Exportar el historial de ventas a Excel (ADMIN)
+      description: |
+        GC-RPT-0003. Mismos filtros que `GET /api/orders/history` (sin `page`/`pageSize`). Devuelve un `.xlsx`
+        con una hoja `Ventas` (una fila por cuenta: Referencia, Fecha cierre, Mesa, Mesero, Productos, Subtotal,
+        Descuento, Total, Metodo de pago) y una fila final de totales. El nombre del archivo es
+        `ventas_AAAA-MM-DD_AAAA-MM-DD.xlsx` (Content-Disposition). Maximo 10000 filas: si el filtro devuelve mas,
+        responde `422 EXPORT_TOO_LARGE` y se debe acotar el rango.
+      x-roles: [ADMIN]
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: waiterId, in: query, schema: { type: string, format: uuid } }
+        - { name: tableId, in: query, schema: { type: string, format: uuid } }
+        - { name: paymentMethodId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Archivo Excel
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422':
+          description: El filtro devuelve mas de 10000 filas (`EXPORT_TOO_LARGE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/orders/history/{orderId}:
+    get:
+      tags: [Orders - Reportes]
+      summary: Detalle de una venta del historial (ADMIN)
+      description: |
+        GC-RPT-0003. Detalle de una cuenta CERRADA: lineas con los snapshots R3 (nombre y precio al momento de
+        pedir; los items cancelados no se incluyen), descuento y pago. `404 ORDER_NOT_FOUND` si no existe o no
+        esta CERRADA.
+      x-roles: [ADMIN]
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Detalle
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HistoryOrderDetail' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Orden inexistente o no cerrada (`ORDER_NOT_FOUND`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  # ───────────── Internal (solo red Docker, X-Service-Token) ─────────────
+  /internal/shifts/active/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    get:
+      tags: [Internal]
+      summary: Staff - turno activo de un empleado
+      description: Orders lo consulta antes de abrir una mesa (REQ-F02-05).
+      security:
+        - serviceToken: []
+      responses:
+        '200':
+          description: Resultado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [active]
+                properties:
+                  active: { type: boolean }
+                  shift:
+                    $ref: '#/components/schemas/Shift'
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /internal/products:
+    get:
+      tags: [Internal]
+      summary: Catalog - nombre, precio, disponibilidad y categoria de productos
+      description: |
+        Orders lo usa al crear una ronda (snapshot R3, REQ-F03-05) y el dashboard (GC-RPT-0004) para agrupar el
+        tiempo de preparacion por categoria. Hasta 100 ids por llamado; los ids que no existen no aparecen.
+      security:
+        - serviceToken: []
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          description: IDs de producto separados por coma
+          schema: { type: string }
+      responses:
+        '200':
+          description: Productos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [productId, name, price, isAvailable, categoryId, categoryName]
+                  properties:
+                    productId: { type: string, format: uuid }
+                    name: { type: string }
+                    price: { type: integer }
+                    isAvailable: { type: boolean }
+                    categoryId: { type: string, format: uuid }
+                    categoryName: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /internal/employees:
+    get:
+      tags: [Internal]
+      summary: Staff - nombre de los empleados
+      description: Orders lo consulta para mostrar en el panel quien atiende cada mesa. Un id sin perfil no aparece.
+      security:
+        - serviceToken: []
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          description: IDs de usuario separados por coma (maximo 100)
+          schema: { type: string }
+      responses:
+        '200':
+          description: Nombres
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [userId, fullName]
+                  properties:
+                    userId: { type: string, format: uuid }
+                    fullName: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /internal/tables/open:
+    get:
+      tags: [Internal]
+      summary: Orders - mesas abiertas de un mesero
+      description: Staff lo consulta al finalizar un turno (REQ-F02-04).
+      security:
+        - serviceToken: []
+      parameters:
+        - name: waiterId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Mesas abiertas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count: { type: integer }
+                  tables:
+                    type: array
+                    items: { $ref: '#/components/schemas/DiningTable' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token RS256 de 15 min, validado localmente por cada servicio. Se mantiene en memoria del frontend.
+    serviceToken:
+      type: apiKey
+      in: header
+      name: X-Service-Token
+      description: Autenticacion entre servicios en rutas /internal/*.
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    QrToken:
+      name: token
+      in: path
+      required: true
+      description: Token aleatorio de la mesa (el QR contiene /m/<qrToken>)
+      schema: { type: string }
+
+  responses:
+    Health:
+      description: Servicio operativo
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [service, status]
+            properties:
+              service: { type: string }
+              status: { type: string, example: ok }
+    ValidationError:
+      description: Datos invalidos (`VALIDATION_ERROR`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthenticated:
+      description: Sin sesion valida (`UNAUTHENTICATED`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Sin permiso para la accion (`FORBIDDEN`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Recurso no encontrado (`NOT_FOUND`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Conflicto con el estado actual, por ejemplo un valor unico duplicado o un llamado pendiente (codigo `CONFLICT`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InvalidTransition:
+      description: Transicion de estado no definida (`INVALID_TRANSITION`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    RateLimited:
+      description: Demasiadas solicitudes (`RATE_LIMITED`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    DependencyUnavailable:
+      description: Un servicio interno no respondio en 3 s (`DEPENDENCY_UNAVAILABLE`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, details]
+          properties:
+            code:
+              type: string
+              example: NOT_FOUND
+              description: |
+                NOT_FOUND, VALIDATION_ERROR, UNAUTHENTICATED, FORBIDDEN, CONFLICT, EMAIL_ALREADY_EXISTS, ACCOUNT_LOCKED, INVALID_TRANSITION,
+                NO_ACTIVE_SHIFT, TABLE_ALREADY_OPEN, TABLE_NOT_OPEN, HAS_OPEN_TABLES, DAY_CLOSED, NO_DELIVERED_ITEMS, INSUFFICIENT_AMOUNT, PAYMENT_METHOD_INACTIVE,
+                RATE_LIMITED, DEPENDENCY_UNAVAILABLE, INTERNAL_ERROR
+            message: { type: string, example: Recurso no encontrado }
+            details:
+              type: object
+              additionalProperties: true
+
+    # Auth
+    Role:
+      type: string
+      enum: [ADMIN, WAITER, COOK]
+    User:
+      type: object
+      required: [userId, email, role, isActive, createdAt]
+      properties:
+        userId: { type: string, format: uuid }
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/Role' }
+        isActive: { type: boolean }
+        lockedUntil: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateUserRequest:
+      type: object
+      required: [email, password, role]
+      properties:
+        email: { type: string, format: email, maxLength: 255 }
+        password: { type: string, minLength: 10, description: Contrasena temporal }
+        role: { $ref: '#/components/schemas/Role' }
+    UpdateUserRequest:
+      type: object
+      properties:
+        role: { $ref: '#/components/schemas/Role' }
+        isActive: { type: boolean }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    LoginResponse:
+      type: object
+      required: [accessToken, user]
+      properties:
+        accessToken: { type: string }
+        user: { $ref: '#/components/schemas/Session' }
+    Session:
+      type: object
+      required: [userId, role, permissions]
+      properties:
+        userId: { type: string, format: uuid }
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/Role' }
+        permissions:
+          type: array
+          items: { type: string, example: 'discount:apply' }
+
+    # Staff
+    Employee:
+      type: object
+      required: [userId, fullName, documentNumber, position, hireDate]
+      properties:
+        userId: { type: string, format: uuid }
+        fullName: { type: string, maxLength: 150 }
+        phone: { type: string, maxLength: 30, nullable: true }
+        documentNumber: { type: string, maxLength: 30 }
+        position: { type: string, maxLength: 50 }
+        hireDate: { type: string, format: date }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateEmployeeRequest:
+      type: object
+      required: [userId, fullName, documentNumber, position, hireDate]
+      properties:
+        userId: { type: string, format: uuid, description: userId generado por Auth }
+        fullName: { type: string, maxLength: 150 }
+        phone: { type: string, maxLength: 30 }
+        documentNumber: { type: string, maxLength: 30 }
+        position: { type: string, maxLength: 50 }
+        hireDate: { type: string, format: date }
+    UpdateEmployeeRequest:
+      type: object
+      properties:
+        fullName: { type: string, maxLength: 150 }
+        phone: { type: string, maxLength: 30 }
+        documentNumber: { type: string, maxLength: 30 }
+        position: { type: string, maxLength: 50 }
+        hireDate: { type: string, format: date }
+    Shift:
+      type: object
+      required: [shiftId, userId, scheduledStart, scheduledEnd, status]
+      properties:
+        shiftId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        scheduledStart: { type: string, format: date-time }
+        scheduledEnd: { type: string, format: date-time }
+        actualStart: { type: string, format: date-time, nullable: true }
+        actualEnd: { type: string, format: date-time, nullable: true }
+        status: { type: string, enum: [programado, activo, finalizado] }
+    CreateShiftRequest:
+      type: object
+      required: [userId, scheduledStart, scheduledEnd]
+      properties:
+        userId: { type: string, format: uuid }
+        scheduledStart: { type: string, format: date-time }
+        scheduledEnd:
+          type: string
+          format: date-time
+          description: Debe ser posterior a scheduledStart
+
+    # Catalog
+    Category:
+      type: object
+      required: [categoryId, name]
+      properties:
+        categoryId: { type: string, format: uuid }
+        name: { type: string, maxLength: 80 }
+        displayOrder: { type: integer, nullable: true }
+    CategoryInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 80 }
+        displayOrder: { type: integer }
+    Product:
+      type: object
+      required: [productId, categoryId, name, price, photoUrl, isAvailable]
+      properties:
+        productId: { type: string, format: uuid }
+        categoryId: { type: string, format: uuid }
+        name: { type: string, maxLength: 120 }
+        description: { type: string, nullable: true }
+        price: { type: integer, minimum: 0, description: 'COP entero (impuestos incluidos)' }
+        photoUrl: { type: string, maxLength: 255 }
+        isAvailable: { type: boolean }
+    ProductForm:
+      type: object
+      required: [name, price, categoryId, photo]
+      properties:
+        name: { type: string, maxLength: 120 }
+        description: { type: string }
+        price: { type: integer, minimum: 0 }
+        categoryId: { type: string, format: uuid }
+        isAvailable: { type: boolean }
+        photo:
+          type: string
+          format: binary
+          description: JPG, PNG o WebP, maximo 2 MB (obligatoria al crear)
+    MenuCategory:
+      type: object
+      required: [categoryId, name, products]
+      properties:
+        categoryId: { type: string, format: uuid }
+        name: { type: string }
+        products:
+          type: array
+          items:
+            type: object
+            required: [productId, name, price, photoUrl]
+            properties:
+              productId: { type: string, format: uuid }
+              name: { type: string }
+              description: { type: string, nullable: true }
+              price: { type: integer }
+              photoUrl: { type: string }
+
+    # Orders
+    TableInput:
+      type: object
+      required: [tableNumber]
+      properties:
+        tableNumber: { type: integer, minimum: 1 }
+    DiningTable:
+      type: object
+      required: [tableId, tableNumber, qrToken]
+      properties:
+        tableId: { type: string, format: uuid }
+        tableNumber: { type: integer }
+        qrToken: { type: string, description: Token aleatorio de al menos 128 bits }
+    TableState:
+      type: string
+      enum: [libre, ocupada, en_cobro]
+    TableStatus:
+      type: object
+      required: [tableId, tableNumber, status, pendingCalls]
+      properties:
+        tableId: { type: string, format: uuid }
+        tableNumber: { type: integer }
+        status: { $ref: '#/components/schemas/TableState' }
+        orderId: { type: string, format: uuid, nullable: true }
+        waiterId: { type: string, format: uuid, nullable: true }
+        waiterName:
+          type: string
+          nullable: true
+          description: Nombre de quien atiende, desde Staff. null si no tiene perfil o Staff no responde.
+        itemsCount:
+          type: integer
+          minimum: 0
+          description: Lineas de item no canceladas de la orden abierta. Solo viene si la mesa tiene orden.
+        pendingCalls:
+          type: array
+          items: { $ref: '#/components/schemas/ServiceCall' }
+    Order:
+      type: object
+      required: [orderId, tableId, openedBy, waiterId, status, openedAt, discountAmount]
+      properties:
+        orderId: { type: string, format: uuid }
+        tableId: { type: string, format: uuid }
+        openedBy: { type: string, format: uuid }
+        waiterId: { type: string, format: uuid }
+        status: { type: string, enum: [ABIERTA, EN_COBRO, CERRADA] }
+        openedAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time, nullable: true }
+        discountAmount: { type: integer, minimum: 0 }
+        discountAppliedBy: { type: string, format: uuid, nullable: true }
+        discountAppliedAt: { type: string, format: date-time, nullable: true }
+    RoundItemInput:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId: { type: string, format: uuid }
+        quantity: { type: integer, minimum: 1 }
+        note: { type: string, maxLength: 255 }
+    CreateRoundRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/RoundItemInput' }
+    ItemStatus:
+      type: string
+      enum: [pendiente, en_preparacion, listo, entregado, cancelado]
+    Item:
+      type: object
+      required: [itemId, roundId, productId, productName, unitPrice, quantity, status]
+      properties:
+        itemId: { type: string, format: uuid }
+        roundId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        productName: { type: string, description: Snapshot (R3) }
+        unitPrice: { type: integer, description: Snapshot en COP (R3) }
+        quantity: { type: integer }
+        note: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/ItemStatus' }
+        preparationStartedAt: { type: string, format: date-time, nullable: true }
+        readyAt: { type: string, format: date-time, nullable: true }
+        deliveredAt: { type: string, format: date-time, nullable: true }
+        cancelledReason: { type: string, nullable: true }
+        cancelledBy: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ItemStatusChangedEvent:
+      description: Payload del evento Socket.io `item:status_changed`.
+      allOf:
+        - $ref: '#/components/schemas/Item'
+        - type: object
+          required: [orderId, tableNumber]
+          properties:
+            orderId: { type: string, format: uuid }
+            tableNumber: { type: integer }
+    OrderUpdatedEvent:
+      description: |
+        Payload del evento Socket.io `order:updated`: cambio el descuento de una orden en cobro (GC-ORD-0007) o la
+        orden se pago y quedo `CERRADA` (GC-ORD-0008). Solo avisa; con la orden en cobro la cuenta se vuelve a pedir
+        con `GET /api/orders/{orderId}/bill`.
+      type: object
+      required: [orderId, tableNumber, status, discountAmount]
+      properties:
+        orderId: { type: string, format: uuid }
+        tableNumber: { type: integer }
+        status: { type: string, enum: [ABIERTA, EN_COBRO, CERRADA] }
+        discountAmount: { type: integer, minimum: 0 }
+    Round:
+      type: object
+      required: [roundId, orderId, source, createdAt, items]
+      properties:
+        roundId: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        source: { type: string, enum: [WAITER, QR] }
+        qrRequestId: { type: string, format: uuid, nullable: true }
+        createdBy: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Item' }
+    OrderDetail:
+      type: object
+      required: [orderId, tableId, tableNumber, waiterId, status, openedAt, discountAmount, rounds]
+      properties:
+        orderId: { type: string, format: uuid }
+        tableId: { type: string, format: uuid }
+        tableNumber: { type: integer }
+        waiterId: { type: string, format: uuid }
+        status: { type: string, enum: [ABIERTA, EN_COBRO, CERRADA] }
+        openedAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time, nullable: true }
+        discountAmount: { type: integer, minimum: 0 }
+        rounds:
+          type: array
+          items: { $ref: '#/components/schemas/Round' }
+    CreateRoundResponse:
+      type: object
+      required: [round]
+      properties:
+        round: { $ref: '#/components/schemas/Round' }
+        unavailable:
+          type: array
+          description: Productos no incluidos por no estar disponibles
+          items:
+            type: object
+            properties:
+              productId: { type: string, format: uuid }
+              name: { type: string }
+    KitchenRound:
+      type: object
+      required: [roundId, orderId, tableNumber, source, createdAt, items]
+      properties:
+        roundId: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        tableNumber: { type: integer }
+        source: { type: string, enum: [WAITER, QR] }
+        createdAt: { type: string, format: date-time }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Item' }
+    BillItem:
+      description: Item de la cuenta con su total de linea calculado en el backend (R4).
+      allOf:
+        - $ref: '#/components/schemas/Item'
+        - type: object
+          required: [lineTotal]
+          properties:
+            lineTotal: { type: integer, description: unitPrice x quantity (snapshot R3, COP entero) }
+    Bill:
+      type: object
+      required: [orderId, tableNumber, status, items, subtotal, discountAmount, total]
+      properties:
+        orderId: { type: string, format: uuid }
+        tableNumber: { type: integer }
+        status: { type: string, enum: [ABIERTA, EN_COBRO], description: Estado actual de la orden (ABIERTA si aun no se solicito el cobro) }
+        items:
+          type: array
+          description: Solo items no cancelados, en el orden de las rondas
+          items: { $ref: '#/components/schemas/BillItem' }
+        subtotal: { type: integer, description: suma de lineTotal }
+        discountAmount: { type: integer, description: 0 si no hay descuento }
+        total: { type: integer, minimum: 0, description: subtotal - discountAmount }
+    PaymentMethodInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 50 }
+        isCash: { type: boolean, default: false }
+        isActive: { type: boolean, default: true }
+    PaymentMethod:
+      type: object
+      required: [paymentMethodId, name, isCash, isActive]
+      properties:
+        paymentMethodId: { type: string, format: uuid }
+        name: { type: string }
+        isCash: { type: boolean }
+        isActive: { type: boolean }
+    Payment:
+      type: object
+      required: [paymentId, orderId, paymentMethodId, subtotal, discountAmount, total, paidAt]
+      properties:
+        paymentId: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        paymentMethodId: { type: string, format: uuid }
+        subtotal: { type: integer }
+        discountAmount: { type: integer }
+        total: { type: integer }
+        amountReceived: { type: integer, nullable: true }
+        changeGiven: { type: integer, nullable: true }
+        registeredBy: { type: string, format: uuid }
+        paidAt: { type: string, format: date-time }
+    ServiceCall:
+      type: object
+      required: [serviceCallId, tableId, type, status, createdAt]
+      properties:
+        serviceCallId: { type: string, format: uuid }
+        tableId: { type: string, format: uuid }
+        type: { type: string, enum: [call_waiter, request_bill] }
+        status: { type: string, enum: [pendiente, atendido] }
+        createdAt: { type: string, format: date-time }
+        attendedAt: { type: string, format: date-time, nullable: true }
+        attendedBy: { type: string, format: uuid, nullable: true }
+    PublicServiceCall:
+      description: |
+        Respuesta del endpoint publico `POST /api/orders/qr/{token}/call`. Es un `ServiceCall` sin `tableId`
+        (id interno que el cliente no necesita) ni `attendedAt`/`attendedBy`, que en un llamado recien creado
+        siempre son null. `ServiceCall` no cambia: lo siguen usando el evento `waiter:called` y `pendingCalls`.
+      type: object
+      required: [serviceCallId, type, status, createdAt]
+      properties:
+        serviceCallId: { type: string, format: uuid }
+        type: { type: string, enum: [call_waiter, request_bill] }
+        status: { type: string, enum: [pendiente, atendido] }
+        createdAt: { type: string, format: date-time }
+    WaiterCalledEvent:
+      description: Payload del evento Socket.io `waiter:called`.
+      allOf:
+        - $ref: '#/components/schemas/ServiceCall'
+        - type: object
+          required: [tableNumber]
+          properties:
+            tableNumber: { type: integer }
+    BillRequestedEvent:
+      description: |
+        Payload del evento Socket.io `bill:requested` (GC-QR-0004): el cliente de una mesa ocupada pide la cuenta.
+        Misma forma que `WaiterCalledEvent` (el `ServiceCall` con `type` `request_bill`, mas el numero de mesa), para
+        que la pantalla del mesero reutilice el mismo manejador.
+      allOf:
+        - $ref: '#/components/schemas/ServiceCall'
+        - type: object
+          required: [tableNumber]
+          properties:
+            tableNumber: { type: integer }
+    QrTable:
+      type: object
+      required: [tableNumber, status, capabilities]
+      properties:
+        tableNumber: { type: integer }
+        status: { $ref: '#/components/schemas/TableState' }
+        capabilities:
+          type: object
+          required: [viewMenu, callWaiter, sendRequest, requestBill]
+          properties:
+            viewMenu: { type: boolean }
+            callWaiter: { type: boolean }
+            sendRequest: { type: boolean }
+            requestBill: { type: boolean }
+    QrRequestItemInput:
+      description: Item de una solicitud QR. Igual que `RoundItemInput`, con un tope de unidades por linea.
+      allOf:
+        - $ref: '#/components/schemas/RoundItemInput'
+        - type: object
+          properties:
+            quantity: { type: integer, minimum: 1, maximum: 99 }
+    QrRequestInput:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { $ref: '#/components/schemas/QrRequestItemInput' }
+    QrRequest:
+      type: object
+      required: [qrRequestId, orderId, status, createdAt]
+      properties:
+        qrRequestId: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        status: { type: string, enum: [pendiente, confirmada, rechazada] }
+        createdAt: { type: string, format: date-time }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+        resolvedBy: { type: string, format: uuid, nullable: true }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/RoundItemInput' }
+    QrRequestWithTable:
+      description: Solicitud QR con el numero de mesa. Lo devuelve `GET /api/orders/qr-requests` y es el payload del evento.
+      allOf:
+        - $ref: '#/components/schemas/QrRequest'
+        - type: object
+          required: [tableNumber]
+          properties:
+            tableNumber: { type: integer }
+    QrRequestCreatedEvent:
+      description: Payload del evento Socket.io `qr_request:created` (igual a un elemento de `GET /api/orders/qr-requests`).
+      allOf:
+        - $ref: '#/components/schemas/QrRequestWithTable'
+    CashClosePreview:
+      type: object
+      required:
+        [
+          date,
+          totalSales,
+          tablesServed,
+          averageTicket,
+          paymentBreakdown,
+          topProducts,
+          waiterBreakdown,
+        ]
+      properties:
+        date: { type: string, format: date }
+        totalSales: { type: integer }
+        tablesServed: { type: integer }
+        averageTicket: { type: integer }
+        paymentBreakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              paymentMethodId: { type: string, format: uuid }
+              totalAmount: { type: integer }
+              paymentCount: { type: integer }
+        topProducts:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            properties:
+              rank: { type: integer, minimum: 1, maximum: 5 }
+              productId: { type: string, format: uuid }
+              productName: { type: string }
+              quantitySold: { type: integer }
+        waiterBreakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              waiterId: { type: string, format: uuid }
+              totalAmount: { type: integer }
+    HistoryOrder:
+      type: object
+      required: [orderId, reference, tableId, tableNumber, waiterId, openedAt, closedAt, itemsCount, subtotal, discountAmount, total, paymentMethodId]
+      properties:
+        orderId: { type: string, format: uuid }
+        reference:
+          type: string
+          description: Primeros 6 caracteres del `orderId` en mayusculas, para mostrar. No se garantiza unico; el identificador real es `orderId`.
+          example: 3F9A1C
+        tableId: { type: string, format: uuid }
+        tableNumber:
+          type: integer
+          minimum: 1
+          description: Numero ACTUAL de la mesa (dining_tables.table_number), leido al consultar; no es un snapshot. Si la mesa se renumero despues de la venta, se muestra el numero nuevo.
+          example: 7
+        waiterId: { type: string, format: uuid, description: 'Quien abrio la mesa (orders.opened_by)' }
+        openedAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time }
+        itemsCount: { type: integer, minimum: 0, description: 'Unidades no canceladas' }
+        subtotal: { type: integer, minimum: 0 }
+        discountAmount: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 0, description: 'Cobrado (payments.total) = subtotal - discountAmount' }
+        paymentMethodId: { type: string, format: uuid }
+    HistorySummary:
+      type: object
+      required: [totalSales, ordersCount, averageTicket]
+      properties:
+        totalSales: { type: integer, minimum: 0 }
+        ordersCount: { type: integer, minimum: 0 }
+        averageTicket: { type: integer, minimum: 0, description: 'Redondeado al entero mas cercano; 0 sin ordenes' }
+    HistoryPage:
+      type: object
+      required: [items, page, pageSize, total, summary]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/HistoryOrder' }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1 }
+        total: { type: integer, minimum: 0, description: 'Cuentas que cumplen el filtro (todas las paginas)' }
+        summary: { $ref: '#/components/schemas/HistorySummary' }
+    HistoryOrderLine:
+      type: object
+      required: [productId, productName, quantity, unitPrice, lineTotal]
+      properties:
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        quantity: { type: integer, minimum: 1 }
+        unitPrice: { type: integer, minimum: 0 }
+        lineTotal: { type: integer, minimum: 0 }
+        notes: { type: string, nullable: true }
+    HistoryOrderDetail:
+      allOf:
+        - $ref: '#/components/schemas/HistoryOrder'
+        - type: object
+          required: [lines, cashReceived, changeGiven]
+          properties:
+            lines:
+              type: array
+              items: { $ref: '#/components/schemas/HistoryOrderLine' }
+            cashReceived: { type: integer, minimum: 0, nullable: true, description: 'Solo pagos en efectivo' }
+            changeGiven: { type: integer, minimum: 0, nullable: true, description: 'Solo pagos en efectivo' }
+    DashboardPeriod:
+      type: object
+      required: [from, to]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+    DashboardKpi:
+      type: object
+      required: [value, previous, changePercent]
+      properties:
+        value: { type: number, nullable: true, description: 'Solo preparationMinutes puede ser null (sin items medidos)' }
+        previous: { type: number, nullable: true, description: 'Solo preparationMinutes puede ser null (sin items medidos)' }
+        changePercent: { type: number, nullable: true, description: 'null si previous es 0 o null, o si value es null' }
+    DashboardKpis:
+      type: object
+      required: [sales, orders, averageTicket, preparationMinutes]
+      description: 'Los cuatro KPI siempre estan presentes como objeto; sales, orders y averageTicket son enteros.'
+      properties:
+        sales: { $ref: '#/components/schemas/DashboardKpi' }
+        orders: { $ref: '#/components/schemas/DashboardKpi' }
+        averageTicket: { $ref: '#/components/schemas/DashboardKpi' }
+        preparationMinutes: { $ref: '#/components/schemas/DashboardKpi' }
+    DashboardSalesByDay:
+      type: object
+      required: [date, totalSales, orders]
+      properties:
+        date: { type: string, format: date }
+        totalSales: { type: integer, minimum: 0 }
+        orders: { type: integer, minimum: 0 }
+    DashboardSalesByHour:
+      type: object
+      required: [hour, totalSales, orders]
+      properties:
+        hour: { type: integer, minimum: 0, maximum: 23 }
+        totalSales: { type: integer, minimum: 0 }
+        orders: { type: integer, minimum: 0 }
+    DashboardTopProduct:
+      type: object
+      required: [rank, productId, productName, quantitySold, revenue]
+      properties:
+        rank: { type: integer, minimum: 1, maximum: 5 }
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        quantitySold: { type: integer, minimum: 1 }
+        revenue: { type: integer, minimum: 0, description: 'Precio snapshot x cantidad, antes del descuento de la cuenta' }
+    DashboardPreparation:
+      type: object
+      required: [averageMinutes, itemsMeasured, byCategory]
+      properties:
+        averageMinutes: { type: number, nullable: true }
+        itemsMeasured: { type: integer, minimum: 0 }
+        byCategory:
+          type: array
+          nullable: true
+          description: |
+            Promedio por categoria ACTUAL del producto segun Catalog (los items no guardan la categoria), de mayor a
+            menor tiempo. `null` si Catalog no respondio (el promedio global sigue valiendo); `[]` si no hay items.
+            Un producto que ya no existe en Catalog cuenta en el promedio global y no en este desglose.
+          items:
+            type: object
+            required: [categoryId, categoryName, averageMinutes, itemsMeasured]
+            properties:
+              categoryId: { type: string, format: uuid }
+              categoryName: { type: string }
+              averageMinutes: { type: number }
+              itemsMeasured: { type: integer, minimum: 1 }
+    Dashboard:
+      type: object
+      required: [period, previousPeriod, kpis, salesByDay, salesByHour, topProducts, preparation, waiterBreakdown, paymentBreakdown]
+      properties:
+        period: { $ref: '#/components/schemas/DashboardPeriod' }
+        previousPeriod: { $ref: '#/components/schemas/DashboardPeriod' }
+        kpis: { $ref: '#/components/schemas/DashboardKpis' }
+        salesByDay:
+          type: array
+          items: { $ref: '#/components/schemas/DashboardSalesByDay' }
+        salesByHour:
+          type: array
+          items: { $ref: '#/components/schemas/DashboardSalesByHour' }
+        topProducts:
+          type: array
+          maxItems: 5
+          items: { $ref: '#/components/schemas/DashboardTopProduct' }
+        preparation: { $ref: '#/components/schemas/DashboardPreparation' }
+        waiterBreakdown:
+          type: array
+          items:
+            type: object
+            required: [waiterId, totalAmount, ordersCount]
+            properties:
+              waiterId: { type: string, format: uuid }
+              totalAmount: { type: integer, minimum: 0 }
+              ordersCount: { type: integer, minimum: 0 }
+        paymentBreakdown:
+          type: array
+          items:
+            type: object
+            required: [paymentMethodId, totalAmount, paymentCount]
+            properties:
+              paymentMethodId: { type: string, format: uuid }
+              totalAmount: { type: integer, minimum: 0 }
+              paymentCount: { type: integer, minimum: 0 }
+    CashClosureSummary:
+      type: object
+      required: [closureId, date, totalSales, tablesServed, averageTicket, confirmedBy, confirmedAt]
+      properties:
+        closureId: { type: string, format: uuid }
+        date: { type: string, format: date, description: 'Dia de negocio que se cerro' }
+        totalSales: { type: integer, minimum: 0 }
+        tablesServed: { type: integer, minimum: 0 }
+        averageTicket: { type: integer, minimum: 0 }
+        confirmedBy: { type: string, format: uuid }
+        confirmedAt: { type: string, format: date-time }
+    CashClosuresPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CashClosureSummary' }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1 }
+        total: { type: integer, minimum: 0, description: 'Cierres confirmados en total (todas las paginas)' }
+    CashClose:
+      allOf:
+        - $ref: '#/components/schemas/CashClosePreview'
+        - type: object
+          required: [closureId, confirmedBy, confirmedAt]
+          properties:
+            closureId: { type: string, format: uuid }
+            confirmedBy: { type: string, format: uuid }
+            confirmedAt: { type: string, format: date-time }
