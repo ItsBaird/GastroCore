@@ -1,0 +1,150 @@
+# Blueprint de Render: los 4 microservicios (Docker, plan gratuito). El frontend va en Vercel (frontend/vercel.json)
+# y la base PostgreSQL se crea aparte en el panel, en la MISMA region (ver docs/despliegue.md).
+#
+# Nada secreto vive en este archivo:
+#   - DATABASE_URL (lleva la contrasena del usuario de cada base) se marca con sync: false: Render la pide en el panel
+#     al crear el Blueprint. OJO: solo la pide esa primera vez; si despues se agrega otra, se carga a mano.
+#   - SERVICE_TOKEN lo genera Render (valor aleatorio de 256 bits) y lo comparten los 4 por el grupo.
+#   - Las claves JWT son Secret Files que se suben en el panel (render.yaml no puede declararlos). Render los monta
+#     en /etc/secrets/<nombre>:
+#       * jwt_public.pem  -> en el grupo gastrocore-compartido (lo leen los 4 para verificar tokens)
+#       * jwt_private.pem -> SOLO en el servicio gastrocore-auth (es el unico que firma)
+#
+# Los nombres de los servicios fijan sus URL publicas (https://<nombre>.onrender.com), que tambien estan escritas en
+# frontend/vercel.json y en las URL entre servicios de abajo. Si Render asigna otra (p. ej. con sufijo), cambiarlas
+# en los dos archivos. Un servicio gratis no recibe trafico de la red privada: entre servicios se llama por la URL
+# publica con X-Service-Token.
+
+envVarGroups:
+  - name: gastrocore-compartido
+    envVars:
+      # Autenticacion entre servicios en /internal/* (cabecera X-Service-Token). Render genera el valor.
+      - key: SERVICE_TOKEN
+        generateValue: true
+      # Dominio del frontend en Vercel (el socket de Orders va directo desde el navegador y necesita CORS)
+      - key: CORS_ORIGIN
+        value: https://gastrocore.vercel.app
+      # Proxies en los que se confia para leer la IP real (limites por IP): Vercel (reenvio de /api) + Render.
+      # Se confirma en la verificacion del despliegue.
+      - key: TRUST_PROXY
+        value: '2'
+      # Un servicio dormido tarda ~50 s en despertar: 60 s en vez de los 3 s del contrato
+      - key: INTERNAL_TIMEOUT_MS
+        value: '60000'
+      - key: JWT_PUBLIC_KEY_PATH
+        value: /etc/secrets/jwt_public.pem
+
+services:
+  - type: web
+    name: gastrocore-auth
+    runtime: docker
+    plan: free
+    region: virginia
+    branch: main
+    dockerfilePath: ./backend/auth/Dockerfile
+    dockerContext: ./backend/auth
+    buildFilter:
+      paths:
+        - backend/auth/**
+    autoDeployTrigger: commit
+    healthCheckPath: /api/auth/health
+    envVars:
+      - fromGroup: gastrocore-compartido
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: '3001'
+      - key: SERVICE_NAME
+        value: auth
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_PRIVATE_KEY_PATH
+        value: /etc/secrets/jwt_private.pem
+      - key: LOGIN_RATE_LIMIT
+        value: '5'
+
+  - type: web
+    name: gastrocore-staff
+    runtime: docker
+    plan: free
+    region: virginia
+    branch: main
+    dockerfilePath: ./backend/staff/Dockerfile
+    dockerContext: ./backend/staff
+    buildFilter:
+      paths:
+        - backend/staff/**
+    autoDeployTrigger: commit
+    healthCheckPath: /api/staff/health
+    envVars:
+      - fromGroup: gastrocore-compartido
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: '3002'
+      - key: SERVICE_NAME
+        value: staff
+      - key: DATABASE_URL
+        sync: false
+      - key: AUTH_URL
+        value: https://gastrocore-auth.onrender.com
+      - key: ORDERS_URL
+        value: https://gastrocore-orders.onrender.com
+
+  - type: web
+    name: gastrocore-catalog
+    runtime: docker
+    plan: free
+    region: virginia
+    branch: main
+    dockerfilePath: ./backend/catalog/Dockerfile
+    dockerContext: ./backend/catalog
+    buildFilter:
+      paths:
+        - backend/catalog/**
+    autoDeployTrigger: commit
+    healthCheckPath: /api/catalog/health
+    envVars:
+      - fromGroup: gastrocore-compartido
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: '3003'
+      - key: SERVICE_NAME
+        value: catalog
+      - key: DATABASE_URL
+        sync: false
+      - key: PUBLIC_RATE_LIMIT
+        value: '30'
+
+  - type: web
+    name: gastrocore-orders
+    runtime: docker
+    plan: free
+    region: virginia
+    branch: main
+    dockerfilePath: ./backend/orders/Dockerfile
+    dockerContext: ./backend/orders
+    buildFilter:
+      paths:
+        - backend/orders/**
+    autoDeployTrigger: commit
+    healthCheckPath: /api/orders/health
+    envVars:
+      - fromGroup: gastrocore-compartido
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: '3004'
+      - key: SERVICE_NAME
+        value: orders
+      - key: DATABASE_URL
+        sync: false
+      - key: PUBLIC_RATE_LIMIT
+        value: '30'
+      - key: CATALOG_SERVICE_URL
+        value: https://gastrocore-catalog.onrender.com
+      - key: STAFF_SERVICE_URL
+        value: https://gastrocore-staff.onrender.com
+      - key: CATALOG_CLIENT_MOCK
+        value: 'false'
