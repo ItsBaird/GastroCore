@@ -36,7 +36,15 @@ router.get('/health', (req, res) => {
 // y se tragaria cualquier ruta montada despues.
 router.use('/tables', tableRouter);
 router.use('/payment-methods', paymentMethodRouter);
-router.use('/qr', qrRouter);
+// Canal QR publico (sin login): limite por IP propio, como la zona public_qr de nginx
+router.use(
+  '/qr',
+  createRateLimiter({
+    limit: env.publicRateLimit,
+    message: 'Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.',
+  }),
+  qrRouter,
+);
 router.use('/qr-requests', qrRequestRouter);
 router.use('/service-calls', serviceCallRouter);
 router.use('/items', itemRouter);

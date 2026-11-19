@@ -21,6 +21,9 @@ Object.assign(process.env, {
   CORS_ORIGIN: 'http://localhost',
   DATABASE_URL: 'postgresql://test:test@localhost:5432/orders_test',
   JWT_PUBLIC_KEY_PATH: publicPath,
+  // Las pruebas llaman muchas veces al canal QR desde la misma IP: el limite real se prueba aparte
+  // (qr.rateLimit.http.test.js)
+  PUBLIC_RATE_LIMIT: '10000',
 });
 process.on('exit', () => fs.rmSync(dir, { recursive: true, force: true }));
 

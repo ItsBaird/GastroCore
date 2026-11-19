@@ -36,6 +36,7 @@ services:
       SERVICE_NAME: auth
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       TRUST_PROXY: ${TRUST_PROXY:-1}
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-5}
       DATABASE_URL: postgresql://auth_user:${AUTH_DB_PASSWORD}@postgres:5432/auth_db
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
@@ -71,6 +72,7 @@ services:
       SERVICE_NAME: catalog
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       TRUST_PROXY: ${TRUST_PROXY:-1}
+      PUBLIC_RATE_LIMIT: ${PUBLIC_RATE_LIMIT:-30}
       DATABASE_URL: postgresql://catalog_user:${CATALOG_DB_PASSWORD}@postgres:5432/catalog_db
       UPLOADS_DIR: /app/uploads
       SERVICE_TOKEN: ${SERVICE_TOKEN:-}
@@ -87,6 +89,7 @@ services:
       SERVICE_NAME: orders
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       TRUST_PROXY: ${TRUST_PROXY:-1}
+      PUBLIC_RATE_LIMIT: ${PUBLIC_RATE_LIMIT:-30}
       INTERNAL_TIMEOUT_MS: ${INTERNAL_TIMEOUT_MS:-3000}
       DATABASE_URL: postgresql://orders_user:${ORDERS_DB_PASSWORD}@postgres:5432/orders_db
       SERVICE_TOKEN: ${SERVICE_TOKEN:-}

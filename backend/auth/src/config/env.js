@@ -26,6 +26,9 @@ const schema = z.object({
     .default(15 * 60),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(7),
   LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  // Intentos de inicio de sesion por IP y por minuto (antes lo limitaba nginx). En una demostracion con muchas
+  // personas en la misma red (misma IP publica) se puede subir.
+  LOGIN_RATE_LIMIT: z.coerce.number().int().min(1).max(1000).default(5),
   LOGIN_LOCK_MINUTES: z.coerce.number().int().positive().default(15),
 });
 
@@ -47,5 +50,6 @@ export const env = {
   accessTokenTtlSeconds: parsed.data.ACCESS_TOKEN_TTL_SECONDS,
   refreshTokenTtlDays: parsed.data.REFRESH_TOKEN_TTL_DAYS,
   loginMaxAttempts: parsed.data.LOGIN_MAX_ATTEMPTS,
+  loginRateLimit: parsed.data.LOGIN_RATE_LIMIT,
   loginLockMinutes: parsed.data.LOGIN_LOCK_MINUTES,
 };
