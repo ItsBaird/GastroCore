@@ -8,6 +8,7 @@ node_modules/
 **/.env
 **/.env.*
 !**/.env.example
+!.env.render.example
 
 # Claves y certificados privados
 *.pem
@@ -16,6 +17,9 @@ node_modules/
 *.pfx
 keys/
 **/keys/
+
+# Respaldos de la base de Render (datos reales: scripts/render-db-backup.sh)
+backups/
 
 # Archivos generados
 dist/
