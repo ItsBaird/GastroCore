@@ -16,6 +16,8 @@ const uploadsDir = path.join(dir, 'uploads');
 fs.writeFileSync(publicPath, publicKey);
 
 Object.assign(process.env, {
+  // El limite real del menu publico se prueba aparte (publicRateLimit.http.test.js)
+  PUBLIC_RATE_LIMIT: '10000',
   NODE_ENV: 'test',
   PORT: '3003',
   SERVICE_NAME: 'catalog',

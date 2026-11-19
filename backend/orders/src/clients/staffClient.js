@@ -1,8 +1,9 @@
+import { INTERNAL_TIMEOUT_MS } from '../config/internalTimeout.js';
 import { AppError } from '../errors/AppError.js';
 
 const STAFF_URL = process.env.STAFF_SERVICE_URL || 'http://staff:3002';
 const SERVICE_TOKEN = process.env.SERVICE_TOKEN || '';
-const TIMEOUT_MS = 3000;
+const TIMEOUT_MS = INTERNAL_TIMEOUT_MS;
 
 function fetchInternal(path) {
   return fetch(`${STAFF_URL}${path}`, {

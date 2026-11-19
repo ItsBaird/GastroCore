@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { env } from '../config/env.js';
 import { create as createCategory, list, update } from '../controllers/category.controller.js';
 import { servePhoto } from '../controllers/photo.controller.js';
 import {
@@ -9,6 +10,7 @@ import {
   update as updateProduct,
 } from '../controllers/product.controller.js';
 import { authenticate, requireRole } from '../middlewares/authenticate.js';
+import { createRateLimiter } from '../middlewares/rateLimiter.js';
 import { uploadPhoto } from '../middlewares/uploadPhoto.js';
 import { validate } from '../middlewares/validate.js';
 import { categoryIdParamsSchema, categoryInputSchema } from '../schemas/category.schema.js';
@@ -25,7 +27,14 @@ export const catalogRouter = Router();
 // hay listado (/photos/ sin nombre es 404).
 catalogRouter.get('/photos/:filename', servePhoto);
 
-// Menu para clientes (QR): sin login. El gateway limita las peticiones por IP
+// Menu para clientes (QR): sin login. Limite por IP propio para todo /public, como la zona public_qr de nginx
+catalogRouter.use(
+  '/public',
+  createRateLimiter({
+    limit: env.publicRateLimit,
+    message: 'Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.',
+  }),
+);
 catalogRouter.get('/public/menu', publicMenu);
 
 // Cualquier usuario autenticado puede consultar categorias; solo el ADMIN las modifica

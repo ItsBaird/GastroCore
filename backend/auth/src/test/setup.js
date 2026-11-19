@@ -18,6 +18,8 @@ fs.writeFileSync(privatePath, privateKey);
 
 Object.assign(process.env, {
   NODE_ENV: 'test',
+  // Las pruebas hacen muchos logins desde la misma IP: el limite real se prueba aparte (loginRateLimit.http.test.js)
+  LOGIN_RATE_LIMIT: '1000',
   PORT: '3001',
   SERVICE_NAME: 'auth',
   CORS_ORIGIN: 'http://localhost',

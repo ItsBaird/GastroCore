@@ -1,7 +1,8 @@
 import { env } from '../config/env.js';
 import { AppError } from '../errors/AppError.js';
 
-const TIMEOUT_MS = 3000; // llamadas entre servicios: 3 s (contrato)
+// Llamadas entre servicios: 3 s (contrato) salvo que INTERNAL_TIMEOUT_MS diga otra cosa (Render gratis)
+const TIMEOUT_MS = env.internalTimeoutMs;
 
 const unavailable = () =>
   new AppError({
