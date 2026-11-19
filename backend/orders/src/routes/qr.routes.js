@@ -10,8 +10,8 @@ import { qrRequestBodySchema } from '../schemas/qrRequest.schema.js';
 
 export const qrRouter = Router();
 
-// Canal QR publico: SIN authenticate (el cliente no inicia sesion). El gateway limita las peticiones por IP
-// (zona public_qr) y responde 429. El token del QR es la unica credencial; ver RNF de seguridad del canal QR.
+// Canal QR publico: SIN authenticate (el cliente no inicia sesion). app.js limita las peticiones por IP
+// (PUBLIC_RATE_LIMIT por minuto) y responde 429. El token del QR es la unica credencial; ver RNF de seguridad del canal QR.
 qrRouter.post('/:token/call', callWaiterController);
 
 // GC-QR-0001. Publico y de solo lectura: estado de la mesa y que puede hacer el cliente (QrTable).

@@ -7,6 +7,19 @@ const schema = z.object({
   CORS_ORIGIN: z.string().min(1).default('http://localhost'),
   DATABASE_URL: z.string().min(1),
   JWT_PUBLIC_KEY_PATH: z.string().min(1).default('/run/keys/public/jwt_public.pem'),
+  // Proxies delante del servicio en los que se confia para leer la IP real del cliente (X-Forwarded-For). En
+  // local hay uno (nginx); en produccion, Vercel y Render. Un numero de saltos o una lista de IP/subredes.
+  // 'true' (confiar en cualquiera) se rechaza: dejaria falsificar la IP y saltarse los limites por IP.
+  // Peticiones por IP y por minuto a las rutas publicas del canal QR (antes lo limitaba nginx)
+  PUBLIC_RATE_LIMIT: z.coerce.number().int().min(1).max(10000).default(30),
+  TRUST_PROXY: z
+    .string()
+    .trim()
+    .default('1')
+    .refine((v) => v !== '' && v !== 'true', {
+      message: "debe ser un numero de proxies o una lista de IP/subredes (no 'true')",
+    })
+    .transform((v) => (/^\d+$/.test(v) ? Number(v) : v === 'false' ? false : v)),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -22,4 +35,6 @@ export const env = {
   corsOrigin: parsed.data.CORS_ORIGIN,
   databaseUrl: parsed.data.DATABASE_URL,
   jwtPublicKeyPath: parsed.data.JWT_PUBLIC_KEY_PATH,
+  trustProxy: parsed.data.TRUST_PROXY,
+  publicRateLimit: parsed.data.PUBLIC_RATE_LIMIT,
 };

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { io } from 'socket.io-client'
 import { getAccessToken, refreshSession } from '../auth/session.js'
+import { connectSocket } from '../realtime/connectSocket.js'
 
 // La pantalla de cocina pasa horas abierta, asi que aqui, a diferencia de useRealtimeEvent, importa
 // lo que ocurre al perder la conexion: avisa el estado y pide recargar al volver, porque los eventos
@@ -17,7 +17,7 @@ export function useKitchenSocket({ onRoundCreated, onItemChanged, onReconnected 
   useEffect(() => {
     if (!getAccessToken()) return undefined
 
-    const socket = io({
+    const socket = connectSocket({
       auth: (send) => send({ token: getAccessToken() }),
       transports: ['websocket'],
     })

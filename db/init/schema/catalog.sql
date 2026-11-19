@@ -41,3 +41,19 @@ CREATE TABLE products (
 CREATE TRIGGER trg_products_updated_at
   BEFORE UPDATE ON products
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+
+-- ──────────────── product_photos ────────────────
+-- Fotos de productos guardadas en la base y no en disco: el plan gratuito de Render no tiene disco persistente
+-- (la carpeta de fotos se vaciaria cada vez que el servicio se apaga o se redespliega). Asi viajan tambien en el
+-- pg_dump. products.photo_url sigue guardando la URL publica /api/catalog/photos/<filename>.
+-- image/svg+xml solo lo usan las fotos de relleno del seed demo: la subida normal acepta JPG, PNG y WebP.
+CREATE TABLE product_photos (
+  filename    VARCHAR(80)   PRIMARY KEY,         -- Lo genera el servidor: <uuid>.<ext> (o seed-<slug>.svg)
+  mime_type   VARCHAR(30)   NOT NULL,
+  content     BYTEA         NOT NULL,
+  created_at  TIMESTAMPTZ   NOT NULL DEFAULT now(),
+
+  CONSTRAINT chk_product_photos_mime CHECK (mime_type IN ('image/jpeg', 'image/png', 'image/webp', 'image/svg+xml')),
+  CONSTRAINT chk_product_photos_size CHECK (octet_length(content) BETWEEN 1 AND 2097152)  -- 2 MB, como la subida
+);

@@ -1,11 +1,9 @@
 // Categorias y productos de demostracion. Uso: docker compose exec catalog npm run seed:demo
 // Idempotente. Si ya existe una categoria o un producto con ese nombre se respeta (y se avisa si el producto tiene
 // otro id, porque entonces sus ordenes de ejemplo en Orders no coincidiran con el del catalogo).
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { env } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
-import { PHOTOS_URL_PREFIX } from '../services/photo.service.js';
+import { photoRepository } from '../repositories/photo.repository.js';
+import { MIME_BY_EXT, PHOTOS_URL_PREFIX } from '../services/photo.service.js';
 import { CATEGORIES, PRODUCTS, photoFileName, placeholderSvg } from './demo/data.js';
 import { assertDemoSeedAllowed, seedUuid } from './demo/ids.js';
 
@@ -34,18 +32,13 @@ async function seedCategories() {
   return ids;
 }
 
-// La foto es obligatoria en la base: se deja un SVG de relleno en el volumen de fotos (sin pisar uno existente)
+// La foto es obligatoria en la base: se guarda un SVG de relleno en product_photos (sin pisar uno existente)
 async function writePlaceholder(product, tint) {
-  await fs.mkdir(env.uploadsDir, { recursive: true });
-  try {
-    await fs.writeFile(
-      path.join(env.uploadsDir, photoFileName(product.slug)),
-      placeholderSvg({ name: product.name, tint }),
-      { flag: 'wx' },
-    );
-  } catch (err) {
-    if (err.code !== 'EEXIST') throw err;
-  }
+  await photoRepository.createIfMissing({
+    filename: photoFileName(product.slug),
+    mimeType: MIME_BY_EXT.svg,
+    content: Buffer.from(placeholderSvg({ name: product.name, tint }), 'utf8'),
+  });
 }
 
 async function seedProducts(categoryIds) {

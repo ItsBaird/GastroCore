@@ -7,11 +7,13 @@ import { getPublicKey } from './config/keys.js';
 import { prisma } from './config/prisma.js';
 import { setIo } from './realtime/events.js';
 import { joinRooms } from './realtime/rooms.js';
+import { socketOptions } from './realtime/socketOptions.js';
 
 const ROLES = ['ADMIN', 'WAITER', 'COOK'];
 
 const server = http.createServer(app);
-const io = new Server(server);
+// CORS para el socket directo desde Vercel (ver socketOptions.js)
+const io = new Server(server, socketOptions(env));
 
 setIo(io);
 

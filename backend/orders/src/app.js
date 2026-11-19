@@ -21,7 +21,8 @@ import { roundRouter } from './routes/round.routes.js';
 import { tableRouter } from './routes/table.routes.js';
 
 const app = express();
-app.set('trust proxy', 1);
+// Proxies de confianza para leer la IP real (limites por IP): TRUST_PROXY, 1 por defecto (nginx en local)
+app.set('trust proxy', env.trustProxy);
 app.use(helmet());
 app.use(cors({ origin: env.corsOrigin, credentials: true }));
 app.use(createRateLimiter());
@@ -35,7 +36,15 @@ router.get('/health', (req, res) => {
 // y se tragaria cualquier ruta montada despues.
 router.use('/tables', tableRouter);
 router.use('/payment-methods', paymentMethodRouter);
-router.use('/qr', qrRouter);
+// Canal QR publico (sin login): limite por IP propio, como la zona public_qr de nginx
+router.use(
+  '/qr',
+  createRateLimiter({
+    limit: env.publicRateLimit,
+    message: 'Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.',
+  }),
+  qrRouter,
+);
 router.use('/qr-requests', qrRequestRouter);
 router.use('/service-calls', serviceCallRouter);
 router.use('/items', itemRouter);

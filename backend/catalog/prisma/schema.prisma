@@ -37,3 +37,14 @@ model Product {
   @@unique([categoryId, name], map: "uq_products_category_name")
   @@map("products")
 }
+
+// Foto de un producto guardada en la base (Render gratis no tiene disco persistente). products.photoUrl apunta a
+// /api/catalog/photos/<filename>. Los CHECK de tipo y tamano viven en db/init/schema/catalog.sql.
+model ProductPhoto {
+  filename  String   @id @db.VarChar(80)
+  mimeType  String   @map("mime_type") @db.VarChar(30)
+  content   Bytes
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("product_photos")
+}

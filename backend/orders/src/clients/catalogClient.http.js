@@ -1,8 +1,9 @@
+import { INTERNAL_TIMEOUT_MS } from '../config/internalTimeout.js';
 import { AppError } from '../errors/AppError.js';
 
 const CATALOG_URL = process.env.CATALOG_SERVICE_URL || 'http://catalog:3003';
 const SERVICE_TOKEN = process.env.SERVICE_TOKEN || '';
-const TIMEOUT_MS = 3000;
+const TIMEOUT_MS = INTERNAL_TIMEOUT_MS;
 
 export const catalogClientHttp = {
   async getProductsByIds(ids) {

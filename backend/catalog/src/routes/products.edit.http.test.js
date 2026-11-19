@@ -1,8 +1,6 @@
 // Lectura y edicion de productos (GC-76) y menu publico (GC-77) con la app real.
 // Solo los repositorios van simulados: no hace falta base de datos.
 import { Prisma } from '@prisma/client';
-import fs from 'node:fs';
-import path from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { categoryRepository } from '../repositories/category.repository.js';
 import { productRepository } from '../repositories/product.repository.js';
@@ -18,7 +16,12 @@ import {
   startApp,
   tokenFor,
 } from '../test/helpers.js';
+import { photoStore, storedPhotos } from '../test/photoStore.js';
 
+vi.mock(
+  '../repositories/photo.repository.js',
+  async () => (await import('../test/photoStore.js')).photoMock,
+);
 vi.mock('../repositories/category.repository.js', () => ({
   categoryRepository: { findById: vi.fn(), findMenu: vi.fn() },
 }));
@@ -38,7 +41,6 @@ const form = (fields = {}, photo) => {
 };
 const put = (id, body, token = admin()) =>
   call(app.base, 'PUT', `/api/catalog/products/${id}`, { token, body });
-const dir = () => process.env.UPLOADS_DIR;
 
 beforeAll(async () => {
   app = await startApp();
@@ -46,7 +48,7 @@ beforeAll(async () => {
 afterAll(() => app.close());
 beforeEach(() => {
   vi.resetAllMocks();
-  fs.rmSync(dir(), { recursive: true, force: true });
+  photoStore.clear();
   productRepository.findById.mockResolvedValue(makeProduct());
   productRepository.update.mockImplementation(async (id, data) => makeProduct(data));
 });
@@ -98,7 +100,7 @@ describe('PUT /api/catalog/products/:id', () => {
     const res = await put(PRODUCT_ID, form({ price: '1' }, PNG), tokenFor('WAITER'));
     expect(res.status).toBe(403);
     expect(productRepository.update).not.toHaveBeenCalled();
-    expect(fs.existsSync(dir())).toBe(false);
+    expect(storedPhotos()).toEqual([]);
   });
 
   it('editar el precio actualiza solo ese campo (criterio 2)', async () => {
@@ -137,20 +139,18 @@ describe('PUT /api/catalog/products/:id', () => {
   });
 
   it('reemplazar la foto guarda la nueva y borra la anterior', async () => {
-    fs.mkdirSync(dir(), { recursive: true });
-    fs.writeFileSync(path.join(dir(), 'vieja.jpg'), JPEG);
+    photoStore.set('vieja.jpg', { mimeType: 'image/jpeg', content: JPEG });
     productRepository.findById.mockResolvedValue(
       makeProduct({ photoUrl: '/api/catalog/photos/vieja.jpg' }),
     );
     const res = await put(PRODUCT_ID, form({}, PNG));
     expect(res.status).toBe(200);
     expect(res.body.photoUrl).toMatch(/^\/api\/catalog\/photos\/[0-9a-f-]{36}\.png$/);
-    expect(fs.readdirSync(dir())).toEqual([res.body.photoUrl.split('/').pop()]);
+    expect(storedPhotos()).toEqual([res.body.photoUrl.split('/').pop()]);
   });
 
   it('si falla la actualizacion la foto nueva no queda huerfana y la vieja se conserva', async () => {
-    fs.mkdirSync(dir(), { recursive: true });
-    fs.writeFileSync(path.join(dir(), 'vieja.jpg'), JPEG);
+    photoStore.set('vieja.jpg', { mimeType: 'image/jpeg', content: JPEG });
     productRepository.findById.mockResolvedValue(
       makeProduct({ photoUrl: '/api/catalog/photos/vieja.jpg' }),
     );
@@ -158,14 +158,14 @@ describe('PUT /api/catalog/products/:id', () => {
     const res = await put(PRODUCT_ID, form({ name: 'Repetido' }, PNG));
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('CONFLICT');
-    expect(fs.readdirSync(dir())).toEqual(['vieja.jpg']);
+    expect(storedPhotos()).toEqual(['vieja.jpg']);
   });
 
   it('un archivo que no es imagen -> 400 y no se escribe nada', async () => {
     const res = await put(PRODUCT_ID, form({}, Buffer.from('no soy una imagen')));
     expect(res.status).toBe(400);
     expect(res.body.error.details.fields[0].path).toBe('photo');
-    expect(fs.existsSync(dir())).toBe(false);
+    expect(storedPhotos()).toEqual([]);
   });
 
   it('foto de mas de 2 MB -> 400', async () => {
@@ -201,7 +201,7 @@ describe('PUT /api/catalog/products/:id', () => {
     const res = await put(MISSING_ID, form({ price: '1' }, PNG));
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('NOT_FOUND');
-    expect(fs.existsSync(dir())).toBe(false);
+    expect(storedPhotos()).toEqual([]);
   });
 
   it('nombre repetido en la categoria -> 409', async () => {

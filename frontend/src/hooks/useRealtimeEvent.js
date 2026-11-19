@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { io } from 'socket.io-client'
 import { getAccessToken, refreshSession } from '../auth/session.js'
+import { connectSocket } from '../realtime/connectSocket.js'
 
 // onReconnect (opcional): los eventos emitidos mientras no habia conexion se pierden, asi que la
 // pantalla que lo pase recarga sus datos al volver. El token dura 15 minutos: si el servidor rechaza
@@ -20,7 +20,7 @@ export function useRealtimeEvent(eventName, onEvent, { onReconnect } = {}) {
     if (!getAccessToken()) return undefined
 
     // auth como funcion: al reconectar toma el token vigente
-    const socket = io({
+    const socket = connectSocket({
       auth: (send) => send({ token: getAccessToken() }),
       transports: ['websocket'],
     })
@@ -64,7 +64,7 @@ export function useRealtimeEvents(handlers, { onReconnect } = {}) {
 
   useEffect(() => {
     if (!getAccessToken()) return undefined
-    const socket = io({
+    const socket = connectSocket({
       auth: (send) => send({ token: getAccessToken() }),
       transports: ['websocket'],
     })
