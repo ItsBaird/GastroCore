@@ -6,10 +6,10 @@ Una instancia de PostgreSQL 16 con **4 bases lógicas** (database-per-service, R
 |---|---|---|---|
 | auth | `auth_db` | `auth_user` | `users`, `permissions`, `user_permissions`, `refresh_tokens` |
 | staff | `staff_db` | `staff_user` | `employees`, `shifts` |
-| catalog | `catalog_db` | `catalog_user` | `categories`, `products` |
+| catalog | `catalog_db` | `catalog_user` | `categories`, `products`, `product_photos` |
 | orders | `orders_db` | `orders_user` | `dining_tables`, `orders`, `payment_methods`, `payments`, `qr_requests`, `qr_request_items`, `rounds`, `items`, `service_calls`, `cash_closures`, `cash_closure_payment_breakdown`, `cash_closure_top_products`, `cash_closure_waiter_breakdown`, `audit_log` |
 
-Total: 22 tablas. Convenciones (R5/R6): UUID v4 (salvo `audit_log`, BIGSERIAL), `timestamptz` en UTC, snake_case en la base y camelCase en el JSON, dinero en pesos colombianos enteros.
+Total: 23 tablas. Convenciones (R5/R6): UUID v4 (salvo `audit_log`, BIGSERIAL), `timestamptz` en UTC, snake_case en la base y camelCase en el JSON, dinero en pesos colombianos enteros.
 
 ## Cómo se crea
 

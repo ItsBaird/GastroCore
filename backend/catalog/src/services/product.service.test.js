@@ -1,7 +1,5 @@
 import { Prisma } from '@prisma/client';
-import fs from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { env } from '../config/env.js';
 import { AppError } from '../errors/AppError.js';
 import { categoryRepository } from '../repositories/category.repository.js';
 import { productRepository } from '../repositories/product.repository.js';
@@ -14,6 +12,7 @@ import {
   makeCategory,
   makeProduct,
 } from '../test/helpers.js';
+import { photoStore, storedPhotos } from '../test/photoStore.js';
 import { PHOTOS_URL_PREFIX, savePhoto } from './photo.service.js';
 import {
   createProduct,
@@ -25,6 +24,10 @@ import {
   updateProduct,
 } from './product.service.js';
 
+vi.mock(
+  '../repositories/photo.repository.js',
+  async () => (await import('../test/photoStore.js')).photoMock,
+);
 vi.mock('../repositories/category.repository.js', () => ({
   categoryRepository: { findById: vi.fn(), findMenu: vi.fn() },
 }));
@@ -35,7 +38,7 @@ vi.mock('../repositories/product.repository.js', () => ({
 const OTHER_CATEGORY = '55555555-5555-4555-8555-555555555555';
 const prismaError = (code) =>
   new Prisma.PrismaClientKnownRequestError('x', { code, clientVersion: 'test' });
-const files = () => (fs.existsSync(env.uploadsDir) ? fs.readdirSync(env.uploadsDir) : []);
+const files = () => storedPhotos();
 const upload = (buffer) => ({ buffer });
 
 async function expectAppError(promise, status, code) {
@@ -50,7 +53,7 @@ async function expectAppError(promise, status, code) {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  fs.rmSync(env.uploadsDir, { recursive: true, force: true });
+  photoStore.clear();
 });
 
 describe('toProduct y fieldError', () => {

@@ -1,6 +1,6 @@
-import express, { Router } from 'express';
-import { env } from '../config/env.js';
+import { Router } from 'express';
 import { create as createCategory, list, update } from '../controllers/category.controller.js';
+import { servePhoto } from '../controllers/photo.controller.js';
 import {
   create as createProduct,
   getById as getProductById,
@@ -20,12 +20,10 @@ import {
 
 export const catalogRouter = Router();
 
-// Fotos de productos: publicas (las ve el menu de clientes por QR). Los nombres los genera el
-// servidor (UUID), son inmutables y no se lista el directorio.
-catalogRouter.use(
-  '/photos',
-  express.static(env.uploadsDir, { index: false, immutable: true, maxAge: '7d', dotfiles: 'deny' }),
-);
+// Fotos de productos: publicas (las ve el menu de clientes por QR). Se guardan en la base (product_photos), no en
+// disco: Render gratis no tiene disco persistente. Los nombres los genera el servidor (UUID), son inmutables y no
+// hay listado (/photos/ sin nombre es 404).
+catalogRouter.get('/photos/:filename', servePhoto);
 
 // Menu para clientes (QR): sin login. El gateway limita las peticiones por IP
 catalogRouter.get('/public/menu', publicMenu);
