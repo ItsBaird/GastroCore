@@ -153,13 +153,24 @@
     flex-direction: column;
   }
 
+  /* En columna, flex: 1 dejaba el boton en 22 px de alto: aqui no crece, mide 44 px */
+  .tm-btn {
+    flex: none;
+  }
+
   .tm-btn,
   .tm-icon-btn {
     height: 44px;
   }
 
+  /* La ruta no cabe en la tarjeta compacta (quedaba en "/..."): se copia o se ve con los dos botones, que reparten
+     el ancho */
+  .tm-qr__path {
+    display: none;
+  }
+
   .tm-icon-btn {
-    width: 44px;
+    flex: 1;
   }
 
   .btn__text {
