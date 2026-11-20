@@ -1,25 +1,115 @@
-import { Check, Copy, Plus, QrCode, RefreshCw, TriangleAlert } from 'lucide-react'
+import { BellRing, Check, Copy, Pencil, Plus, QrCode, RefreshCw, TriangleAlert, UserRoundPen } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { createTable, listTables, reassignTable, updateTable } from '../api/tables.js'
 import { listTableStatuses } from '../api/tablesStatus.js'
+import { useAuth } from '../auth/useAuth.js'
+import '../components/TableCards.css'
+import { TableStats } from '../components/TableStats.jsx'
 import { useToast } from '../components/Toast.jsx'
 import { useTableStatusSocket } from '../hooks/useTableStatusSocket.js'
 import { AdminPage } from '../layouts/AdminLayout.jsx'
+import { sortForSection, TABLE_SECTIONS, TABLE_STATUS } from '../utils/waiterTables.js'
 import { QrPrintModal } from './QrPrintModal.jsx'
 import { ReassignTableModal } from './ReassignTableModal.jsx'
 import { TableFormModal } from './TableFormModal.jsx'
 import './TablesPage.css'
 
-const STATUS_LABEL = { libre: 'Libre', ocupada: 'Ocupada', en_cobro: 'En cobro' }
+// Gestion de Mesas del ADMIN con la misma organizacion que "Mis Mesas" del mesero (Figma 31:2): resumen arriba y
+// las mesas divididas por estado, con la misma tarjeta. En Ocupadas y En cobro van primero las que atiende el propio
+// ADMIN. La tarjeta conserva lo propio de la gestion: ruta y codigo QR, Editar y Reasignar. El ADMIN opera todas las
+// mesas, asi que ninguna lleva sombra.
 
 function SkeletonCards() {
-  return Array.from({ length: 6 }, (_, i) => (
-    <div key={i} className="table-card table-card--skeleton" aria-hidden="true" />
+  return Array.from({ length: 8 }, (_, i) => (
+    <div key={i} className="ts-card ts-card--skeleton" aria-hidden="true" />
   ))
+}
+
+function AdminTableCard({ table, copied, onCopy, onQr, onEdit, onReassign }) {
+  const config = TABLE_STATUS[table.status]
+  const isOpen = table.status === 'ocupada' || table.status === 'en_cobro'
+  const calls = table.pendingCalls?.length ?? 0
+
+  return (
+    <article
+      className={`ts-card ${config?.className ?? ''}`}
+      aria-label={`Mesa ${table.tableNumber}${config ? `, ${config.label}` : ''}`}
+    >
+      <div className="ts-card__top-bar" />
+      <div className="ts-card__header">
+        <span className="ts-card__name">
+          Mesa <span className="ts-card__number">{table.tableNumber}</span>
+        </span>
+        {config && <span className={`pill pill--table-${table.status}`}>{config.label}</span>}
+      </div>
+      <div className="ts-card__divider" />
+      <div className="ts-card__body">
+        {isOpen && (
+          <p className="ts-card__attendant">
+            Atiende:
+            <span className="ts-card__waiter" title={table.waiterName ?? undefined}>
+              {table.waiterName ?? 'otro mesero'}
+            </span>
+          </p>
+        )}
+        {calls > 0 && (
+          <span className="ts-card__calls">
+            <BellRing size={12} aria-hidden="true" />
+            {calls} llamado{calls > 1 ? 's' : ''}
+          </span>
+        )}
+        <div className="tm-qr">
+          <code className="tm-qr__path" title={`/m/${table.qrToken}`}>
+            /m/{table.qrToken}
+          </code>
+          <button
+            type="button"
+            className="tm-icon-btn"
+            onClick={onCopy}
+            aria-label={`Copiar ruta QR de la mesa ${table.tableNumber}`}
+          >
+            {copied ? <Check size={16} /> : <Copy size={16} />}
+          </button>
+          <button
+            type="button"
+            className="tm-icon-btn"
+            onClick={onQr}
+            aria-label={`Ver código QR de la mesa ${table.tableNumber}`}
+            title="Ver e imprimir el código QR"
+          >
+            <QrCode size={16} />
+          </button>
+        </div>
+      </div>
+      <div className="ts-card__actions tm-actions">
+        <button
+          type="button"
+          className="tm-btn"
+          onClick={onEdit}
+          aria-label={`Editar mesa ${table.tableNumber}`}
+        >
+          <Pencil size={14} aria-hidden="true" />
+          Editar
+        </button>
+        {isOpen && (
+          <button
+            type="button"
+            className="tm-btn"
+            onClick={onReassign}
+            aria-label={`Reasignar mesa ${table.tableNumber}`}
+          >
+            <UserRoundPen size={14} aria-hidden="true" />
+            Reasignar
+          </button>
+        )}
+      </div>
+    </article>
+  )
 }
 
 export default function TablesPage() {
   const toast = useToast()
+  const { user } = useAuth()
   const [{ status, tables, error }, setData] = useState({
     status: 'loading',
     tables: [],
@@ -28,7 +118,9 @@ export default function TablesPage() {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)
   const [copiedId, setCopiedId] = useState(null)
-  const [statuses, setStatuses] = useState({})
+  // null mientras carga; {} si fallo (las mesas se siguen mostrando y gestionando, sin dividir por estado)
+  const [statuses, setStatuses] = useState(null)
+  const [statusesFailed, setStatusesFailed] = useState(false)
   const [reassigning, setReassigning] = useState(null)
   // QR imprimible de la mesa (descargar PNG o imprimir)
   const [printingQr, setPrintingQr] = useState(null)
@@ -37,22 +129,27 @@ export default function TablesPage() {
   const fetchStatuses = useCallback(async () => {
     try {
       const list = await listTableStatuses()
-      return Object.fromEntries(list.map((s) => [s.tableId, s]))
+      return { map: Object.fromEntries(list.map((s) => [s.tableId, s])), failed: false }
     } catch {
-      return {}
+      return { map: {}, failed: true }
     }
+  }, [])
+
+  const applyStatuses = useCallback(({ map, failed }) => {
+    setStatuses(map)
+    setStatusesFailed(failed)
   }, [])
 
   useEffect(() => {
     let active = true
-    fetchStatuses().then((result) => active && setStatuses(result))
+    fetchStatuses().then((result) => active && applyStatuses(result))
     return () => {
       active = false
     }
-  }, [fetchStatuses])
+  }, [fetchStatuses, applyStatuses])
 
   useTableStatusSocket((updated) => {
-    setStatuses((current) => ({ ...current, [updated.tableId]: updated }))
+    setStatuses((current) => ({ ...(current ?? {}), [updated.tableId]: updated }))
   })
 
   const fetchTables = useCallback(async () => {
@@ -105,7 +202,7 @@ export default function TablesPage() {
       await reassignTable(reassigning.tableId, waiter.userId)
     } catch (err) {
       // Lo que se ve quedo viejo (se pago la mesa u otro ADMIN la movio): se actualiza detras del modal
-      if (err?.status === 409 || err?.status === 404) fetchStatuses().then(setStatuses)
+      if (err?.status === 409 || err?.status === 404) fetchStatuses().then(applyStatuses)
       throw err
     }
     setStatuses((current) => ({
@@ -130,6 +227,31 @@ export default function TablesPage() {
     }
   }
 
+  // Cada mesa con su estado. Una mesa que no aparece en el estado (p. ej. recien creada) no tiene orden: libre.
+  // Si el estado no se pudo cargar no se inventa: las mesas quedan sin estado, en una sola seccion.
+  const merged = tables.map((t) => {
+    const s = statuses?.[t.tableId]
+    if (statusesFailed) return { ...t, status: null }
+    return {
+      ...t,
+      status: s?.status ?? 'libre',
+      waiterId: s?.waiterId,
+      waiterName: s?.waiterName,
+      pendingCalls: s?.pendingCalls ?? [],
+    }
+  })
+
+  const cardProps = (t) => ({
+    table: t,
+    copied: copiedId === t.tableId,
+    onCopy: () => copyQrPath(t),
+    onQr: () => setPrintingQr(t),
+    onEdit: () => setEditing(t),
+    onReassign: () => setReassigning(t),
+  })
+
+  const loading = status === 'loading' || (status === 'ready' && statuses === null)
+
   return (
     <AdminPage
       title="Gestión de Mesas"
@@ -145,91 +267,62 @@ export default function TablesPage() {
         </button>
       }
     >
-      <section className="tables-card" aria-label="Lista de mesas">
-        {status === 'error' ? (
-          <div className="tables-state" role="alert">
-            <TriangleAlert size={28} />
-            <p>{error}</p>
-            <button type="button" className="btn btn--ghost" onClick={retry}>
-              <RefreshCw size={16} /> Reintentar
-            </button>
+      {status === 'ready' && !loading && !statusesFailed && merged.length > 0 && (
+        <TableStats tables={merged} totalLabel="Total" />
+      )}
+
+      {status === 'error' ? (
+        <div className="tables-state" role="alert">
+          <TriangleAlert size={28} />
+          <p>{error}</p>
+          <button type="button" className="btn btn--ghost" onClick={retry}>
+            <RefreshCw size={16} /> Reintentar
+          </button>
+        </div>
+      ) : loading ? (
+        <div className="ts-grid" aria-busy="true" aria-label="Cargando mesas">
+          <SkeletonCards />
+        </div>
+      ) : tables.length === 0 ? (
+        <div className="tables-state">
+          <p>Todavía no hay mesas.</p>
+        </div>
+      ) : statusesFailed ? (
+        <section className="ts-section" aria-labelledby="tm-all">
+          <h2 id="tm-all" className="ts-section-title">
+            Mesas
+          </h2>
+          <p className="tm-notice" role="status">
+            No se pudo cargar el estado de las mesas: se muestran todas, sin dividir.
+          </p>
+          <div className="ts-grid">
+            {merged.map((t) => (
+              <AdminTableCard key={t.tableId} {...cardProps(t)} />
+            ))}
           </div>
-        ) : status === 'ready' && tables.length === 0 ? (
-          <div className="tables-state">
-            <p>Todavía no hay mesas.</p>
-          </div>
-        ) : (
-          <div className="tables-grid">
-            {status === 'loading' ? (
-              <SkeletonCards />
-            ) : (
-              tables.map((t) => {
-                const tableStatus = statuses[t.tableId]
-                const isOpen = tableStatus && tableStatus.status !== 'libre'
-                return (
-                  <div key={t.tableId} className="table-card">
-                    <div className="table-card__header">
-                      <h3 className="table-card__number">Mesa {t.tableNumber}</h3>
-                      {tableStatus && (
-                        <span
-                          className={`table-card__pill table-card__pill--${tableStatus.status}`}
-                        >
-                          {STATUS_LABEL[tableStatus.status]}
-                        </span>
-                      )}
-                    </div>
-                    {isOpen && (
-                      <p className="table-card__waiter">
-                        Atiende: {tableStatus.waiterName ?? 'otro mesero'}
-                      </p>
-                    )}
-                    <div className="table-card__qr">
-                      <code className="table-card__qr-path">/m/{t.qrToken}</code>
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        onClick={() => copyQrPath(t)}
-                        aria-label={`Copiar ruta QR de la mesa ${t.tableNumber}`}
-                      >
-                        {copiedId === t.tableId ? <Check size={16} /> : <Copy size={16} />}
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        onClick={() => setPrintingQr(t)}
-                        aria-label={`Ver código QR de la mesa ${t.tableNumber}`}
-                        title="Ver e imprimir el código QR"
-                      >
-                        <QrCode size={16} />
-                      </button>
-                    </div>
-                    <div className="table-card__actions">
-                      <button
-                        type="button"
-                        className="link-btn"
-                        onClick={() => setEditing(t)}
-                        aria-label={`Editar mesa ${t.tableNumber}`}
-                      >
-                        Editar
-                      </button>
-                      {isOpen && (
-                        <button
-                          type="button"
-                          className="link-btn"
-                          onClick={() => setReassigning(t)}
-                          aria-label={`Reasignar mesa ${t.tableNumber}`}
-                        >
-                          Reasignar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        )}
-      </section>
+        </section>
+      ) : (
+        TABLE_SECTIONS.map((section) => {
+          const rows = sortForSection(merged, section.status, user?.userId)
+          const titleId = `tm-section-${section.status}`
+          return (
+            <section key={section.status} className="ts-section" aria-labelledby={titleId}>
+              <h2 id={titleId} className="ts-section-title">
+                {section.title}
+              </h2>
+              {rows.length === 0 ? (
+                <p className="ts-section-empty">{section.empty}</p>
+              ) : (
+                <div className="ts-grid">
+                  {rows.map((t) => (
+                    <AdminTableCard key={t.tableId} {...cardProps(t)} />
+                  ))}
+                </div>
+              )}
+            </section>
+          )
+        })
+      )}
 
       {creating && (
         <TableFormModal mode="create" onSubmit={handleCreate} onClose={() => setCreating(false)} />
@@ -247,8 +340,8 @@ export default function TablesPage() {
       {reassigning && (
         <ReassignTableModal
           tableNumber={reassigning.tableNumber}
-          currentWaiterId={statuses[reassigning.tableId]?.waiterId}
-          currentWaiterName={statuses[reassigning.tableId]?.waiterName}
+          currentWaiterId={statuses?.[reassigning.tableId]?.waiterId}
+          currentWaiterName={statuses?.[reassigning.tableId]?.waiterName}
           onConfirm={handleReassign}
           onClose={() => setReassigning(null)}
         />

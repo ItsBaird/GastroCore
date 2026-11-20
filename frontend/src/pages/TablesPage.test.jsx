@@ -36,6 +36,13 @@ function renderPage() {
   )
 }
 
+// La tarjeta es un <article> con nombre "Mesa N[, Estado]"; "Mesa" y el numero van en elementos distintos
+const cardName = (n) => new RegExp(`^Mesa ${n}(,|$)`)
+const card = (n) => screen.getByRole('article', { name: cardName(n) })
+const findCard = (n) => screen.findByRole('article', { name: cardName(n) })
+const attendantOf = (n) => card(n).querySelector('.ts-card__attendant')?.textContent
+const pillOf = (n) => card(n).querySelector('.pill')?.textContent
+
 beforeEach(() => {
   vi.resetAllMocks()
   tablesApi.listTables.mockResolvedValue(TABLES)
@@ -68,9 +75,10 @@ describe('TablesPage — reasignar mesa', () => {
     listTableStatuses.mockResolvedValue([OPEN, FREE])
     renderPage()
 
-    expect(await screen.findByText('Atiende: Ana Prueba')).toBeInTheDocument()
-    expect(screen.getByText('Ocupada')).toBeInTheDocument()
-    expect(screen.getByText('Libre')).toBeInTheDocument()
+    await findCard(1)
+    expect(attendantOf(1)).toBe('Atiende:Ana Prueba')
+    expect(pillOf(1)).toBe('Ocupada')
+    expect(pillOf(2)).toBe('Libre')
     expect(screen.getByRole('button', { name: 'Reasignar mesa 1' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Reasignar mesa 2' })).not.toBeInTheDocument()
   })
@@ -80,15 +88,20 @@ describe('TablesPage — reasignar mesa', () => {
     renderPage()
 
     expect(await screen.findByRole('button', { name: 'Reasignar mesa 1' })).toBeInTheDocument()
-    expect(screen.getByText('En cobro')).toBeInTheDocument()
+    expect(pillOf(1)).toBe('En cobro')
   })
 
   it('si no se puede cargar el estado, las mesas se siguen mostrando', async () => {
     listTableStatuses.mockRejectedValue(new ApiError(503, 'X', 'caido'))
     renderPage()
 
-    expect(await screen.findByText('Mesa 1')).toBeInTheDocument()
+    expect(await findCard(1)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Reasignar mesa 1' })).not.toBeInTheDocument()
+    // Sin estado no se inventa uno: todas en una sola seccion, con aviso, y se pueden seguir editando
+    expect(screen.getByRole('heading', { level: 2, name: 'Mesas' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('No se pudo cargar el estado de las mesas')
+    expect(card(1).querySelector('.pill')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Editar mesa 1' })).toBeInTheDocument()
   })
 
   it('el mesero actual no aparece en la lista', async () => {
@@ -129,7 +142,7 @@ describe('TablesPage — reasignar mesa', () => {
     await user.click(screen.getByRole('button', { name: 'Reasignar' }))
 
     expect(tablesApi.reassignTable).toHaveBeenCalledWith('t1', 'w-b')
-    expect(await screen.findByText('Atiende: Beto Prueba')).toBeInTheDocument()
+    await waitFor(() => expect(attendantOf(1)).toBe('Atiende:Beto Prueba'))
     expect(await screen.findByText('Mesa 1 reasignada a Beto Prueba')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
@@ -155,20 +168,21 @@ describe('TablesPage — reasignar mesa', () => {
   it('el evento en tiempo real actualiza quien atiende', async () => {
     listTableStatuses.mockResolvedValue([OPEN])
     renderPage()
-    await screen.findByText('Atiende: Ana Prueba')
+    await findCard(1)
+    expect(attendantOf(1)).toBe('Atiende:Ana Prueba')
 
     const handler = useTableStatusSocket.mock.calls.at(-1)[0]
     act(() => handler({ ...OPEN, waiterId: 'w-b', waiterName: 'Beto Prueba' }))
 
-    expect(screen.getByText('Atiende: Beto Prueba')).toBeInTheDocument()
+    expect(attendantOf(1)).toBe('Atiende:Beto Prueba')
   })
 })
 
 describe('TablesPage', () => {
   it('lista las mesas con su ruta QR', async () => {
     renderPage()
-    expect(await screen.findByText('Mesa 1')).toBeInTheDocument()
-    expect(screen.getByText('Mesa 2')).toBeInTheDocument()
+    expect(await findCard(1)).toBeInTheDocument()
+    expect(card(2)).toBeInTheDocument()
     expect(screen.getByText('/m/abc123tokenvalue')).toBeInTheDocument()
   })
 
@@ -180,7 +194,7 @@ describe('TablesPage', () => {
       qrToken: 'ghi789tokenvalue',
     })
     renderPage()
-    await screen.findByText('Mesa 1')
+    await findCard(1)
 
     await user.click(screen.getByRole('button', { name: 'Agregar mesa' }))
     const dialog = screen.getByRole('dialog', { name: 'Nueva mesa' })
@@ -188,7 +202,9 @@ describe('TablesPage', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Crear mesa' }))
 
     await waitFor(() => expect(tablesApi.createTable).toHaveBeenCalledWith({ tableNumber: 3 }))
-    expect(await screen.findByText('Mesa 3')).toBeInTheDocument()
+    // Recien creada no tiene orden: aparece en Libres
+    expect(await findCard(3)).toBeInTheDocument()
+    expect(pillOf(3)).toBe('Libre')
     expect(screen.getByText('Mesa creada')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
@@ -201,7 +217,7 @@ describe('TablesPage', () => {
       qrToken: 'abc123tokenvalue',
     })
     renderPage()
-    await screen.findByText('Mesa 1')
+    await findCard(1)
 
     await user.click(screen.getByRole('button', { name: 'Editar mesa 1' }))
     const dialog = screen.getByRole('dialog', { name: 'Editar mesa' })
@@ -213,14 +229,14 @@ describe('TablesPage', () => {
     await waitFor(() =>
       expect(tablesApi.updateTable).toHaveBeenCalledWith('t1', { tableNumber: 10 }),
     )
-    expect(await screen.findByText('Mesa 10')).toBeInTheDocument()
+    expect(await findCard(10)).toBeInTheDocument()
   })
 
   it('muestra el error de numero repetido (409) en el campo', async () => {
     const user = userEvent.setup()
     tablesApi.createTable.mockRejectedValue(new ApiError(409, 'CONFLICT', 'dup'))
     renderPage()
-    await screen.findByText('Mesa 1')
+    await findCard(1)
 
     await user.click(screen.getByRole('button', { name: 'Agregar mesa' }))
     const dialog = screen.getByRole('dialog')
@@ -238,7 +254,70 @@ describe('TablesPage', () => {
 
     expect(await screen.findByText('No se pudo cargar la lista de mesas.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Reintentar/ }))
-    expect(await screen.findByText('Mesa 1')).toBeInTheDocument()
+    expect(await findCard(1)).toBeInTheDocument()
+  })
+})
+
+describe('TablesPage: mesas divididas por estado, como en Mis Mesas', () => {
+  const STATUSES = [
+    { tableId: 't1', tableNumber: 1, status: 'libre', pendingCalls: [] },
+    { tableId: 't2', tableNumber: 2, status: 'ocupada', waiterId: 'w-a', waiterName: 'Ana', pendingCalls: [] },
+    { tableId: 't3', tableNumber: 3, status: 'ocupada', waiterId: 'me', waiterName: 'Admin', pendingCalls: [{ serviceCallId: 'c1' }] },
+    { tableId: 't4', tableNumber: 4, status: 'en_cobro', waiterId: 'w-a', waiterName: 'Ana', pendingCalls: [] },
+  ]
+  const ALL = [1, 2, 3, 4].map((n) => ({ tableId: `t${n}`, tableNumber: n, qrToken: `tok${n}` }))
+  const numbersIn = (title) =>
+    within(screen.getByRole('region', { name: title }))
+      .getAllByRole('article')
+      .map((a) => Number(a.querySelector('.ts-card__number').textContent))
+
+  beforeEach(() => {
+    tablesApi.listTables.mockResolvedValue(ALL)
+    listTableStatuses.mockResolvedValue(STATUSES)
+  })
+
+  it('resumen con Total y las tres secciones con titulo', async () => {
+    renderPage()
+    await findCard(1)
+
+    const stats = within(screen.getByRole('group', { name: 'Resumen de mesas' }))
+    expect(stats.getByText('Total').closest('.ts-stat')).toHaveTextContent('4')
+    expect(stats.getByText('Ocupadas').closest('.ts-stat')).toHaveTextContent('2')
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
+      'Mesas: Libres',
+      'Mesas: Ocupadas',
+      'Mesas: En Cobro',
+    ])
+    expect(numbersIn('Mesas: Libres')).toEqual([1])
+    expect(numbersIn('Mesas: En Cobro')).toEqual([4])
+  })
+
+  it('en Ocupadas van primero las que atiende el propio ADMIN', async () => {
+    renderPage()
+    await findCard(1)
+    expect(numbersIn('Mesas: Ocupadas')).toEqual([3, 2])
+  })
+
+  it('la tarjeta del ADMIN no lleva sombra, muestra el llamado y conserva QR, Editar y Reasignar', async () => {
+    renderPage()
+    const mesa = await findCard(2)
+
+    expect(mesa).toHaveClass('ts-card--ocupada')
+    expect(mesa.querySelector('.ts-card__shade')).toBeNull()
+    expect(within(card(3)).getByText('1 llamado')).toHaveClass('ts-card__calls')
+    expect(within(mesa).getByRole('button', { name: 'Copiar ruta QR de la mesa 2' })).toBeInTheDocument()
+    expect(within(mesa).getByRole('button', { name: 'Editar mesa 2' })).toBeInTheDocument()
+    expect(within(mesa).getByRole('button', { name: 'Reasignar mesa 2' })).toBeInTheDocument()
+    // La libre no se reasigna
+    expect(within(card(1)).queryByRole('button', { name: /Reasignar/ })).toBeNull()
+  })
+
+  it('una seccion vacia conserva su titulo', async () => {
+    listTableStatuses.mockResolvedValue(STATUSES.filter((s) => s.status !== 'en_cobro'))
+    tablesApi.listTables.mockResolvedValue(ALL.slice(0, 3))
+    renderPage()
+    await findCard(1)
+    expect(within(screen.getByRole('region', { name: 'Mesas: En Cobro' })).getByText('No hay mesas en cobro.')).toBeInTheDocument()
   })
 })
 

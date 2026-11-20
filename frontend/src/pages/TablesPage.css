@@ -1,92 +1,10 @@
+/* Gestion de Mesas del ADMIN. El resumen, las secciones por estado y la tarjeta vienen de components/TableCards.css
+   (los mismos de "Mis Mesas" del mesero). Aqui solo lo propio de la gestion: la ruta y el codigo QR de cada mesa y
+   las acciones Editar y Reasignar. */
+
 .table-form {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
-}
-
-/* ---------- Tarjeta contenedora ---------- */
-.tables-card {
-  min-height: 200px;
-  padding: var(--sp-6);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-}
-
-/* ---------- Cuadricula de mesas ---------- */
-.tables-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--sp-5);
-}
-
-.table-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--sp-5);
-  background: var(--n-50);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
-
-.table-card--skeleton {
-  height: 128px;
-  background: linear-gradient(90deg, var(--n-100) 25%, var(--n-50) 50%, var(--n-100) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
-}
-
-.table-card__number {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.table-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2);
-}
-
-/* Figma 13:96, 13:114 y 13:123: 80x24, radio 12, texto 11px semibold */
-.table-card__pill {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  min-width: 80px;
-  height: 24px;
-  padding: 0 var(--sp-2);
-  border-radius: var(--radius-full);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.table-card__pill--libre {
-  background: var(--green-50);
-  color: var(--green-600);
-}
-
-.table-card__pill--ocupada {
-  background: var(--red-50);
-  color: var(--red-600);
-}
-
-.table-card__pill--en_cobro {
-  background: var(--orange-50);
-  color: var(--orange-500);
-}
-
-.table-card__waiter {
-  font-size: 13px;
-  color: var(--n-700);
-  overflow-wrap: anywhere;
-}
-
-.table-card__actions {
-  display: flex;
   gap: var(--sp-4);
 }
 
@@ -96,18 +14,21 @@
   color: var(--n-700);
 }
 
-.table-card__qr {
+/* ---------- Ruta y codigo QR dentro de la tarjeta ---------- */
+.tm-qr {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+  margin-top: var(--sp-2);
 }
 
-.table-card__qr-path {
+/* minmax(0) en la rejilla y min-width: 0 aqui: la ruta, sin saltos de linea, no ensancha la tarjeta */
+.tm-qr__path {
   overflow: hidden;
   flex: 1;
   min-width: 0;
-  padding: 4px 8px;
-  background: var(--surface);
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--n-50);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-family: ui-monospace, Consolas, monospace;
@@ -117,6 +38,80 @@
   white-space: nowrap;
 }
 
+.tm-icon-btn {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.tm-icon-btn:hover {
+  border-color: var(--n-400);
+  color: var(--text);
+}
+
+/* ---------- Acciones: Editar y Reasignar (secundarias, neutras) ---------- */
+.tm-actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.tm-btn {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  height: 38px; /* boton compacto en tarjeta (CLAUDE.md) */
+  padding: 0 var(--sp-3);
+  background: var(--surface);
+  border: 1.5px solid var(--n-300);
+  border-radius: var(--radius-btn);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tm-btn:hover {
+  background: var(--n-50);
+  border-color: var(--n-400);
+}
+
+.tm-btn:focus-visible,
+.tm-icon-btn:focus-visible {
+  outline: 2px solid var(--n-950);
+  outline-offset: 2px;
+}
+
+.tm-notice {
+  margin-bottom: var(--sp-4);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ---------- Estados de la lista ---------- */
+.tables-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.tables-state svg {
+  color: var(--red-600);
+}
+
+/* Botones de icono y de texto de esta pantalla (otras pantallas definen los suyos con el mismo nombre) */
 .icon-btn {
   display: grid;
   flex: none;
@@ -151,54 +146,20 @@
   text-decoration: underline;
 }
 
-/* ---------- Estados ---------- */
-.tables-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-8) var(--sp-4);
-  color: var(--text-muted);
-  text-align: center;
-}
-
-.tables-state svg {
-  color: var(--red-600);
-}
-
-@keyframes shimmer {
-  to {
-    background-position: -200% 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .table-card--skeleton {
-    animation: none;
-  }
-}
-
-/* Objetivo tactil de 44px en tablet y movil */
-@media (width <= 1100px) {
-  .table-card__actions .link-btn {
-    min-height: 44px;
+/* ---------- Movil ---------- */
+@media (width <= 640px) {
+  /* Tarjeta compacta (dos por fila): las dos acciones y los iconos del QR conservan 44 px tactiles */
+  .tm-actions {
+    flex-direction: column;
   }
 
-  .table-card__qr .icon-btn {
-    width: 44px;
+  .tm-btn,
+  .tm-icon-btn {
     height: 44px;
   }
-}
 
-@media (width <= 640px) {
-  .tables-card {
-    padding: var(--sp-4);
-    border-radius: var(--radius-lg);
-  }
-
-  /* minmax(0, ...): con 1fr la ruta del QR, sin saltos de linea, ensanchaba la columna y la tarjeta se salia */
-  .tables-grid {
-    grid-template-columns: minmax(0, 1fr);
+  .tm-icon-btn {
+    width: 44px;
   }
 
   .btn__text {
