@@ -1,4 +1,4 @@
-import { CircleDollarSign, RefreshCw, Table, TriangleAlert, UtensilsCrossed } from 'lucide-react'
+import { BellRing, CircleDollarSign, RefreshCw, Table, TriangleAlert, UtensilsCrossed } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listTableStatuses, openTable as openTableApi } from '../api/tablesStatus.js'
@@ -129,11 +129,17 @@ function TableCard({ table, isMe, isAdmin, onOpen, opening, onCharge, onViewDeta
         {table.status !== 'libre' && (
           <p className="ts-card__attendant">
             Atiende:
-            <span className="ts-card__waiter">{isMe ? 'Tú' : (table.waiterName ?? 'otro mesero')}</span>
+            {/* En movil la tarjeta es angosta: un nombre largo se recorta con "…" y queda completo en el title */}
+            <span className="ts-card__waiter" title={isMe ? undefined : (table.waiterName ?? undefined)}>
+              {isMe ? 'Tú' : (table.waiterName ?? 'otro mesero')}
+            </span>
           </p>
         )}
+        {/* Llamado del cliente: etiqueta como la del estado, pero llena en rojo (el rojo de "Llamados") para que no
+            se confunda con el naranja de "En cobro". Lleva icono: no depende solo del color */}
         {calls > 0 && (
           <span className="ts-card__calls">
+            <BellRing size={12} aria-hidden="true" />
             {calls} llamado{calls > 1 ? 's' : ''}
           </span>
         )}

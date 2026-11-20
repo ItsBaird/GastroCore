@@ -116,10 +116,14 @@ describe('WaiterTablesPanelPage: resumen y tarjetas (Figma 31:2)', () => {
     expect(card(1).querySelector('.ts-card__attendant')).toBeNull()
   })
 
-  it('muestra los llamados pendientes de la mesa', async () => {
+  it('el llamado pendiente va en una etiqueta con icono (roja en el CSS, como "Llamados")', async () => {
     renderPage()
     await findCard(3)
-    expect(within(card(3)).getByText('1 llamado')).toBeInTheDocument()
+    const badge = within(card(3)).getByText('1 llamado')
+    expect(badge).toHaveClass('ts-card__calls')
+    expect(badge.querySelector('svg')).not.toBeNull()
+    // sin llamados no hay etiqueta
+    expect(card(1).querySelector('.ts-card__calls')).toBeNull()
   })
 
   it('error al cargar con Reintentar', async () => {
