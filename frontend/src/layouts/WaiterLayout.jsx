@@ -1,6 +1,5 @@
 import {
   Bell,
-  ClipboardList,
   LogOut,
   Pizza,
   ShieldCheck,
@@ -17,7 +16,6 @@ import './WaiterLayout.css'
 
 const NAV = [
   { label: 'Mis Mesas', icon: Table, to: '/mesero/mesas', mobile: true },
-  { label: 'Pedidos Activos', icon: ClipboardList, mobile: true },
   // GC-QR-0002/0003: llamados y solicitudes del cliente desde el QR, con el conteo real
   { label: 'Llamados', icon: Bell, to: '/mesero/llamados', mobile: true, badge: true },
   { label: 'Mi Turno', icon: User, to: '/mesero/turno', mobile: true },
