@@ -96,6 +96,8 @@ describe('AdminLayout en movil: menu lateral con hamburguesa', () => {
     expect(screen.getByRole('heading', { name: 'Gestión de Usuarios' })).toBeInTheDocument()
     expect(shell()).not.toHaveClass('shell--menu-open')
     expect(document.body.style.overflow).toBe('')
+    // El foco no se pierde: queda en el boton de menu de la pantalla nueva
+    expect(screen.getByRole('button', { name: 'Abrir menú' })).toHaveFocus()
   })
 
   it('Escape cierra y el foco vuelve al boton de menu', async () => {

@@ -149,7 +149,9 @@ export function AdminLayout() {
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = overflow
-      trigger?.focus?.()
+      // Si se eligio otra pantalla, el boton que abrio el panel ya no existe: el foco va al de la pantalla nueva
+      const target = trigger?.isConnected ? trigger : document.querySelector('.menu-btn')
+      target?.focus?.()
     }
   }, [drawerOpen])
 
