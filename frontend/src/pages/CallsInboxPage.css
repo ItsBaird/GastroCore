@@ -166,12 +166,14 @@
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
-  border: 1.5px solid var(--n-200);
-  border-left: 4px solid var(--orange-500); /* mismo naranja de "N llamados" en la tarjeta de mesa */
+  /* Rojo de "Llamados": el mismo de la etiqueta de llamado en la tarjeta de mesa (Mis Mesas) */
+  border: 1.5px solid var(--red-200);
+  border-left: 4px solid var(--red-600);
   border-radius: var(--radius-card);
   background: var(--surface);
 }
 
+/* Mismo estilo que la etiqueta de llamado: fondo rojo lleno e icono blanco */
 .inbox-call__icon {
   display: grid;
   flex: none;
@@ -179,8 +181,8 @@
   width: 36px;
   height: 36px;
   border-radius: var(--radius-full);
-  background: var(--orange-50);
-  color: var(--orange-600);
+  background: var(--red-600);
+  color: var(--white);
 }
 
 .inbox-call__body {
