@@ -1,0 +1,338 @@
+/* Tarjetas de mesa compartidas por "Mis Mesas" (mesero) y "Gestion de Mesas" (ADMIN), Figma 31:2: resumen arriba,
+   mesas divididas por estado (Libres, Ocupadas, En cobro) y la misma tarjeta en escritorio, tablet y movil.
+   Colores de los estados: libre verde, ocupada azul, en cobro naranja; "Asignadas/Total" amarillo; llamado rojo. */
+
+/* Valores que tokens.css no tiene (src/styles es protegido): solo para estas pantallas */
+.ts-stats,
+.ts-section {
+  --ts-yellow-50: #fefce8;
+  --ts-yellow-700: #a16207; /* el #facc15 del Figma da 1,5:1 como texto: la cifra usa este */
+  --ts-shade: rgb(115 115 115 / 25%); /* sombra de la mesa de otro mesero (Figma 152:95) */
+}
+
+/* ---------- Resumen (Figma 31:58, 31:48, 31:43, 31:53) ---------- */
+.ts-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-5);
+  margin-bottom: var(--sp-6);
+}
+
+.ts-stat {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-width: 0;
+  min-height: 80px;
+  padding: var(--sp-4) var(--sp-4) var(--sp-4) 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.ts-stat__bar {
+  flex-shrink: 0;
+  width: 4px;
+  height: 40px;
+  border-radius: 0 2px 2px 0;
+}
+
+.ts-stat__info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ts-stat__value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ts-stat__label {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.ts-stat__circle {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+}
+
+.ts-stat--asignadas .ts-stat__bar { background: var(--yellow-400); }
+.ts-stat--asignadas .ts-stat__value { color: var(--ts-yellow-700); }
+.ts-stat--asignadas .ts-stat__circle { background: var(--ts-yellow-50); color: var(--ts-yellow-700); }
+
+.ts-stat--libre .ts-stat__bar { background: var(--green-600); }
+.ts-stat--libre .ts-stat__value { color: var(--green-600); }
+.ts-stat--libre .ts-stat__circle { background: var(--green-50); color: var(--green-600); }
+
+.ts-stat--ocupada .ts-stat__bar { background: var(--blue-600); }
+.ts-stat--ocupada .ts-stat__value { color: var(--blue-600); }
+.ts-stat--ocupada .ts-stat__circle { background: var(--blue-50); color: var(--blue-600); }
+
+.ts-stat--en-cobro .ts-stat__bar { background: var(--orange-500); }
+.ts-stat--en-cobro .ts-stat__value { color: var(--orange-500); }
+.ts-stat--en-cobro .ts-stat__circle { background: var(--orange-50); color: var(--orange-500); }
+
+/* ---------- Secciones por estado (Figma 31:63, 152:33, 152:35) ---------- */
+.ts-section + .ts-section {
+  margin-top: var(--sp-6);
+}
+
+.ts-section-title {
+  margin-bottom: var(--sp-4);
+  color: var(--n-900);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.ts-section-empty {
+  padding: var(--sp-4);
+  border: 1px dashed var(--n-300);
+  border-radius: var(--radius-card);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ---------- Rejilla: 4 / 3 / 2 columnas ---------- */
+.ts-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-5);
+}
+
+/* ---------- Tarjeta de mesa (Figma 31:64, 152:7, 152:19, 152:37) ---------- */
+.ts-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 172px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1.5px solid var(--n-200);
+  border-radius: var(--radius-card);
+}
+
+.ts-card--libre { border-color: var(--green-200); }
+.ts-card--ocupada { border-color: var(--blue-200); }
+.ts-card--en-cobro { border-color: var(--orange-200); }
+
+.ts-card__top-bar {
+  height: 4px;
+  background: var(--n-300);
+}
+
+.ts-card--libre .ts-card__top-bar { background: var(--green-600); }
+.ts-card--ocupada .ts-card__top-bar { background: var(--blue-600); }
+.ts-card--en-cobro .ts-card__top-bar { background: var(--orange-500); }
+
+.ts-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-4) var(--sp-4);
+}
+
+/* "Mesa" con el numero en un circulo lleno del color del estado */
+.ts-card__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--n-900);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ts-card__number {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--n-500);
+  color: var(--white);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ts-card--libre .ts-card__number { background: var(--green-600); }
+.ts-card--ocupada .ts-card__number { background: var(--blue-600); }
+.ts-card--en-cobro .ts-card__number { background: var(--orange-500); }
+
+/* ---------- Pastilla de estado (Figma 31:70: 26px de alto, 11px) ---------- */
+.ts-card .pill {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pill--table-libre { background: var(--green-50); color: var(--green-600); }
+.pill--table-ocupada { background: var(--blue-50); color: var(--blue-600); }
+.pill--table-en_cobro { background: var(--orange-50); color: var(--orange-500); }
+
+.ts-card__divider {
+  height: 1px;
+  margin: 0 var(--sp-4);
+  background: var(--border);
+}
+
+/* ---------- Quien atiende y llamados ---------- */
+.ts-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-height: 48px;
+  padding: var(--sp-2) var(--sp-4) 0;
+}
+
+.ts-card__attendant {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ts-card__waiter {
+  overflow: hidden;
+  color: var(--n-700);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Llamado: la misma forma de la pastilla de estado, pero llena en rojo con letra blanca (4,8:1). Rojo y no naranja:
+   el naranja es "En cobro" y el llamado se perderia en esa tarjeta; el rojo es el de "Llamados" en el menu */
+.ts-card__calls {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--sp-1);
+  height: 24px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-pill);
+  background: var(--red-600);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ---------- Pie de la tarjeta (acciones) ---------- */
+.ts-card__actions {
+  margin-top: auto;
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+}
+
+/* ---------- Mesa de otro mesero: sombra encima (Figma 152:95 y 152:105) ---------- */
+.ts-card__shade {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--ts-shade);
+  pointer-events: none;
+}
+
+/* ---------- Carga ---------- */
+.ts-card--skeleton {
+  background: var(--n-100);
+  border: 0;
+  animation: ts-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes ts-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ts-card--skeleton {
+    animation: none;
+  }
+}
+
+/* ---------- Tablet: 3 columnas, el resumen sigue en fila ---------- */
+@media (width <= 1100px) {
+  .ts-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sp-4);
+  }
+
+  .ts-stats {
+    gap: var(--sp-4);
+  }
+
+  .ts-stat__value {
+    font-size: 24px;
+  }
+}
+
+/* ---------- Movil: tarjetas compactas, dos por fila; resumen en 2 x 2 ----------
+   La misma tarjeta, mas angosta: el nombre arriba y la pastilla debajo (a lo ancho no caben juntos), menos relleno
+   y sin altura minima. */
+@media (width <= 640px) {
+  .ts-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-3);
+  }
+
+  .ts-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-3);
+  }
+
+  .ts-card {
+    min-height: 0;
+  }
+
+  .ts-card__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  }
+
+  .ts-card__name {
+    font-size: 15px;
+  }
+
+  .ts-card__divider {
+    margin: 0 var(--sp-3);
+  }
+
+  .ts-card__body {
+    min-height: 0;
+    padding: var(--sp-2) var(--sp-3) 0;
+  }
+
+  .ts-card__actions {
+    padding: var(--sp-3);
+  }
+
+  .ts-section-title {
+    font-size: 16px;
+  }
+}
+
+/* Muy angosto: el circulo del resumen no cabe junto a la cifra */
+@media (width <= 400px) {
+  .ts-stat__circle {
+    display: none;
+  }
+}
