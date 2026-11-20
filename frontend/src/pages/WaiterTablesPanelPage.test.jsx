@@ -205,6 +205,17 @@ describe('WaiterTablesPanelPage: acciones', () => {
     expect(within(card(3)).getByRole('button', { name: 'Mesa 3, cobrar' })).toBeEnabled()
   })
 
+  it('"Ver Detalle" es de contorno azul y "Tomar Pedido" azul lleno: se distinguen', async () => {
+    renderPage([TABLES[1], { ...TABLES[1], tableId: 't5', tableNumber: 5, orderId: 'o5', itemsCount: 0 }])
+    await findCard(2)
+
+    const detail = within(card(2)).getByRole('button', { name: 'Mesa 2, ver detalle' })
+    const take = within(card(5)).getByRole('button', { name: 'Mesa 5, tomar pedido' })
+    expect(detail).toHaveClass('ts-btn--detalle')
+    expect(detail).not.toHaveClass('ts-btn--ocupada')
+    expect(take).toHaveClass('ts-btn--ocupada')
+  })
+
   it('abre una mesa y pasa a ocupada (a Ocupadas, como propia)', async () => {
     const user = userEvent.setup()
     tablesStatusApi.openTable.mockResolvedValue({

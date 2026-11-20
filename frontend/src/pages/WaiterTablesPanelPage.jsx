@@ -75,7 +75,8 @@ function tableAction(table, { onOpen, opening, onCharge, onViewDetail, onTakeOrd
     return table.itemsCount > 0
       ? {
           label: 'Ver Detalle',
-          className: 'ts-btn--ocupada',
+          // Contorno azul, como "Abrir Mesa": se distingue de "Tomar Pedido" (azul lleno)
+          className: 'ts-btn--detalle',
           ariaLabel: `${mesa}, ver detalle`,
           disabled: false,
           run: () => onViewDetail(table),

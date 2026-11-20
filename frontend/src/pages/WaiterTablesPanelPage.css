@@ -229,6 +229,7 @@
 }
 
 .ts-btn--libre,
+.ts-btn--detalle,
 .ts-btn--ocupada,
 .ts-btn--en-cobro {
   width: 100%;
@@ -254,6 +255,19 @@
   cursor: progress;
 }
 
+/* "Ver Detalle": contorno azul (#2563eb, --blue-600) sobre blanco, como "Abrir Mesa" en verde. Asi se distingue de
+   "Tomar Pedido", que es azul lleno */
+.ts-btn--detalle {
+  background: var(--surface);
+  color: var(--blue-600);
+  border: 1.5px solid var(--blue-600);
+}
+
+.ts-btn--detalle:hover {
+  background: var(--blue-50);
+}
+
+/* "Tomar Pedido": azul lleno */
 .ts-btn--ocupada {
   background: var(--blue-600);
   color: var(--white);
@@ -272,6 +286,7 @@
 }
 
 .ts-btn--libre:focus-visible,
+.ts-btn--detalle:focus-visible,
 .ts-btn--ocupada:focus-visible,
 .ts-btn--en-cobro:focus-visible {
   outline: 2px solid var(--n-950);
@@ -366,6 +381,7 @@
   }
 
   .ts-btn--libre,
+  .ts-btn--detalle,
   .ts-btn--ocupada,
   .ts-btn--en-cobro {
     height: 44px; /* objetivo tactil */
