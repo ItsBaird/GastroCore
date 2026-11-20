@@ -125,9 +125,9 @@ describe('rutas de la aplicacion', () => {
       expect(document.querySelector('.role-badge')).toHaveTextContent('ADMIN')
       expect(document.querySelector('.role-badge')).toHaveClass('role-badge--admin')
 
-      // Barra movil (clase nav-item--mobile): el ADMIN ve Admin y no los destinos que aun no existen
+      // Barra movil (clase nav-item--mobile): el ADMIN ve Admin. "Pedidos Activos" se retiro del menu (no se usaba)
       expect(screen.getByRole('link', { name: /Panel Admin/ })).toHaveClass('nav-item--mobile')
-      expect(screen.getByRole('button', { name: /Pedidos Activos/ })).not.toHaveClass('nav-item--mobile')
+      expect(screen.queryByRole('button', { name: /Pedidos Activos/ })).toBeNull()
       // GC-QR-0002/0003: "Llamados" ya existe (bandeja del mesero) y tambien va en la barra movil
       expect(screen.getByRole('link', { name: /Llamados/ })).toHaveAttribute('href', '/mesero/llamados')
       expect(screen.getByRole('link', { name: /Llamados/ })).toHaveClass('nav-item--mobile')
@@ -161,8 +161,11 @@ describe('rutas de la aplicacion', () => {
       expect(screen.queryByRole('link', { name: /Panel Admin/ })).toBeNull()
       expect(document.querySelector('.role-badge')).toHaveTextContent('MESERO')
       expect(document.querySelector('.role-badge')).not.toHaveClass('role-badge--admin')
-      // Su barra movil no cambia: los destinos "Proximamente" siguen ahi
-      expect(screen.getByRole('button', { name: /Pedidos Activos/ })).toHaveClass('nav-item--mobile')
+      // "Pedidos Activos" se retiro del menu: no se usaba. Sus destinos reales siguen en la barra movil
+      expect(screen.queryByText('Pedidos Activos')).toBeNull()
+      expect(screen.getByRole('link', { name: /Mis Mesas/ })).toHaveClass('nav-item--mobile')
+      expect(screen.getByRole('link', { name: /Llamados/ })).toHaveClass('nav-item--mobile')
+      expect(screen.getByRole('link', { name: /Mi Turno/ })).toHaveClass('nav-item--mobile')
     })
 
     it('el boton de cerrar sesion llama al logout del contexto', async () => {
