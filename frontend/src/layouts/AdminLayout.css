@@ -103,6 +103,21 @@
   letter-spacing: -0.01em;
 }
 
+/* Hamburguesa (solo movil) + titulo */
+.topbar__lead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+/* El boton y el panel solo existen en movil (los pinta el JS); en escritorio no se ven */
+.menu-btn,
+.drawer-close,
+.drawer-backdrop {
+  display: none;
+}
+
 .topbar__actions {
   display: flex;
   align-items: center;
@@ -215,5 +230,151 @@
 
   .content {
     padding: var(--sp-4);
+  }
+}
+
+/* ---------- Mobile ADMIN: menu lateral con hamburguesa ----------
+   Solo .shell--admin: el mesero comparte estas clases y conserva su barra inferior. El menu completo (todas las
+   pantallas) entra desde la izquierda con una transicion suave; un fondo oscuro cubre la pagina. Sombra solo aqui:
+   el panel flota sobre el contenido. */
+@media (width <= 640px) {
+  .shell--admin {
+    padding-bottom: 0;
+  }
+
+  .shell--admin .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    width: min(288px, 85vw);
+    height: 100dvh;
+    padding: var(--sp-4) var(--sp-3) var(--sp-5);
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition:
+      transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+      visibility 0s linear 0.24s;
+  }
+
+  .shell--menu-open .sidebar {
+    visibility: visible;
+    transform: none;
+    box-shadow: 0 16px 48px rgb(10 10 10 / 35%);
+    transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .shell--admin .brand {
+    display: flex;
+    padding: var(--sp-1) 0 var(--sp-4) var(--sp-3);
+  }
+
+  .shell--admin .brand__name {
+    display: block;
+  }
+
+  .shell--admin .sidebar__nav {
+    flex-direction: column;
+    gap: var(--sp-1);
+    overflow-y: auto;
+  }
+
+  /* Todas las pantallas, con su etiqueta completa: la barra inferior recortaba la lista */
+  .shell--admin .nav-item,
+  .shell--admin .nav-item:not(.nav-item--mobile, .nav-item--logout) {
+    display: flex;
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--sp-3);
+    height: 48px;
+    padding: 0 var(--sp-3);
+    font-size: 15px;
+  }
+
+  .shell--admin .nav-item__label {
+    display: block;
+  }
+
+  .shell--admin .nav-item--logout {
+    width: 100%;
+    margin-top: var(--sp-2);
+  }
+
+  .shell--admin .drawer-close {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin-left: auto;
+    background: none;
+    border: 0;
+    border-radius: var(--radius-md);
+    color: var(--n-400);
+    cursor: pointer;
+  }
+
+  .shell--admin .drawer-close:hover {
+    background: var(--n-850);
+    color: var(--white);
+  }
+
+  .shell--admin .drawer-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: rgb(10 10 10 / 45%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.24s ease;
+  }
+
+  .shell--menu-open .drawer-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .shell--admin .menu-btn {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin-left: calc(-1 * var(--sp-2));
+    background: none;
+    border: 0;
+    border-radius: var(--radius-md);
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .shell--admin .menu-btn:hover {
+    background: var(--n-100);
+  }
+
+  .shell--admin .menu-btn:focus-visible,
+  .shell--admin .drawer-close:focus-visible,
+  .shell--admin .nav-item:focus-visible {
+    outline: 2px solid var(--red-600);
+    outline-offset: 2px;
+  }
+
+  /* El titulo largo no empuja el avatar fuera de la barra */
+  .shell--admin .topbar__title {
+    overflow: hidden;
+    font-size: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (width <= 640px) and (prefers-reduced-motion: reduce) {
+  .shell--admin .sidebar,
+  .shell--menu-open .sidebar,
+  .shell--admin .drawer-backdrop {
+    transition: none;
   }
 }
