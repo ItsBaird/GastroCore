@@ -1,61 +1,26 @@
-import { BellRing, CircleDollarSign, RefreshCw, Table, TriangleAlert, UtensilsCrossed } from 'lucide-react'
+import { BellRing, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listTableStatuses, openTable as openTableApi } from '../api/tablesStatus.js'
 import { useAuth } from '../auth/useAuth.js'
+import '../components/TableCards.css'
+import { TableStats } from '../components/TableStats.jsx'
 import { useTableStatusSocket } from '../hooks/useTableStatusSocket.js'
 import { WaiterPage } from '../layouts/WaiterLayout.jsx'
 import '../styles/waiter.tokens.css'
-import { sortForSection } from '../utils/waiterTables.js'
+import { sortForSection, TABLE_SECTIONS, TABLE_STATUS } from '../utils/waiterTables.js'
 import './WaiterTablesPanelPage.css'
 
 // Mis Mesas (Figma 31:2 "Mesero - Mis Mesas"). La misma organizacion en escritorio, tablet y movil: resumen
 // arriba y las mesas divididas por estado. En Ocupadas y En cobro van primero las del mesero de la sesion; las de
 // un compañero se ven con una sombra encima y sin accion (el backend responderia 403). El ADMIN puede operarlas.
-const STATUS_CONFIG = {
-  libre: { label: 'Libre', className: 'ts-card--libre' },
-  ocupada: { label: 'Ocupada', className: 'ts-card--ocupada' },
-  // El Figma rotula "Ocupada" la tarjeta en cobro: es un copiado; la etiqueta sigue el estado
-  en_cobro: { label: 'En cobro', className: 'ts-card--en-cobro' },
-}
-
-const SECTIONS = [
-  { status: 'libre', title: 'Mesas: Libres', empty: 'No hay mesas libres.' },
-  { status: 'ocupada', title: 'Mesas: Ocupadas', empty: 'No hay mesas ocupadas.' },
-  { status: 'en_cobro', title: 'Mesas: En Cobro', empty: 'No hay mesas en cobro.' },
-]
+const STATUS_CONFIG = TABLE_STATUS
+const SECTIONS = TABLE_SECTIONS
 
 function SkeletonCards() {
   return Array.from({ length: 8 }, (_, i) => (
     <div key={i} className="ts-card ts-card--skeleton" aria-hidden="true" />
   ))
-}
-
-// Resumen (Figma 31:58, 31:48, 31:43, 31:53): los colores son los de los estados de las mesas
-function StatCards({ tables }) {
-  const count = (status) => tables.filter((t) => t.status === status).length
-  const stats = [
-    { key: 'asignadas', value: tables.length, label: 'Asignadas', icon: Table },
-    { key: 'libre', value: count('libre'), label: 'Libres', icon: Table },
-    { key: 'ocupada', value: count('ocupada'), label: 'Ocupadas', icon: UtensilsCrossed },
-    { key: 'en-cobro', value: count('en_cobro'), label: 'En cobro', icon: CircleDollarSign },
-  ]
-  return (
-    <div className="ts-stats" role="group" aria-label="Resumen de mesas">
-      {stats.map(({ key, value, label, icon: Icon }) => (
-        <div key={key} className={`ts-stat ts-stat--${key}`}>
-          <div className="ts-stat__bar" />
-          <div className="ts-stat__info">
-            <span className="ts-stat__value">{value}</span>
-            <span className="ts-stat__label">{label}</span>
-          </div>
-          <div className="ts-stat__circle" aria-hidden="true">
-            <Icon size={18} />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
 }
 
 // Una sola fuente para "que accion toca segun el estado"
@@ -252,7 +217,7 @@ export default function WaiterTablesPanelPage() {
 
   return (
     <WaiterPage title="Mis Mesas">
-      {status === 'ready' && <StatCards tables={tables} />}
+      {status === 'ready' && <TableStats tables={tables} />}
 
       {openError && (
         <div className="ts-open-error" role="alert">

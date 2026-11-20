@@ -120,7 +120,24 @@
     width: 100%;
   }
 
+  /* Las filas ya son tarjetas (reglas de .users-table en movil): sin ancho minimo, la columna de acciones quedaba
+     fuera de la vista. El encabezado de cada dia ocupa toda la fila */
   .shifts-table {
-    min-width: 420px;
+    min-width: 0;
+  }
+
+  .shifts-table .day-row th,
+  .shifts-table .day-empty td {
+    flex: 1 1 100%;
+  }
+
+  .shifts-table .day-row th {
+    padding: var(--sp-2) 0;
+    border-bottom: 0;
+  }
+
+  .shifts-table .day-row,
+  .shifts-table .day-empty {
+    padding-block: var(--sp-2);
   }
 }

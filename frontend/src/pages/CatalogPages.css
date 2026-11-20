@@ -310,8 +310,58 @@
     border-radius: var(--radius-lg);
   }
 
+  /* Cada producto pasa a ser una tarjeta (como Usuarios): foto, nombre y categoria arriba; precio, disponibilidad y
+     Editar debajo. Sin desplazamiento lateral: en el celular la columna de acciones quedaba fuera de la vista */
   .catalog-table {
-    min-width: 440px;
+    min-width: 0;
+  }
+
+  .catalog-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .catalog-table,
+  .catalog-table tbody {
+    display: block;
+  }
+
+  .catalog-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2) var(--sp-3);
+    padding: var(--sp-4) 0;
+    border-bottom: 1px solid var(--n-100);
+  }
+
+  .catalog-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .catalog-table td {
+    padding: 0;
+    border: 0;
+  }
+
+  .catalog-table td:first-child {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .catalog-table td:last-child {
+    margin-left: auto;
+  }
+
+  .catalog-table .link-btn {
+    min-height: 44px;
+  }
+
+  .catalog-table__skeleton td {
+    flex: 1 1 100%;
   }
 
   .category-grid {
