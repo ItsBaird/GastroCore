@@ -29,8 +29,8 @@
   display: grid;
   flex: none;
   place-items: center;
-  width: 72px;
-  height: 72px;
+  width: 96px;
+  height: 72px; /* 4:3, la proporcion de las fotos: el admin ve la foto como la vera el cliente */
   overflow: hidden;
   background: var(--n-100);
   border-radius: var(--radius-md);
@@ -126,8 +126,8 @@
   display: grid;
   flex: none;
   place-items: center;
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 48px; /* 4:3, la proporcion de las fotos */
   overflow: hidden;
   background: var(--n-100);
   border-radius: var(--radius-md);
