@@ -222,10 +222,12 @@
   border-radius: var(--qr-radius-card);
 }
 
-/* 69:24: zona de foto de 96 sobre #fef2f2 */
+/* 69:24: zona de foto sobre #fef2f2. El Figma la dibuja de 96 de alto (171x96, casi 16:9), pero las fotos del
+   catalogo son 4:3 (400x300) y se cortaba un cuarto de cada una. Toma la proporcion de las fotos y crece con el
+   ancho de la tarjeta: en 390 queda de 171x128 y el producto se ve completo. */
 .qr-photo {
   position: relative;
-  height: 96px;
+  aspect-ratio: 4 / 3;
   background: var(--red-50);
 }
 
