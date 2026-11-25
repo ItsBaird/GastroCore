@@ -19,15 +19,14 @@
   background: var(--white);
 }
 
-/* 70:3: 280 de alto sobre #fef2f2 (en 375 de ancho ya es 4:3). Toma la proporcion 4:3 de las fotos para que
-   se vean completas en cualquier ancho; en pantallas bajas no pasa de la mitad del alto para que el resto del
-   detalle siga a la vista. */
+/* 70:3: 280 de alto sobre #fef2f2, a todo el ancho (en 375 ya es 4:3, la proporcion de las fotos). Alto fijo a
+   proposito: con aspect-ratio y un max-height, al abrir el teclado el tope achicaba tambien el ancho y la foto
+   quedaba a la izquierda tapando el nombre y el precio. */
 .qr-detail__hero {
   position: relative;
   display: grid;
   place-items: center;
-  aspect-ratio: 4 / 3;
-  max-height: 50dvh;
+  height: 280px;
   background: var(--red-50);
 }
 
@@ -596,6 +595,14 @@
     height: auto;
     max-height: calc(100dvh - 2 * var(--sp-6));
     border-radius: var(--qr-radius-card);
+  }
+
+  /* El panel mide 520: con 280 de alto la foto 4:3 perdia mas de un tercio. Ancho fijo al del panel y alto
+     segun la proporcion (sin max-height, que achicaria el ancho). */
+  .qr-detail__hero {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 3;
   }
 
   .qr-detail__footer {
