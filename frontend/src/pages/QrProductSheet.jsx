@@ -1,8 +1,9 @@
 import { ArrowLeft, Minus, Plus, Utensils } from 'lucide-react'
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import sliceDot from '../assets/qr/slice-dot.svg'
 import slice from '../assets/qr/slice.svg'
 import { useDialogFocus } from '../hooks/useDialogFocus.js'
+import { useKeyboardFit } from '../hooks/useKeyboardFit.js'
 import { MAX_LINES, MAX_NOTE, MAX_QUANTITY } from '../hooks/useOrderCart.js'
 import { formatCOP } from '../utils/formatCOP.js'
 import './QrSheets.css'
@@ -18,6 +19,10 @@ export function QrProductSheet({ product, categoryName, cartFull, alreadyInCart,
   const [note, setNote] = useState('')
   const [photoFailed, setPhotoFailed] = useState(false)
   const blocked = cartFull && !alreadyInCart
+  const panelRef = useRef(null)
+  const noteRef = useRef(null)
+  const footerRef = useRef(null)
+  const keyboardFit = useKeyboardFit({ dialogRef: ref, panelRef, fieldRef: noteRef, footerRef })
 
   return (
     <div
@@ -29,7 +34,7 @@ export function QrProductSheet({ product, categoryName, cartFull, alreadyInCart,
       onClick={(event) => event.target === event.currentTarget && onClose()}
     >
       {/* En movil el panel ocupa toda la pantalla (Figma 70:2); en pantallas anchas es un panel centrado */}
-      <div className="qr-detail__panel">
+      <div ref={panelRef} className="qr-detail__panel">
       {/* 70:3: zona de 280 sobre #fef2f2 con la foto (o la porcion del Figma) */}
       <div className="qr-detail__hero">
         {product.photoUrl && !photoFailed ? (
@@ -79,6 +84,7 @@ export function QrProductSheet({ product, categoryName, cartFull, alreadyInCart,
           Notas para la cocina (opcional)
         </label>
         <textarea
+          ref={noteRef}
           id={noteId}
           className="qr-detail__note"
           placeholder="Ej: Sin cebolla, extra queso..."
@@ -86,6 +92,7 @@ export function QrProductSheet({ product, categoryName, cartFull, alreadyInCart,
           rows={3}
           value={note}
           onChange={(event) => setNote(event.target.value)}
+          {...keyboardFit}
         />
         <span className="qr-detail__counter" aria-live="polite">
           {note.length}/{MAX_NOTE}
@@ -94,7 +101,7 @@ export function QrProductSheet({ product, categoryName, cartFull, alreadyInCart,
 
         {/* 70:38 a 70:51: cantidad, total y boton. Fijos al pie del panel para que "Agregar" siempre se vea,
             aunque la pantalla sea baja o la descripcion larga */}
-        <div className="qr-detail__footer">
+        <div ref={footerRef} className="qr-detail__footer">
         <div className="qr-detail__amount">
           <div>
             <span className="qr-detail__label" id={`${noteId}-qty`}>
