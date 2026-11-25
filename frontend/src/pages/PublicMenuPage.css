@@ -41,6 +41,7 @@
 
 .qr-brand__logo {
   flex: none;
+  color: var(--red-600);
 }
 
 /* 69:6: 16/700 #0a0a0a */
