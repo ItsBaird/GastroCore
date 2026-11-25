@@ -19,12 +19,15 @@
   background: var(--white);
 }
 
-/* 70:3: 280 de alto sobre #fef2f2 */
+/* 70:3: 280 de alto sobre #fef2f2 (en 375 de ancho ya es 4:3). Toma la proporcion 4:3 de las fotos para que
+   se vean completas en cualquier ancho; en pantallas bajas no pasa de la mitad del alto para que el resto del
+   detalle siga a la vista. */
 .qr-detail__hero {
   position: relative;
   display: grid;
   place-items: center;
-  height: 280px;
+  aspect-ratio: 4 / 3;
+  max-height: 50dvh;
   background: var(--red-50);
 }
 
@@ -593,10 +596,6 @@
     height: auto;
     max-height: calc(100dvh - 2 * var(--sp-6));
     border-radius: var(--qr-radius-card);
-  }
-
-  .qr-detail__hero {
-    height: 220px;
   }
 
   .qr-detail__footer {
