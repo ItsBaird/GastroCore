@@ -104,10 +104,13 @@
   border-color: var(--accent);
 }
 
-/* Product grid */
+/* Product grid: hasta 3 productos por fila; si la sección del catálogo no tiene espacio, pasa a 2 o 1 columna.
+   Con repeat(3, 1fr) la columna no bajaba del ancho del nombre más largo y la rejilla se metía debajo del
+   panel "Pedido Actual", dejando tarjetas tapadas e imposibles de seleccionar. El mínimo de cada columna es
+   220px o un tercio del ancho disponible (lo mayor), así nunca caben más de 3. */
 .ot-products {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(max(220px, (100% - 2 * var(--sp-5)) / 3), 1fr));
   gap: var(--sp-5);
 }
 
@@ -120,6 +123,7 @@
   gap: var(--sp-3);
   position: relative;
   height: 120px;
+  min-width: 0; /* la tarjeta se ajusta a su columna; el nombre largo se corta con "…" */
 }
 
 .ot-product__thumb {
