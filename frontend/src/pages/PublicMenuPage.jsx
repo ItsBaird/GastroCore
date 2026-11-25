@@ -5,6 +5,7 @@ import {
   ClipboardList,
   ConciergeBell,
   LoaderCircle,
+  Pizza,
   Plus,
   QrCode,
   ReceiptText,
@@ -16,7 +17,6 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getPublicMenu, sendOrderRequest } from '../api/qr.js'
-import brandRing from '../assets/qr/brand-ring.svg'
 import sliceDot from '../assets/qr/slice-dot.svg'
 import slice from '../assets/qr/slice.svg'
 import { useToast } from '../components/Toast.jsx'
@@ -405,7 +405,8 @@ export default function PublicMenuPage() {
     <div className={`qr-page${cart.units > 0 ? ' qr-page--cart' : ''}`}>
       <header className="qr-header">
         <div className="qr-shell qr-header__row">
-          <img className="qr-brand__logo" src={brandRing} alt="" width="20" height="20" />
+          {/* Mismo simbolo del negocio que el resto de la app (login, menus del admin y del mesero) */}
+          <Pizza className="qr-brand__logo" size={22} aria-hidden="true" />
           <h1 className="qr-brand__name">La Pizzeta</h1>
           {table && <span className="qr-table-pill">Mesa {table.tableNumber}</span>}
         </div>
