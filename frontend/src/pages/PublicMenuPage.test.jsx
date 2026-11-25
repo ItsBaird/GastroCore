@@ -6,7 +6,7 @@ import * as qrApi from '../api/qr.js'
 import { QrApiError } from '../api/qr.js'
 import { ToastProvider } from '../components/Toast.jsx'
 import { NOTIFIED_MS } from '../hooks/useCallWaiter.js'
-import { POLL_MS } from '../hooks/useQrTable.js'
+import { POLL_MS, WAITING_POLL_MS, WAITING_WINDOW_MS } from '../hooks/useQrTable.js'
 import PublicMenuPage from './PublicMenuPage.jsx'
 
 vi.mock('../api/qr.js', async (importOriginal) => {
@@ -492,6 +492,47 @@ describe('PublicMenuPage: actualización del estado (polling)', () => {
 
     expect(await screen.findByRole('button', { name: /Pedir la cuenta/ })).toBeInTheDocument()
     expect(qrApi.getQrTable).toHaveBeenCalledTimes(2)
+  })
+
+  it('con la mesa libre consulta cada 5 s: al abrirla el mesero aparece "Agregar" sin recargar', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    qrApi.getQrTable.mockResolvedValueOnce(table('libre')).mockResolvedValue(table('ocupada'))
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+    expect(screen.queryByRole('button', { name: 'Agregar Pizza Margherita' })).toBeNull()
+
+    await act(() => vi.advanceTimersByTimeAsync(WAITING_POLL_MS))
+
+    expect(await screen.findByRole('button', { name: 'Agregar Pizza Margherita' })).toBeEnabled()
+    expect(qrApi.getQrTable).toHaveBeenCalledTimes(2)
+  })
+
+  it('con la mesa abierta vuelve a consultar cada 30 s, no cada 5', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    qrApi.getQrTable.mockResolvedValue(table('ocupada'))
+    renderPage()
+    await screen.findByRole('button', { name: 'Agregar Pizza Margherita' })
+
+    await act(() => vi.advanceTimersByTimeAsync(WAITING_POLL_MS * 2))
+    expect(qrApi.getQrTable).toHaveBeenCalledTimes(1)
+
+    await act(() => vi.advanceTimersByTimeAsync(POLL_MS))
+    expect(qrApi.getQrTable).toHaveBeenCalledTimes(2)
+  })
+
+  it('si la mesa sigue libre 10 min, baja a una consulta cada 30 s', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    renderPage()
+    await screen.findByText('Pizza Margherita')
+
+    // Durante la ventana: una consulta cada 5 s
+    await act(() => vi.advanceTimersByTimeAsync(WAITING_WINDOW_MS + 1000))
+    const calls = qrApi.getQrTable.mock.calls.length
+    expect(calls).toBeGreaterThanOrEqual(WAITING_WINDOW_MS / WAITING_POLL_MS)
+
+    // Despues: en los siguientes 30 s hay una sola consulta, no seis
+    await act(() => vi.advanceTimersByTimeAsync(POLL_MS))
+    expect(qrApi.getQrTable).toHaveBeenCalledTimes(calls + 1)
   })
 
   it('un 404 durante la consulta muestra QR inválido', async () => {
