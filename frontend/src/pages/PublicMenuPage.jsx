@@ -22,12 +22,14 @@ import slice from '../assets/qr/slice.svg'
 import { useToast } from '../components/Toast.jsx'
 import { useCallWaiter, useRequestBill } from '../hooks/useCallWaiter.js'
 import { useOrderCart } from '../hooks/useOrderCart.js'
+import { useQrOrderStatus } from '../hooks/useQrOrderStatus.js'
 import { useQrTable } from '../hooks/useQrTable.js'
 import { formatCOP } from '../utils/formatCOP.js'
 import './PublicMenuPage.css'
 import './qr.tokens.css'
 import { QrOrderSheet } from './QrOrderSheet.jsx'
 import { QrProductSheet } from './QrProductSheet.jsx'
+import { QrStatusSheet } from './QrStatusSheet.jsx'
 
 // GC-QR-0001. Vista publica del QR (Figma 69:2 "Cliente QR - Menu Publico", 390 px). Sin login: el estado
 // y las capacidades los decide el backend (GET /qr/:token) y el menu viene de Catalog. Lo que el Figma no
@@ -294,6 +296,15 @@ export default function PublicMenuPage() {
     setOrderPhase('editing')
     setOrderOpen(true)
   }
+
+  // "Estado": lo ya enviado y su paso en cocina. Solo consulta con la hoja abierta
+  const [statusOpen, setStatusOpen] = useState(false)
+  const orderStatus = useQrOrderStatus(qrToken, statusOpen)
+  // Nombres de las solicitudes aun no confirmadas (qr_request_items no guarda nombre): salen del menu
+  const productNames = useMemo(
+    () => new Map(menu.categories.flatMap((c) => c.products ?? []).map((p) => [p.productId, p.name])),
+    [menu.categories],
+  )
 
   let blockedReason = ''
   if (qr.table && !qr.table.capabilities?.sendRequest) {
@@ -592,11 +603,15 @@ export default function PublicMenuPage() {
               Mi Pedido
               {cart.units > 0 && <span className="sr-only">({cart.units} productos)</span>}
             </button>
-            {/* Estado (72:2) no tiene backend publico: queda deshabilitado */}
-            <button type="button" className="qr-tab" disabled title="Próximamente">
+            {/* Estado (72:2): lo ya enviado y su paso en cocina; con la mesa abierta (ocupada o en cobro) */}
+            <button
+              type="button"
+              className="qr-tab"
+              disabled={!table || table.status === 'libre'}
+              onClick={() => setStatusOpen(true)}
+            >
               <ClipboardList size={22} aria-hidden="true" />
               Estado
-              <span className="sr-only">(próximamente)</span>
             </button>
           </div>
         </nav>
@@ -614,6 +629,14 @@ export default function PublicMenuPage() {
             setDetail(null)
             toast.success(`Agregado a tu pedido: ${quantity} × ${detail.product.name}`)
           }}
+        />
+      )}
+
+      {statusOpen && (
+        <QrStatusSheet
+          status={orderStatus}
+          productNames={productNames}
+          onClose={() => setStatusOpen(false)}
         />
       )}
 
