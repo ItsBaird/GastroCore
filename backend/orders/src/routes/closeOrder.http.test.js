@@ -1,4 +1,4 @@
-// POST /api/orders/:orderId/close con la app real: solo ADMIN, sin cuerpo; las reglas van en el servicio.
+// POST /api/orders/:orderId/close con la app real: WAITER o ADMIN, sin cuerpo; las reglas van en el servicio.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { closeOrder } from '../services/closeOrder.service.js';
 import { call, startApp, tokenFor } from '../test/helpers.js';
@@ -38,8 +38,18 @@ describe('POST /api/orders/:orderId/close', () => {
     expect(closeOrder).toHaveBeenCalledWith(ORDER_ID, expect.objectContaining({ role: 'ADMIN' }));
   });
 
-  it.each(['WAITER', 'COOK'])('%s: 403 sin llegar al servicio', async (role) => {
-    const res = await post(tokenFor(role));
+  it('el WAITER llega al servicio (que valida que sea su mesa)', async () => {
+    const res = await post(tokenFor('WAITER', { userId: '22222222-2222-4222-8222-222222222222' }));
+
+    expect(res.status).toBe(200);
+    expect(closeOrder).toHaveBeenCalledWith(
+      ORDER_ID,
+      expect.objectContaining({ role: 'WAITER', userId: '22222222-2222-4222-8222-222222222222' }),
+    );
+  });
+
+  it('el COOK: 403 sin llegar al servicio', async () => {
+    const res = await post(tokenFor('COOK'));
 
     expect(res.status).toBe(403);
     expect(closeOrder).not.toHaveBeenCalled();

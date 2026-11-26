@@ -72,12 +72,12 @@ orderRouter.post(
   registerPaymentController,
 );
 
-// Cerrar sin cobro una mesa abierta por error: solo ADMIN, sin cuerpo. Exige la orden ABIERTA y sin items que no
+// Cerrar sin cobro una mesa abierta por error: mesero asignado o ADMIN, sin cuerpo. Exige la orden ABIERTA y sin items que no
 // esten cancelados (las reglas estan en el servicio).
 orderRouter.post(
   '/:orderId/close',
   authenticate,
-  requireRole('ADMIN'),
+  requireRole('WAITER', 'ADMIN'),
   validate({ params: orderIdParamsSchema, body: emptyBodySchema }),
   closeOrderController,
 );

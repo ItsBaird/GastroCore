@@ -4,11 +4,12 @@ import { findOrderForBill } from '../repositories/bill.repository.js';
 import { closeOrderWithoutPayment } from '../repositories/closeOrder.repository.js';
 import { getTableStatus } from './tableStatus.service.js';
 
-// POST /:orderId/close. El ADMIN cierra sin cobro una mesa que se abrio por error y la deja libre.
+// POST /:orderId/close. El mesero asignado o el ADMIN cierran sin cobro una mesa que se abrio por error y la dejan
+// libre.
 //   - Solo con la orden ABIERTA: en cobro se cancela el cobro primero; cerrada ya no aplica.
 //   - Sin items que no esten cancelados: lo pedido se anula antes (queda en auditoria) y lo entregado se cobra.
 //     Asi no sirve para dejar de cobrar algo.
-// La ruta exige ADMIN (requireRole); aqui solo van las reglas de la orden.
+// La ruta exige WAITER o ADMIN (requireRole); aqui se valida que el WAITER sea el asignado y las reglas de la orden.
 
 function invalidTransition(message, details) {
   return new AppError({ status: 409, code: 'INVALID_TRANSITION', message, details });
@@ -41,6 +42,9 @@ function assertClosable(order) {
 export async function closeOrder(orderId, user) {
   const order = await findOrderForBill(orderId);
   if (!order) throw new AppError({ status: 404, code: 'NOT_FOUND', message: 'La orden no existe' });
+  if (user.role === 'WAITER' && order.waiterId !== user.userId) {
+    throw new AppError({ status: 403, code: 'FORBIDDEN', message: 'No tienes asignada esta mesa' });
+  }
   assertClosable(order);
 
   const result = await closeOrderWithoutPayment({

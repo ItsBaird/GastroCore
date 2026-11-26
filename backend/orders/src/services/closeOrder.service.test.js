@@ -15,6 +15,8 @@ const tableStatus = await import('./tableStatus.service.js');
 const { closeOrder } = await import('./closeOrder.service.js');
 
 const ADMIN = { userId: 'admin-1', role: 'ADMIN', permissions: [] };
+const WAITER = { userId: 'waiter-1', role: 'WAITER', permissions: [] };
+const OTHER = { userId: 'waiter-2', role: 'WAITER', permissions: [] };
 const CLOSED_AT = new Date('2026-11-26T20:00:00Z');
 
 const item = (status, name = 'Pizza') => ({
@@ -116,6 +118,25 @@ describe('closeOrder: cerrar sin cobro una mesa abierta por error', () => {
       status: 409,
       message: 'La mesa ya está cerrada',
     });
+  });
+
+  it('el mesero asignado tambien puede cerrar su mesa vacia', async () => {
+    billRepo.findOrderForBill.mockResolvedValue(order());
+
+    await expect(closeOrder('o-1', WAITER)).resolves.toMatchObject({ status: 'CERRADA' });
+    expect(closeRepo.closeOrderWithoutPayment).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'waiter-1' }),
+    );
+  });
+
+  it('otro mesero: 403 sin cerrar', async () => {
+    billRepo.findOrderForBill.mockResolvedValue(order());
+
+    await expect(closeOrder('o-1', OTHER)).rejects.toMatchObject({
+      status: 403,
+      code: 'FORBIDDEN',
+    });
+    expect(closeRepo.closeOrderWithoutPayment).not.toHaveBeenCalled();
   });
 
   it('orden inexistente: 404', async () => {
