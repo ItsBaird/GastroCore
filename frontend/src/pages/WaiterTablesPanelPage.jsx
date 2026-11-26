@@ -1,8 +1,10 @@
-import { BellRing, RefreshCw, TriangleAlert } from 'lucide-react'
+import { BellRing, DoorClosed, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { closeOrder } from '../api/orders.js'
 import { listTableStatuses, openTable as openTableApi } from '../api/tablesStatus.js'
 import { useAuth } from '../auth/useAuth.js'
+import { ConfirmDialog } from '../components/ConfirmDialog.jsx'
 import '../components/TableCards.css'
 import { TableStats } from '../components/TableStats.jsx'
 import { useTableStatusSocket } from '../hooks/useTableStatusSocket.js'
@@ -67,7 +69,17 @@ function tableAction(table, { onOpen, opening, onCharge, onViewDetail, onTakeOrd
 }
 
 // Tarjeta de mesa (Figma 31:64 libre, 152:7 ocupada propia, 152:19 ocupada de un compañero, 152:37 en cobro)
-function TableCard({ table, isMe, isAdmin, onOpen, opening, onCharge, onViewDetail, onTakeOrder }) {
+function TableCard({
+  table,
+  isMe,
+  isAdmin,
+  onOpen,
+  opening,
+  onCharge,
+  onViewDetail,
+  onTakeOrder,
+  onCloseTable,
+}) {
   const config = STATUS_CONFIG[table.status] ?? STATUS_CONFIG.libre
   const isColleagues = table.status !== 'libre' && !isMe
   // La mesa de un compañero se ve pero no se opera (el ADMIN si puede)
@@ -76,6 +88,9 @@ function TableCard({ table, isMe, isAdmin, onOpen, opening, onCharge, onViewDeta
     ? null
     : tableAction(table, { onOpen, opening, onCharge, onViewDetail, onTakeOrder })
   const calls = table.pendingCalls?.length ?? 0
+  // Mesa abierta sin pedido (abierta por error): el mesero asignado o el ADMIN la pueden cerrar sin cobro. Sale
+  // donde sale "Tomar Pedido"; el backend vuelve a validar que no tenga productos activos
+  const canCloseEmpty = Boolean(action) && table.status === 'ocupada' && !(table.itemsCount > 0)
 
   return (
     <article
@@ -109,7 +124,7 @@ function TableCard({ table, isMe, isAdmin, onOpen, opening, onCharge, onViewDeta
           </span>
         )}
       </div>
-      <div className="ts-card__actions">
+      <div className={`ts-card__actions${canCloseEmpty ? ' ts-card__actions--row' : ''}`}>
         {action && (
           <button
             type="button"
@@ -119,6 +134,17 @@ function TableCard({ table, isMe, isAdmin, onOpen, opening, onCharge, onViewDeta
             onClick={action.run}
           >
             {action.label}
+          </button>
+        )}
+        {canCloseEmpty && (
+          <button
+            type="button"
+            className="btn ts-btn--close"
+            aria-label={`Cerrar mesa ${table.tableNumber} sin cobro`}
+            title="Cerrar mesa sin cobro"
+            onClick={() => onCloseTable(table)}
+          >
+            <DoorClosed size={18} aria-hidden="true" />
           </button>
         )}
       </div>
@@ -178,6 +204,35 @@ export default function WaiterTablesPanelPage() {
     }
   }
 
+  // Cerrar sin cobro una mesa abierta por error (sin pedido). Pide confirmacion; la tarjeta pasa a libre con la
+  // respuesta (y con table:status_changed en los demas dispositivos)
+  const [closingTable, setClosingTable] = useState(null)
+  const [closingBusy, setClosingBusy] = useState(false)
+
+  const handleCloseTable = async () => {
+    const table = closingTable
+    setClosingBusy(true)
+    setOpenError('')
+    try {
+      await closeOrder(table.orderId)
+      setData((prev) => ({
+        ...prev,
+        tables: prev.tables.map((t) =>
+          t.tableId === table.tableId
+            ? { tableId: t.tableId, tableNumber: t.tableNumber, status: 'libre', pendingCalls: [] }
+            : t,
+        ),
+      }))
+    } catch (err) {
+      setOpenError(err?.message || 'No se pudo cerrar la mesa.')
+      // Le agregaron un pedido, la reasignaron o ya estaba cerrada: lo que se ve quedo viejo
+      if ([403, 404, 409].includes(err?.status)) fetchStatuses().then(setData)
+    } finally {
+      setClosingBusy(false)
+      setClosingTable(null)
+    }
+  }
+
   // GC-ORD-0006: la mesa en cobro abre su cuenta (GET /bill es idempotente con la mesa ya en cobro)
   const handleCharge = (table) => {
     navigate(`/mesero/mesas/${table.orderId}/cobro`)
@@ -213,6 +268,7 @@ export default function WaiterTablesPanelPage() {
     onCharge: handleCharge,
     onViewDetail: handleViewDetail,
     onTakeOrder: handleTakeOrder,
+    onCloseTable: setClosingTable,
   })
 
   return (
@@ -266,6 +322,17 @@ export default function WaiterTablesPanelPage() {
             </section>
           )
         })
+      )}
+
+      {closingTable && (
+        <ConfirmDialog
+          title="Cerrar mesa sin cobro"
+          message={`La mesa ${closingTable.tableNumber} quedará libre sin registrar ningún pago. Úsalo solo si se abrió por error.`}
+          confirmLabel="Sí, cerrar mesa"
+          busy={closingBusy}
+          onConfirm={handleCloseTable}
+          onCancel={() => setClosingTable(null)}
+        />
       )}
     </WaiterPage>
   )
