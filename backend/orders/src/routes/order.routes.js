@@ -5,6 +5,7 @@ import {
   getBillController,
   startBillingController,
 } from '../controllers/bill.controller.js';
+import { closeOrderController } from '../controllers/closeOrder.controller.js';
 import { getOrderDetailController } from '../controllers/orderDetail.controller.js';
 import { registerPaymentController } from '../controllers/payment.controller.js';
 import { authenticate, requireRole } from '../middlewares/authenticate.js';
@@ -69,4 +70,14 @@ orderRouter.post(
   requireRole('WAITER', 'ADMIN'),
   validate({ params: orderIdParamsSchema, body: paymentBodySchema }),
   registerPaymentController,
+);
+
+// Cerrar sin cobro una mesa abierta por error: mesero asignado o ADMIN, sin cuerpo. Exige la orden ABIERTA y sin items que no
+// esten cancelados (las reglas estan en el servicio).
+orderRouter.post(
+  '/:orderId/close',
+  authenticate,
+  requireRole('WAITER', 'ADMIN'),
+  validate({ params: orderIdParamsSchema, body: emptyBodySchema }),
+  closeOrderController,
 );

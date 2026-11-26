@@ -1017,6 +1017,45 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/InvalidTransition' }
+  /api/orders/{orderId}/close:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders - Cobro]
+      summary: Cerrar sin cobro una mesa abierta por error (mesero asignado o ADMIN)
+      description: |
+        Sin cuerpo. El mesero asignado a la orden o el ADMIN (otro WAITER, o un COOK, recibe `403 FORBIDDEN`).
+        Deja libre una mesa que se abrio por error, sin registrar pago.
+        Condiciones: la orden `ABIERTA` y ningun item que no este `cancelado` (lo pedido se anula antes con
+        `POST /api/orders/items/{itemId}/cancel`, que queda en auditoria; lo entregado se cobra). Con la orden
+        `EN_COBRO` se cancela el cobro primero. En otro caso `409 INVALID_TRANSITION`; si quedan items activos,
+        `details.activeItems` (`[{ itemId, productName, status }]`).
+        Efectos, en una sola transaccion con actualizacion condicional: la orden pasa a `CERRADA` con `closedAt`;
+        las solicitudes QR pendientes de la orden pasan a `rechazada` y los llamados pendientes de la mesa a
+        `atendido` (igual que al pagar); auditoria `ORDER_CLOSED_WITHOUT_PAYMENT`. Al no tener pago ni items
+        activos, la orden no cuenta en ventas, cierre de caja, dashboard ni historial. Tras el commit emite
+        `table:status_changed` a la sala `waiters` y `order:updated` (status `CERRADA`) a `waiter:{waiterId}`.
+      x-roles: [WAITER, ADMIN]
+      responses:
+        '200':
+          description: Mesa cerrada sin cobro
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orderId, tableNumber, status, closedAt, rejectedQrRequests, attendedServiceCalls]
+                properties:
+                  orderId: { type: string, format: uuid }
+                  tableNumber: { type: integer }
+                  status: { type: string, enum: [CERRADA] }
+                  closedAt: { type: string, format: date-time }
+                  rejectedQrRequests: { type: integer, minimum: 0 }
+                  attendedServiceCalls: { type: integer, minimum: 0 }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidTransition' }
   /api/orders/{orderId}/discount:
     parameters:
       - $ref: '#/components/parameters/OrderId'

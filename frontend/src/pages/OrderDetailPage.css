@@ -719,3 +719,48 @@
     color: var(--n-900);
   }
 }
+
+/* Cerrar sin cobro una mesa abierta por error (solo ADMIN). Accion secundaria y destructiva: contorno rojo */
+.od-btn-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  width: 100%;
+  height: 44px;
+  margin-top: var(--sp-3);
+  border: 1.5px solid var(--red-600);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--red-600);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.od-btn-close:hover:not(:disabled) {
+  background: var(--red-50);
+}
+
+.od-btn-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.od-close-hint {
+  margin: var(--sp-2) 0 0;
+  font-size: 12px;
+  color: var(--n-600);
+}
+
+/* En tablet y movil los botones ya van separados por el gap del contenedor */
+@media (width <= 1100px) {
+  .od-summary__actions .od-btn-close {
+    margin-top: 0;
+    border-radius: 10px;
+  }
+
+  .od-close-hint {
+    margin-top: calc(-1 * var(--sp-2));
+  }
+}
