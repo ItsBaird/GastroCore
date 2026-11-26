@@ -9,7 +9,7 @@ import './QrSheets.css'
 // mesa con su paso en cocina, mas el total hasta ahora. "Mi Pedido" sigue siendo el carrito por enviar.
 
 const ITEM_STATUS = {
-  pendiente: 'Recibido',
+  pendiente: 'Confirmado',
   en_preparacion: 'Preparando',
   listo: 'Listo',
   entregado: 'Entregado',
