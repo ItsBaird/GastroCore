@@ -1,8 +1,9 @@
 import { ArrowLeft, Ban, Clock, Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { cancelItem, deliverItem, getOrderDetail, startBilling } from '../api/orders.js'
+import { cancelItem, closeOrder, deliverItem, getOrderDetail, startBilling } from '../api/orders.js'
 import { useAuth } from '../auth/useAuth.js'
+import { ConfirmDialog } from '../components/ConfirmDialog.jsx'
 import { useToast } from '../components/Toast.jsx'
 import { useRealtimeEvent } from '../hooks/useRealtimeEvent.js'
 import { WaiterPage } from '../layouts/WaiterLayout.jsx'
@@ -183,6 +184,29 @@ export default function OrderDetailPage() {
       )
       if (err?.status === 409 || err?.status === 404 || err?.status === 403) refresh()
       setRequestingBill(false)
+    }
+  }
+
+  // Cerrar sin cobro una mesa abierta por error: solo ADMIN, con la orden abierta y sin items activos (lo pedido
+  // se anula antes). El backend vuelve a validar todo.
+  const [confirmingClose, setConfirmingClose] = useState(false)
+  const [closing, setClosing] = useState(false)
+
+  const handleCloseTable = async () => {
+    setClosing(true)
+    try {
+      await closeOrder(orderId)
+      toast.success(`Mesa ${order.tableNumber} cerrada sin cobro`)
+      navigate('/mesero/mesas', { replace: true })
+    } catch (err) {
+      toast.error(
+        err?.status === 0
+          ? 'Sin conexión: no se cerró la mesa. Intenta de nuevo.'
+          : err?.message || 'No se pudo cerrar la mesa.',
+      )
+      setConfirmingClose(false)
+      setClosing(false)
+      if (err?.status === 409 || err?.status === 404) refresh()
     }
   }
 
@@ -394,9 +418,39 @@ export default function OrderDetailPage() {
                     ? 'Ver Cobro'
                     : 'Solicitar Cobro'}
               </button>
+              {user?.role === 'ADMIN' && order.status === 'ABIERTA' && (
+                <>
+                  <button
+                    type="button"
+                    className="od-btn-close"
+                    disabled={activeItems.length > 0}
+                    aria-describedby={activeItems.length > 0 ? 'od-close-hint' : undefined}
+                    onClick={() => setConfirmingClose(true)}
+                  >
+                    <Ban size={16} aria-hidden="true" />
+                    Cerrar mesa sin cobro
+                  </button>
+                  {activeItems.length > 0 && (
+                    <p id="od-close-hint" className="od-close-hint">
+                      Anula los productos para poder cerrar la mesa sin cobro.
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           </aside>
         </div>
+      )}
+
+      {confirmingClose && (
+        <ConfirmDialog
+          title="Cerrar mesa sin cobro"
+          message={`La mesa ${order.tableNumber} quedará libre sin registrar ningún pago. Úsalo solo si se abrió por error.`}
+          confirmLabel="Sí, cerrar mesa"
+          busy={closing}
+          onConfirm={handleCloseTable}
+          onCancel={() => setConfirmingClose(false)}
+        />
       )}
 
       {cancelling && (

@@ -18,6 +18,9 @@ export const startBilling = (orderId) =>
 export const cancelBill = (orderId) =>
   api(`/api/orders/${orderId}/cancel-bill`, { method: 'POST' })
 
+// Solo ADMIN, sin cuerpo: cierra sin cobro una mesa abierta por error (orden ABIERTA y sin items activos)
+export const closeOrder = (orderId) => api(`/api/orders/${orderId}/close`, { method: 'POST' })
+
 // R4: sin cuerpo. El backend fija el estado y deliveredAt.
 export const deliverItem = (itemId) =>
   api(`/api/orders/items/${itemId}/deliver`, { method: 'PUT' })
