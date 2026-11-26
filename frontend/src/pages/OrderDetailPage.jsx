@@ -187,8 +187,8 @@ export default function OrderDetailPage() {
     }
   }
 
-  // Cerrar sin cobro una mesa abierta por error: solo ADMIN, con la orden abierta y sin items activos (lo pedido
-  // se anula antes). El backend vuelve a validar todo.
+  // Cerrar sin cobro una mesa abierta por error: mesero asignado o ADMIN, con la orden abierta y sin items activos
+  // (lo pedido se anula antes). El backend vuelve a validar todo.
   const [confirmingClose, setConfirmingClose] = useState(false)
   const [closing, setClosing] = useState(false)
 
@@ -418,7 +418,8 @@ export default function OrderDetailPage() {
                     ? 'Ver Cobro'
                     : 'Solicitar Cobro'}
               </button>
-              {user?.role === 'ADMIN' && order.status === 'ABIERTA' && (
+              {(user?.role === 'ADMIN' || order.waiterId === user?.userId) &&
+                order.status === 'ABIERTA' && (
                 <>
                   <button
                     type="button"

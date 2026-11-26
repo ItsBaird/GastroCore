@@ -8,7 +8,7 @@ import { AuthContext } from '../auth/authContext.js'
 import { ToastProvider } from '../components/Toast.jsx'
 import OrderDetailPage from './OrderDetailPage.jsx'
 
-// "Cerrar mesa sin cobro" en el detalle de la orden: solo ADMIN, con la orden abierta y sin productos activos.
+// "Cerrar mesa sin cobro" en el detalle de la orden: mesero asignado o ADMIN, con la orden abierta y sin productos activos.
 vi.mock('../api/orders.js')
 vi.mock('../hooks/useRealtimeEvent.js', () => ({ useRealtimeEvent: vi.fn() }))
 
@@ -64,8 +64,15 @@ beforeEach(() => {
 })
 
 describe('OrderDetailPage: cerrar mesa sin cobro', () => {
-  it('el mesero no ve el botón', async () => {
+  it('el mesero asignado también lo ve', async () => {
     renderPage({ user: WAITER })
+    await screen.findByText('No hay ítems en esta orden.')
+
+    expect(closeButton()).toBeEnabled()
+  })
+
+  it('un mesero que no es el asignado no lo ve', async () => {
+    renderPage({ user: { ...WAITER, userId: 'user-2' } })
     await screen.findByText('No hay ítems en esta orden.')
 
     expect(closeButton()).toBeNull()
