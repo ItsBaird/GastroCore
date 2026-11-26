@@ -609,3 +609,92 @@
     box-shadow: 0 -10px 16px -14px rgb(10 10 10 / 35%);
   }
 }
+
+/* ---------- "Estado" (propuesta, sin Figma): lo enviado y su paso en cocina ---------- */
+.qr-status__heading {
+  margin: var(--sp-3) 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.qr-status__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.qr-status__products {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  color: var(--n-700);
+}
+
+.qr-status__products li + li {
+  margin-top: var(--sp-1);
+}
+
+.qr-status__tag-row {
+  margin-top: var(--sp-2);
+}
+
+.qr-line--cancelled .qr-line__name,
+.qr-line--cancelled .qr-line__price {
+  color: var(--n-400);
+  text-decoration: line-through;
+}
+
+.qr-sheet__total--minor {
+  font-size: 14px;
+  color: var(--n-600);
+}
+
+/* Etiqueta de estado: el texto queda en gris oscuro (contraste AA) y el color va en el punto */
+.qr-tag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-full);
+  background: var(--n-100);
+  color: var(--n-700);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.qr-tag__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--n-400);
+}
+
+.qr-tag--en_preparacion .qr-tag__dot,
+.qr-tag--req-pendiente .qr-tag__dot {
+  background: var(--orange-500);
+}
+
+.qr-tag--listo .qr-tag__dot {
+  background: var(--blue-600);
+}
+
+.qr-tag--entregado {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+
+.qr-tag--entregado .qr-tag__dot {
+  background: var(--green-600);
+}
+
+.qr-tag--cancelado .qr-tag__dot,
+.qr-tag--req-rechazada .qr-tag__dot {
+  background: var(--red-600);
+}
