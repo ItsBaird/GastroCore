@@ -89,3 +89,7 @@ export const sendOrderRequest = (qrToken, items) =>
       })),
     },
   })
+
+// Lo que el cliente lleva en su mesa: solicitudes sin resolver (pendientes o rechazadas, con productId) e items
+// de la orden con su estado de cocina, mas subtotal, descuento y total. Mesa libre: listas vacias y total 0.
+export const getQrOrderStatus = (qrToken, options) => request(`${tokenPath(qrToken)}/order`, options)

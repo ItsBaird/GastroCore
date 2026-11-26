@@ -494,6 +494,17 @@
 
 .qr-tab:disabled {
   cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* Habilitada: gris oscuro (7,8:1) para que se note que se puede tocar; deshabilitada queda tenue */
+button.qr-tab:enabled {
+  color: var(--n-600);
+  cursor: pointer;
+}
+
+button.qr-tab:enabled:hover {
+  color: var(--red-600);
 }
 
 /* ---------- Estados de pagina completa y en linea (propuesta) ---------- */
